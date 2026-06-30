@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plant Log Analyzer | V28 Trend Line Analytics</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+Thai:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- SheetJS (Excel Engine) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+    <!-- 💡 V28: Chart.js Library for Trend Graph -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com https://cdn.sheetjs.com blob: data:; worker-src 'self' blob:; img-src 'self' data:;">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'Noto Sans Thai', 'sans-serif'] },
+                    colors: { brand: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 900: '#1e3a8a' } }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        body { background-color: #f8fafc; color: #334155; }
+        .card { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03); }
+        .tab-active { color: #2563eb; background-color: #eff6ff; font-weight: 700; border-right: 4px solid #2563eb; }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-in { animation: slideIn 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden antialiased font-sans text-brand-900">
+
+    <!-- Sidebar Navigation -->
+    <aside class="w-20 md:w-64 bg-white border-r border-slate-200 flex flex-col justify-between hidden sm:flex z-20 shadow-sm">
+        <div>
+            <div class="h-16 flex items-center justify-center md:justify-start md:px-6 border-b border-slate-100">
+                <div class="w-8 h-8 rounded-lg bg-brand-500 text-white flex items-center justify-center shadow-md">
+                    <i class="ph-bold ph-factory text-xl"></i>
+                </div>
+                <span class="ml-3 font-bold text-lg hidden md:block text-slate-800 tracking-tight font-sans">Log<span class="text-brand-600">Analyzer</span></span>
+            </div>
+            <nav class="mt-6 flex flex-col gap-1 px-3 font-sans">
+                <button onclick="app.switchTab('dashboard')" id="nav-dashboard" class="flex items-center px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl transition-all font-medium tab-active">
+                    <i class="ph ph-squares-four text-2xl"></i><span class="ml-3 hidden md:block font-bold text-sm">Dashboard สรุปกะ</span>
+                </button>
+                <button onclick="app.switchTab('import')" id="nav-import" class="flex items-center px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl transition-all font-medium">
+                    <i class="ph ph-upload-simple text-2xl"></i><span class="ml-3 hidden md:block text-sm font-bold">นำเข้าข้อมูล</span>
+                </button>
+                <button onclick="app.switchTab('tags')" id="nav-tags" class="flex items-center px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl transition-all font-medium">
+                    <i class="ph ph-list-dashes text-2xl"></i><span class="ml-3 hidden md:block text-sm font-bold">ฐานข้อมูล Tag</span>
+                </button>
+            </nav>
+        </div>
+        <div class="p-4 border-t border-slate-100 text-center">
+            <button onclick="app.clearDatabase()" class="flex items-center justify-center w-full px-4 py-2 text-red-500 hover:bg-red-50 rounded-xl transition-all font-medium text-xs border border-transparent hover:border-red-100">
+                <i class="ph ph-trash text-xl md:mr-2"></i><span class="hidden md:block font-black">ล้างฐานข้อมูล</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-full overflow-hidden relative bg-slate-50/50 font-sans">
+        <header class="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-8 z-10 sticky top-0 shadow-sm">
+            <h1 id="page-title" class="text-xl font-black text-slate-800 tracking-tight">สรุปภาพรวมระบบ</h1>
+            <div class="flex items-center gap-4 font-bold">
+                <div class="px-3 py-1.5 bg-brand-50 text-brand-700 border border-brand-100 rounded-full text-[11px] flex items-center shadow-sm">
+                    <span class="w-2 h-2 rounded-full bg-brand-500 mr-2 animate-pulse"></span> Analytics Engine V28
+                </div>
+            </div>
+        </header>
+
+        <!-- DASHBOARD VIEW -->
+        <div id="view-dashboard" class="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="card p-6 flex items-center justify-between border-t-4 border-t-blue-500 shadow-sm">
+                    <div>
+                        <p class="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Total Parameters</p>
+                        <h3 class="text-3xl font-black mt-1 text-slate-800" id="stat-total-tags">0</h3>
+                        <p class="text-[9px] text-slate-400 font-bold mt-1 uppercase italic">เป้าหมาย: 322</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-brand-500 shadow-inner"><i class="ph-fill ph-tag text-2xl"></i></div>
+                </div>
+                <div class="card p-6 flex items-center justify-between border-t-4 border-t-indigo-500 shadow-sm">
+                    <div>
+                        <p class="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Data Points Logged</p>
+                        <h3 class="text-3xl font-black mt-1 text-slate-800" id="stat-total-records">0</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500 shadow-inner"><i class="ph-fill ph-database text-2xl"></i></div>
+                </div>
+                <div class="card p-6 flex items-center justify-between border-t-4 border-t-red-500 shadow-md bg-red-50/10">
+                    <div>
+                        <p class="text-red-600 text-[10px] font-bold uppercase tracking-widest italic flex items-center gap-1">
+                            <i class="ph-bold ph-warning"></i> Abnormalities
+                        </p>
+                        <h3 class="text-3xl font-black mt-1 text-red-600" id="stat-abnormal">0</h3>
+                        <p class="text-[9px] font-bold mt-1" id="stat-abnormal-sub">
+                            รอตรวจสอบ: <span class="text-red-500">0</span> | จัดการแล้ว: <span class="text-amber-500">0</span>
+                        </p>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 animate-pulse"><i class="ph-fill ph-warning-circle text-2xl"></i></div>
+                </div>
+            </div>
+
+            <div class="card p-0 flex flex-col overflow-hidden min-h-[500px]">
+                <div class="p-6 border-b border-slate-100 bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm">
+                    <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 font-sans tracking-tight">
+                        <i class="ph-fill ph-siren text-red-500"></i> รายการความผิดปกติจำแนกตามเวลา
+                    </h3>
+                    
+                    <div class="flex items-center gap-3 bg-slate-50 p-1 rounded-xl border border-slate-200">
+                        <label for="time-filter" class="text-[10px] font-bold text-slate-400 uppercase ml-2">เลือกกะเวลา:</label>
+                        <select id="time-filter" onchange="app.refreshUI()" class="bg-white border border-slate-200 text-brand-600 text-xs font-black rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-brand-500/20 min-w-[160px] shadow-sm cursor-pointer transition-all">
+                            <option value="all">แสดงทุกช่วงเวลา</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+                    <div id="abnormal-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 font-sans">
+                        <div class="col-span-full h-40 flex items-center justify-center text-slate-400 text-sm font-medium italic text-center leading-relaxed">
+                            กรุณานำเข้าไฟล์ Log Sheet ในเมนู "นำเข้าข้อมูล"
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- IMPORT VIEW -->
+        <div id="view-import" class="hidden flex-1 flex flex-col items-center justify-center p-6 bg-slate-50">
+            <div class="card p-12 max-w-2xl w-full text-center border-dashed border-2 border-slate-300 hover:border-brand-500 hover:bg-brand-50 transition-all relative group cursor-pointer shadow-lg" id="drop-zone">
+                <input type="file" id="file-input" multiple accept=".xls,.xlsx,.csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                <div class="w-20 h-20 bg-brand-100 text-brand-500 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform shadow-md"><i class="ph ph-file-xls text-4xl"></i></div>
+                <h2 class="text-2xl font-black text-slate-800 mb-2 font-sans">อัปโหลด Log Sheets</h2>
+                <p class="text-slate-500 mb-8 font-medium text-sm text-center px-6">ลากไฟล์ <b class="text-brand-600">.xls, .xlsx, หรือ .csv</b> มาวางที่นี่<br>
+                    <small class="text-slate-400 font-bold italic underline">ระบบพร้อมสกัดข้อมูลและสร้างกราฟวิเคราะห์แนวโน้ม (Trend Analytics)</small>
+                </p>
+            </div>
+            <div id="processing-status" class="hidden mt-8 w-full max-w-2xl card p-8 shadow-xl border border-blue-50">
+                <div class="flex justify-between mb-3 items-end">
+                    <span class="font-bold text-slate-800" id="process-filename">กำลังประมวลผล...</span>
+                    <span id="process-percent" class="text-brand-600 font-black text-2xl tracking-tighter">0%</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner border border-slate-200">
+                    <div id="process-bar" class="bg-gradient-to-r from-brand-500 to-cyan-400 h-full transition-all duration-300 relative" style="width: 0%"></div>
+                </div>
+                <div class="mt-4 bg-slate-900 rounded-lg p-4 h-40 overflow-y-auto shadow-2xl text-[11px] text-green-400 font-mono border border-slate-700 leading-tight" id="process-log"></div>
+            </div>
+        </div>
+
+        <!-- TAG DATABASE VIEW -->
+        <div id="view-tags" class="hidden flex-1 flex flex-col p-6 md:p-8 overflow-hidden text-sm">
+            <div class="card p-0 flex-1 flex flex-col overflow-hidden shadow-sm">
+                <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white shadow-sm">
+                    <div>
+                        <h3 class="text-lg font-black text-slate-800 tracking-tight font-sans">Tag & Parameter Master</h3>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">จัดเรียงตามลำดับกระบวนการ: <span id="tag-count-display" class="text-brand-600 font-black">0</span> ค่า</p>
+                    </div>
+                    <div class="relative">
+                        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="tag-search" oninput="app.filterTagTable()" placeholder="ค้นหารหัส Tag..." class="pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-brand-500 w-64 shadow-inner font-medium">
+                    </div>
+                </div>
+                <div class="flex-1 overflow-auto bg-white font-sans">
+                    <table class="w-full text-left whitespace-nowrap text-brand-900">
+                        <thead class="bg-slate-50 text-slate-600 sticky top-0 z-10 shadow-sm border-b border-slate-200 uppercase tracking-tighter font-black">
+                            <tr>
+                                <th class="py-3 px-6">Machine Group</th>
+                                <th class="py-3 px-6">Tag Name</th>
+                                <th class="py-3 px-6">Type</th>
+                                <th class="py-3 px-6">Description</th>
+                                <th class="py-3 px-6 text-center">Normal Range</th>
+                                <th class="py-3 px-6 text-center text-blue-600 font-bold">Min</th>
+                                <th class="py-3 px-6 text-center text-red-600 font-bold">Max</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tag-table-body" class="divide-y divide-slate-100 text-[11px]"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 💡 V28: REMARK & TREND CHART MODAL -->
+        <div id="remark-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity">
+            <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
+                <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
+                    <h3 class="text-md font-black text-slate-800 flex items-center gap-2">
+                        <i class="ph-fill ph-chart-line-up text-brand-500 text-xl"></i> วิเคราะห์แนวโน้ม & บันทึกการจัดการ
+                    </h3>
+                    <button onclick="app.closeRemarkModal()" class="text-slate-400 hover:text-slate-700 transition-colors bg-slate-200/50 hover:bg-slate-200 rounded-full p-1.5">
+                        <i class="ph-bold ph-x text-sm"></i>
+                    </button>
+                </div>
+                
+                <div class="p-6 overflow-y-auto flex-1">
+                    <!-- Tag Header Info -->
+                    <div class="mb-5 flex justify-between items-start bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                        <div>
+                            <p class="text-[10px] text-blue-500 font-black uppercase tracking-widest mb-1">พารามิเตอร์ที่เลือก</p>
+                            <p class="text-xl font-black text-blue-900" id="remark-modal-tag">Tag No.</p>
+                            <p class="text-xs font-bold text-blue-700 mt-1 flex items-center gap-1">
+                                <i class="ph-fill ph-clock"></i> <span id="remark-modal-time">Time</span>
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] text-blue-500 font-black uppercase tracking-widest mb-1">Normal Range</p>
+                            <p class="text-lg font-black text-slate-700" id="remark-modal-norm">-</p>
+                        </div>
+                    </div>
+
+                    <!-- 💡 V28: TREND CHART CONTAINER -->
+                    <div class="mb-6 relative">
+                        <label class="block text-xs font-black text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-1">
+                            <i class="ph-bold ph-trend-up text-brand-500"></i> กราฟแนวโน้มค่าพารามิเตอร์รายวัน
+                        </label>
+                        <div id="chart-wrapper" class="bg-white p-3 rounded-xl border border-slate-200 shadow-inner h-48 relative">
+                            <canvas id="trend-chart"></canvas>
+                            <!-- Error state if data is not numeric -->
+                            <div id="chart-error" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-slate-50/90 rounded-xl text-slate-500 text-xs font-bold backdrop-blur-[1px]">
+                                <i class="ph-fill ph-warning-circle text-2xl text-slate-400 mb-1"></i>
+                                กราฟไม่รองรับการแสดงผลข้อมูลแบบข้อความ (Text Data)
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Remark Input -->
+                    <label class="block text-xs font-black text-slate-700 uppercase tracking-wide mb-2">
+                        หมายเหตุ / การดำเนินการแก้ไข (Action Taken):
+                    </label>
+                    <textarea id="remark-input" class="w-full border-2 border-slate-200 rounded-xl p-3 text-sm font-medium focus:ring-4 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all placeholder:text-slate-300 placeholder:font-normal resize-none" rows="3" placeholder="เช่น แจ้ง Operator ปรับจูนวาล์ว, รอตรวจสอบเซ็นเซอร์..."></textarea>
+                </div>
+
+                <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
+                    <button onclick="app.clearRemark()" class="text-xs font-bold text-red-500 hover:text-red-700 hover:underline flex items-center gap-1 transition-colors">
+                        <i class="ph-bold ph-trash"></i> ล้างการจัดการ
+                    </button>
+                    <div class="flex gap-2">
+                        <button onclick="app.closeRemarkModal()" class="px-5 py-2.5 rounded-lg text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 shadow-sm transition-all">ปิดหน้าต่าง</button>
+                        <button onclick="app.saveRemark()" class="px-6 py-2.5 rounded-lg text-xs font-black bg-brand-500 text-white shadow-md hover:bg-brand-600 hover:shadow-lg transition-all flex items-center gap-2">
+                            <i class="ph-bold ph-floppy-disk"></i> บันทึกหมายเหตุ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // ==========================================
+        // 1. WEB WORKER ENGINE
+        // ==========================================
+        const workerCode = `
+            function parseCSV(text) {
+                let ret = [], inQuote = false, value = '';
+                for (let i = 0; i < text.length; i++) {
+                    let char = text[i];
+                    if (char === '"') { inQuote = !inQuote; }
+                    else if (char === ',' && !inQuote) { ret.push(value); value = ''; }
+                    else { value += char; }
+                }
+                ret.push(value);
+                return ret;
+            }
+
+            self.onmessage = function(e) {
+                try {
+                    const { content, sheetName } = e.data;
+                    const lines = content.split(/\\r\\n|\\n/);
+                    let currentTagsMap = {}, lastDescs = {}, tagsOut = [], recordsOut = [];
+                    let globalDate = new Date().toISOString().split('T')[0];
+                    let lastRowTime = null; 
+                    let tagCounter = 0; 
+
+                    function isTag(v) {
+                        if(!v || v.length < 3 || v.length > 25) return false;
+                        let val = v.trim().toLowerCase();
+                        if(!/[0-9]/.test(val)) return false; 
+                        if(['time','date','shift','remark','tagno','name','item','unit'].some(n => val === n)) return false;
+                        if(/\\b[A-Z]\\.$/.test(v.trim())) return false; 
+                        return true;
+                    }
+
+                    function extractTimeFromRow(cols) {
+                        for(let c = 0; c < cols.length; c++) {
+                            let s = (cols[c] || '').trim();
+                            if(!s) continue;
+                            let m = s.match(/^(\\d{1,2})\\s*[:.]\\s*(\\d{2})/);
+                            if(m) return m[1].padStart(2, '0') + ':' + m[2];
+                            let n = parseFloat(s.replace(/,/g, ''));
+                            if(!isNaN(n) && n > 0 && n < 1 && s.includes('.')) {
+                                let sec = Math.round(n * 86400);
+                                return String(Math.floor(sec / 3600)).padStart(2,'0') + ':' + String(Math.floor((sec % 3600) / 60)).padStart(2,'0');
+                            }
+                            if(!isNaN(n) && n > 40000) { 
+                                let jd = new Date((n - 25569) * 86400 * 1000);
+                                return String(jd.getUTCHours()).padStart(2,'0') + ':' + String(jd.getUTCMinutes()).padStart(2,'0');
+                            }
+                        }
+                        return null;
+                    }
+
+                    for (let i = 0; i < lines.length; i++) {
+                        if (i % 200 === 0) self.postMessage({ type: 'progress', p: Math.round((i / lines.length) * 100) });
+                        let cols = parseCSV(lines[i]);
+                        let firstZone = cols.slice(0, 25).map(c => c.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+
+                        if (firstZone.some(c => ['name','item','description'].includes(c))) {
+                            lastDescs = {};
+                            cols.forEach((v, idx) => { if(v && !['name','item','description'].includes(v.trim().toLowerCase())) lastDescs[idx] = v.trim(); });
+                        } 
+                        else if (firstZone.some(c => ['tagno', 'tag', 'tagnumber'].includes(c))) {
+                            currentTagsMap = {};
+                            cols.forEach((v, idx) => {
+                                let val = v.trim();
+                                if(isTag(val)) {
+                                    tagCounter++; 
+                                    let pType = "PV"; 
+                                    if(cols[idx-1] && ['pv','mv','sv','set'].includes(cols[idx-1].toLowerCase().trim())) pType = cols[idx-1].toUpperCase();
+                                    currentTagsMap[idx] = { 
+                                        machine: sheetName, tagNo: val, paramType: pType, fullId: val + "_" + pType,
+                                        description: lastDescs[idx] || '', normalText: '', min: null, max: null, exactNum: null, exactStr: null,
+                                        sortIndex: tagCounter 
+                                    };
+                                    tagsOut.push(currentTagsMap[idx]);
+                                }
+                            });
+                        }
+                        else if (firstZone.some(c => c.includes('normal') || c.includes('norm'))) {
+                            for(let idx in currentTagsMap) {
+                                let nt = cols[idx] ? cols[idx].trim() : '';
+                                if(nt && !['normal', 'norm'].includes(nt.toLowerCase())) {
+                                    let tag = currentTagsMap[idx]; tag.normalText = nt;
+                                    let cleanTxt = nt.replace(/,/g, '').replace(/[()]/g, ' ').toLowerCase().replace(/(?<=[a-z])\\d+/g, ' '); 
+                                    let rangeTxt = cleanTxt.replace(/(?<=\\d)\\s*[-\\u2013\\u2014~]\\s*(?=\\d)/g, ' ').replace(/to|ถึง|ไปจนถึง/g, ' ');
+                                    const numbers = rangeTxt.match(/-?\\d+(\\.\\d+)?/g);
+                                    if (cleanTxt.includes('<')) { if (numbers) tag.max = parseFloat(numbers[0]); }
+                                    else if (cleanTxt.includes('>')) { if (numbers) tag.min = parseFloat(numbers[0]); }
+                                    else if (numbers && numbers.length >= 2) {
+                                        let v1 = parseFloat(numbers[0]), v2 = parseFloat(numbers[1]);
+                                        tag.min = Math.min(v1, v2); tag.max = Math.max(v1, v2);
+                                    } else if (numbers && numbers.length === 1) { tag.exactNum = parseFloat(numbers[0]); }
+                                }
+                            }
+                        }
+                        else {
+                            if(Object.keys(currentTagsMap).length === 0) continue;
+                            
+                            let timeStr = extractTimeFromRow(cols);
+
+                            if (!timeStr && lastRowTime) {
+                                let ri = cols.slice(0,3).join(' ').toLowerCase();
+                                if (ri.includes('mv') || ri.includes('sv')) {
+                                    timeStr = lastRowTime;
+                                    let typeStr = ri.includes('mv') ? "MV" : "SV";
+                                    for(let idx in currentTagsMap) {
+                                        let vStr = (cols[idx] || '').trim();
+                                        if(vStr && !['nodata','na','nd',''].includes(vStr.toLowerCase().replace(/[^a-z0-9]/g,''))) {
+                                            recordsOut.push({ 
+                                                machine: sheetName, tagNo: currentTagsMap[idx].tagNo, paramType: typeStr, 
+                                                dateStr: globalDate, timeStr: timeStr, timestamp: new Date(globalDate + 'T' + timeStr + ':00').getTime(), 
+                                                value: vStr, isAbnormal: 0, sortIndex: currentTagsMap[idx].sortIndex,
+                                                remark: '', actionStatus: 'new' 
+                                            });
+                                        }
+                                    }
+                                    continue;
+                                }
+                            }
+
+                            if(timeStr) {
+                                lastRowTime = timeStr;
+                                for(let idx in currentTagsMap) {
+                                    let vStr = (cols[idx] || '').trim();
+                                    if(vStr && !['nodata','na','nd',''].includes(vStr.toLowerCase().replace(/[^a-z0-9]/g,''))) {
+                                        let tag = currentTagsMap[idx], val = parseFloat(vStr.replace(/,/g, '')), isAb = 0, fV = vStr;
+                                        if(!isNaN(val) && vStr !== '') {
+                                            if(tag.min !== null && val < (tag.min - 0.0001)) isAb = 1;
+                                            if(tag.max !== null && val > (tag.max + 0.0001)) isAb = 1;
+                                            if(tag.exactNum !== null && Math.abs(val - tag.exactNum) > 0.0001) isAb = 1;
+                                            fV = val;
+                                        } else {
+                                            let tV = vStr.toLowerCase();
+                                            if(tag.exactStr && tV !== tag.exactStr) isAb = 1;
+                                            else if(tag.min !== null || tag.max !== null || tag.exactNum !== null) isAb = 1;
+                                        }
+                                        recordsOut.push({ 
+                                            machine: sheetName, tagNo: tag.tagNo, paramType: tag.paramType, 
+                                            dateStr: globalDate, timeStr: timeStr, timestamp: new Date(globalDate + 'T' + timeStr + ':00').getTime(), 
+                                            value: fV, isAbnormal: isAb, sortIndex: tag.sortIndex,
+                                            remark: '', actionStatus: 'new' 
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    const finalMap = new Map();
+                    tagsOut.forEach(t => {
+                        let key = t.tagNo + "_" + t.paramType;
+                        if(finalMap.has(key)) {
+                            let ext = finalMap.get(key);
+                            if(t.normalText && !ext.normalText) Object.assign(ext, t);
+                        } else finalMap.set(key, t);
+                    });
+                    self.postMessage({ type: 'done', tags: Array.from(finalMap.values()), records: recordsOut });
+                } catch (error) { self.postMessage({ type: 'error', msg: error.message }); }
+            };
+        `;
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(blob);
+
+        // ==========================================
+        // 2. DATABASE MANAGER
+        // ==========================================
+        const DB = {
+            db: null,
+            init: function() {
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open('LogAnalyzerDB', 23); 
+                    req.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if(db.objectStoreNames.contains('Tags')) db.deleteObjectStore('Tags');
+                        if(db.objectStoreNames.contains('Records')) db.deleteObjectStore('Records');
+                        db.createObjectStore('Tags', { keyPath: ['tagNo', 'paramType'] });
+                        const s = db.createObjectStore('Records', { keyPath: 'id', autoIncrement: true });
+                        s.createIndex('isAbnormal', 'isAbnormal', { unique: false });
+                        s.createIndex('timeStr', 'timeStr', { unique: false });
+                    };
+                    req.onsuccess = (e) => { this.db = e.target.result; resolve(); };
+                    req.onerror = reject;
+                });
+            },
+            save: function(tags, records) {
+                return new Promise((resolve) => {
+                    if(!this.db) return resolve();
+                    const tx = this.db.transaction(['Tags', 'Records'], 'readwrite');
+                    tags.forEach(t => tx.objectStore('Tags').put(t));
+                    records.forEach(r => tx.objectStore('Records').put(r));
+                    tx.oncomplete = resolve;
+                });
+            },
+            updateRecord: function(id, updates) {
+                return new Promise((resolve) => {
+                    if(!this.db) return resolve();
+                    const tx = this.db.transaction(['Records'], 'readwrite');
+                    const store = tx.objectStore('Records');
+                    const req = store.get(id);
+                    req.onsuccess = (e) => {
+                        const record = e.target.result;
+                        if(record) {
+                            Object.assign(record, updates);
+                            store.put(record);
+                        }
+                    };
+                    tx.oncomplete = resolve;
+                });
+            },
+            getSummary: function() {
+                return new Promise(async (resolve) => {
+                    if(!this.db) return resolve({totalTags:0, totalRecords:0, abnormalRecords:[]});
+                    const tx = this.db.transaction(['Tags', 'Records'], 'readonly');
+                    const tS = tx.objectStore('Tags');
+                    const rS = tx.objectStore('Records');
+                    let tCount = 0, rCount = 0, abNorms = [];
+                    tS.count().onsuccess = (e) => tCount = e.target.result;
+                    rS.count().onsuccess = (e) => rCount = e.target.result;
+                    rS.index('isAbnormal').getAll(IDBKeyRange.only(1)).onsuccess = (e) => {
+                        abNorms = e.target.result;
+                    };
+                    tx.oncomplete = () => resolve({ totalTags: tCount, totalRecords: rCount, abnormalRecords: abNorms });
+                });
+            }
+        };
+
+        const app = {
+            allTags: [],
+            allRecords: [], // 💡 Store all records globally to build historical chart
+            currentAbnormalRecords: [], 
+            currentRemarkId: null,      
+            trendChart: null, // 💡 Chart.js Instance
+
+            init: async function() {
+                try { await DB.init(); this.setupListeners(); this.refreshUI(); } catch(e) { console.error(e); }
+            },
+            switchTab: function(tab) {
+                ['dashboard', 'import', 'tags'].forEach(n => {
+                    document.getElementById('nav-'+n).classList.remove('tab-active');
+                    document.getElementById('view-'+n).classList.add('hidden');
+                });
+                document.getElementById('nav-'+tab).classList.add('tab-active');
+                document.getElementById('view-'+tab).classList.remove('hidden');
+            },
+            populateTimeDropdown: function(allRecords) {
+                const select = document.getElementById('time-filter');
+                const currentVal = select.value;
+                const uniqueTimes = [...new Set(allRecords.map(r => r.timeStr))].sort();
+                
+                select.innerHTML = '<option value="all">แสดงทุกช่วงเวลา</option>';
+                uniqueTimes.forEach(time => {
+                    const opt = document.createElement('option');
+                    opt.value = time;
+                    opt.textContent = time + ' น.';
+                    select.appendChild(opt);
+                });
+                if (uniqueTimes.includes(currentVal)) select.value = currentVal;
+            },
+
+            // 💡 V28: RENDER TREND CHART
+            renderChart: function(historyData, tagDef) {
+                const canvas = document.getElementById('trend-chart');
+                const container = document.getElementById('chart-wrapper');
+                const errorDiv = document.getElementById('chart-error');
+
+                if (this.trendChart) {
+                    this.trendChart.destroy();
+                }
+
+                // Check if the parameter has numeric data to plot
+                const numericHistory = historyData.map(h => ({
+                    time: h.timeStr,
+                    val: parseFloat(h.value),
+                    isAb: h.isAbnormal
+                })).filter(h => !isNaN(h.val));
+
+                if (numericHistory.length === 0) {
+                    canvas.style.display = 'none';
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+
+                canvas.style.display = 'block';
+                errorDiv.classList.add('hidden');
+
+                const labels = numericHistory.map(h => h.time);
+                const data = numericHistory.map(h => h.val);
+                
+                // Color points red if abnormal, brand color if normal
+                const pointColors = numericHistory.map(h => h.isAb === 1 ? '#ef4444' : '#3b82f6');
+                const pointRadii = numericHistory.map(h => h.isAb === 1 ? 6 : 4);
+
+                const datasets = [{
+                    label: 'ค่าที่บันทึก (PV/MV)',
+                    data: data,
+                    borderColor: '#3b82f6',
+                    backgroundColor: '#3b82f6',
+                    pointBackgroundColor: pointColors,
+                    pointBorderColor: pointColors,
+                    pointRadius: pointRadii,
+                    pointHoverRadius: 8,
+                    borderWidth: 2,
+                    tension: 0.1 // Slight curve
+                }];
+
+                // Draw Horizontal Limit Lines
+                if (tagDef) {
+                    if (tagDef.max !== null) {
+                        datasets.push({
+                            label: 'Max Limit (' + tagDef.max + ')',
+                            data: labels.map(() => tagDef.max),
+                            borderColor: '#ef4444',
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            borderWidth: 1.5,
+                            fill: false
+                        });
+                    }
+                    if (tagDef.min !== null) {
+                        datasets.push({
+                            label: 'Min Limit (' + tagDef.min + ')',
+                            data: labels.map(() => tagDef.min),
+                            borderColor: '#f59e0b',
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            borderWidth: 1.5,
+                            fill: false
+                        });
+                    }
+                }
+
+                // Chart Configurations
+                this.trendChart = new Chart(canvas.getContext('2d'), {
+                    type: 'line',
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: { boxWidth: 12, usePointStyle: true, font: { family: 'Inter', size: 10 } }
+                            },
+                            tooltip: {
+                                titleFont: { family: 'Inter', size: 11 },
+                                bodyFont: { family: 'Inter', size: 12, weight: 'bold' },
+                                padding: 10,
+                                cornerRadius: 8
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                ticks: { font: { family: 'Inter', size: 10, weight: 'bold' } }
+                            },
+                            y: {
+                                suggestedMin: tagDef && tagDef.min !== null ? tagDef.min - (Math.abs(tagDef.min)*0.1) : undefined,
+                                suggestedMax: tagDef && tagDef.max !== null ? tagDef.max + (Math.abs(tagDef.max)*0.1) : undefined,
+                                grid: { color: '#f1f5f9' },
+                                ticks: { font: { family: 'Inter', size: 10 } }
+                            }
+                        }
+                    }
+                });
+            },
+
+            openRemarkModal: function(recordId) {
+                this.currentRemarkId = recordId;
+                const record = this.currentAbnormalRecords.find(r => r.id === recordId);
+                if(!record) return;
+
+                document.getElementById('remark-modal-tag').innerText = `${record.tagNo} [${record.paramType}]`;
+                document.getElementById('remark-modal-time').innerText = `${record.dateStr} เวลา ${record.timeStr} น.`;
+                
+                const tagDef = this.allTags.find(t => t.tagNo === record.tagNo && t.paramType === record.paramType);
+                document.getElementById('remark-modal-norm').innerText = tagDef ? (tagDef.normalText || '-') : '-';
+                
+                document.getElementById('remark-input').value = record.remark || '';
+                
+                // 💡 V28: Extract Historical Data for Chart
+                const history = this.allRecords
+                    .filter(r => r.tagNo === record.tagNo && r.paramType === record.paramType && r.dateStr === record.dateStr)
+                    .sort((a, b) => a.timestamp - b.timestamp);
+                
+                this.renderChart(history, tagDef);
+
+                document.getElementById('remark-modal').classList.remove('hidden');
+                setTimeout(() => document.getElementById('remark-input').focus(), 100);
+            },
+            closeRemarkModal: function() {
+                document.getElementById('remark-modal').classList.add('hidden');
+                this.currentRemarkId = null;
+            },
+            saveRemark: async function() {
+                if(!this.currentRemarkId) return;
+                const text = document.getElementById('remark-input').value.trim();
+                const updates = { 
+                    remark: text, 
+                    actionStatus: text ? 'acknowledged' : 'new' 
+                };
+                await DB.updateRecord(this.currentRemarkId, updates);
+                this.closeRemarkModal();
+                this.refreshUI();
+            },
+            clearRemark: async function() {
+                if(!this.currentRemarkId) return;
+                await DB.updateRecord(this.currentRemarkId, { remark: '', actionStatus: 'new' });
+                this.closeRemarkModal();
+                this.refreshUI();
+            },
+
+            refreshUI: async function() {
+                if(!DB.db) return;
+                const tx = DB.db.transaction(['Tags', 'Records'], 'readonly');
+                const tS = tx.objectStore('Tags');
+                const rS = tx.objectStore('Records');
+                
+                let allRecs = [], tCount = 0, rCount = 0;
+                tS.count().onsuccess = e => tCount = e.target.result;
+                rS.count().onsuccess = e => rCount = e.target.result;
+                rS.getAll().onsuccess = e => allRecs = e.target.result;
+
+                tx.oncomplete = () => {
+                    this.allRecords = allRecs; // 💡 Save globally for charting
+                    this.populateTimeDropdown(allRecs);
+                    const timeFilter = document.getElementById('time-filter').value;
+                    const abList = allRecs.filter(r => r.isAbnormal === 1);
+                    
+                    const txTags = DB.db.transaction('Tags', 'readonly');
+                    txTags.objectStore('Tags').getAll().onsuccess = (e) => {
+                        this.allTags = e.target.result;
+                        
+                        document.getElementById('stat-total-tags').innerText = tCount.toLocaleString();
+                        const elCountDisp = document.getElementById('tag-count-display');
+                        if(elCountDisp) elCountDisp.innerText = tCount.toLocaleString();
+                        document.getElementById('stat-total-records').innerText = rCount.toLocaleString();
+
+                        const container = document.getElementById('abnormal-list-container');
+                        if(container) {
+                            let displayList = abList;
+                            if (timeFilter !== 'all') {
+                                displayList = abList.filter(r => r.timeStr === timeFilter);
+                            }
+
+                            displayList.sort((a,b) => {
+                                if (a.timeStr !== b.timeStr) return a.timeStr.localeCompare(b.timeStr);
+                                const n1 = parseInt(a.machine.match(/\\d+/)?.[0] || '999');
+                                const n2 = parseInt(b.machine.match(/\\d+/)?.[0] || '999');
+                                if (n1 !== n2) return n1 - n2;
+                                return (a.sortIndex || 0) - (b.sortIndex || 0);
+                            });
+
+                            this.currentAbnormalRecords = displayList;
+
+                            const totalAbnormal = displayList.length;
+                            const ackCount = displayList.filter(r => r.actionStatus === 'acknowledged').length;
+                            const pendingCount = totalAbnormal - ackCount;
+
+                            document.getElementById('stat-abnormal').innerText = totalAbnormal.toLocaleString();
+                            document.getElementById('stat-abnormal-sub').innerHTML = `รอตรวจสอบ: <span class="text-red-500">${pendingCount}</span> | จัดการแล้ว: <span class="text-amber-500">${ackCount}</span>`;
+
+                            container.innerHTML = displayList.length ? '' : '<div class="col-span-full h-40 flex items-center justify-center text-slate-400 italic font-medium">ไม่พบพารามิเตอร์ผิดปกติในช่วงเวลานี้</div>';
+                            
+                            displayList.slice(0, 100).forEach(r => {
+                                const t = this.allTags.find(x => x.tagNo === r.tagNo && x.paramType === r.paramType);
+                                
+                                const isAck = r.actionStatus === 'acknowledged';
+                                const stripColor = isAck ? 'bg-amber-400' : 'bg-red-500';
+                                const borderColor = isAck ? 'border-amber-200 hover:border-amber-400' : 'border-red-100 hover:border-red-400';
+                                const bgColor = isAck ? 'bg-amber-50/20' : 'bg-white';
+                                const textColor = isAck ? 'text-amber-600' : 'text-red-600';
+                                const icon = isAck ? '<i class="ph-fill ph-check-circle text-amber-500 text-sm"></i>' : '<i class="ph-fill ph-warning-circle text-red-500 text-sm"></i>';
+
+                                let remarkHtml = '';
+                                if (r.remark) {
+                                    remarkHtml = `
+                                    <div class="mt-3 pt-2 border-t ${isAck ? 'border-amber-100' : 'border-red-50'} flex flex-col gap-0.5">
+                                        <span class="text-[9px] font-black ${isAck ? 'text-amber-500' : 'text-red-400'} uppercase tracking-widest flex items-center gap-1">
+                                            <i class="ph-bold ph-chat-text"></i> หมายเหตุการจัดการ
+                                        </span>
+                                        <p class="text-xs ${isAck ? 'text-amber-800' : 'text-red-700'} font-medium leading-tight line-clamp-2">"${r.remark}"</p>
+                                    </div>`;
+                                }
+
+                                container.innerHTML += `
+                                    <div class="p-5 rounded-xl ${bgColor} border ${borderColor} shadow-sm relative overflow-hidden flex flex-col h-auto min-h-[8rem] transition-all animate-slide-in group cursor-pointer" onclick="app.openRemarkModal(${r.id})">
+                                        <div class="absolute top-0 left-0 w-1.5 h-full ${stripColor} transition-colors"></div>
+                                        <div class="flex justify-between text-[10px] text-slate-400 font-bold uppercase mb-2 tracking-tighter">
+                                            <span class="flex items-center gap-1.5">${icon} <span class="mt-0.5">${r.dateStr} • ${r.timeStr}</span></span>
+                                            <span class="bg-slate-100 px-2 py-0.5 rounded text-slate-600">${r.machine}</span>
+                                        </div>
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-black text-slate-800 text-base leading-none">${r.tagNo}</span>
+                                                <span class="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded text-[9px] font-black tracking-widest uppercase">${r.paramType}</span>
+                                            </div>
+                                            <p class="text-[10px] text-slate-500 truncate mt-1 font-medium">${t?.description || ''}</p>
+                                        </div>
+                                        <div class="flex justify-between items-end pt-3 mt-1">
+                                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Norm: ${t?.normalText || 'N/A'}</span>
+                                            <span class="text-2xl font-black ${textColor} leading-none transition-colors">${r.value}</span>
+                                        </div>
+                                        ${remarkHtml}
+                                        
+                                        <div class="absolute inset-0 bg-slate-900/5 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center rounded-xl duration-200">
+                                            <span class="bg-white text-brand-700 px-4 py-2 rounded-full text-xs font-black shadow-lg flex items-center gap-2 transform translate-y-2 group-hover:translate-y-0 transition-transform">
+                                                <i class="ph-bold ph-chart-line-up text-lg"></i> ดูกราฟ & จัดการ
+                                            </span>
+                                        </div>
+                                    </div>`;
+                            });
+                        }
+                        this.renderTagTable();
+                    };
+                };
+            },
+            renderTagTable: function() {
+                const b = document.getElementById('tag-table-body');
+                if(!b) return;
+                b.innerHTML = this.allTags.length ? '' : '<tr><td colspan="7" class="text-center py-8 text-slate-400 italic font-medium font-sans">ยังไม่มีข้อมูลในระบบ</td></tr>';
+                
+                this.allTags.sort((a,b) => {
+                    const n1 = parseInt(a.machine.match(/\\d+/)?.[0] || '999');
+                    const n2 = parseInt(b.machine.match(/\\d+/)?.[0] || '999');
+                    if (n1 !== n2) return n1 - n2;
+                    return (a.sortIndex || 0) - (b.sortIndex || 0);
+                });
+
+                this.allTags.forEach(t => {
+                    b.innerHTML += `
+                        <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors font-medium text-brand-900">
+                            <td class="py-3 px-6 text-slate-500 font-bold uppercase tracking-tighter font-sans">${t.machine}</td>
+                            <td class="py-3 px-6 font-black text-slate-800 font-sans">${t.tagNo}</td>
+                            <td class="py-3 px-6 font-sans"><span class="bg-blue-100 text-blue-700 px-2 rounded-full font-black text-[9px] tracking-widest uppercase">${t.paramType}</span></td>
+                            <td class="py-3 px-6 text-slate-600 text-[10px] truncate max-w-xs font-sans">${t.description}</td>
+                            <td class="py-3 px-6 text-center font-sans"><span class="px-2 py-0.5 bg-slate-100 rounded text-[9px] font-black text-slate-700 uppercase">${t.normalText || '-'}</span></td>
+                            <td class="py-3 px-6 text-center text-blue-600 font-black font-sans">${t.min ?? (t.exactNum ?? '-')}</td>
+                            <td class="py-3 px-6 text-center text-red-600 font-black font-sans">${t.max ?? (t.exactNum ?? (t.exactStr ? 'Match' : '-'))}</td>
+                        </tr>`;
+                });
+            },
+            filterTagTable: function() {
+                const q = document.getElementById('tag-search').value.toLowerCase();
+                const rows = document.getElementById('tag-table-body').children;
+                for (let r of rows) r.style.display = r.innerText.toLowerCase().includes(q) ? '' : 'none';
+            },
+            setupListeners: function() {
+                const dz = document.getElementById('drop-zone');
+                const fi = document.getElementById('file-input');
+                if(fi) fi.onchange = (e) => this.processFiles(e.target.files);
+                if(dz) {
+                    dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('bg-brand-50'); };
+                    dz.ondragleave = () => dz.classList.remove('bg-brand-50');
+                    dz.ondrop = (e) => { e.preventDefault(); this.processFiles(e.dataTransfer.files); };
+                }
+            },
+            processFiles: async function(files) {
+                if(!files.length) return;
+                document.getElementById('drop-zone').classList.add('hidden');
+                document.getElementById('processing-status').classList.remove('hidden');
+                const log = document.getElementById('process-log'); log.innerHTML = '';
+                
+                for(let f of files) {
+                    document.getElementById('process-filename').innerText = "Analyzing: " + f.name;
+                    await new Promise(resolve => {
+                        const reader = new FileReader();
+                        reader.onload = async (e) => {
+                            try {
+                                const wb = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+                                for(let sn of wb.SheetNames) {
+                                    log.innerHTML += "> Extracting Sheet: " + sn + "...<br>";
+                                    const csv = XLSX.utils.sheet_to_csv(wb.Sheets[sn], {raw:true});
+                                    await new Promise(res => {
+                                        const w = new Worker(workerUrl);
+                                        w.onmessage = async (ev) => {
+                                            if(ev.data.type==='progress') {
+                                                document.getElementById('process-bar').style.width = ev.data.p + '%';
+                                                document.getElementById('process-percent').innerText = ev.data.p + '%';
+                                            } else if(ev.data.type==='done') {
+                                                await DB.save(ev.data.tags, ev.data.records);
+                                                log.innerHTML += "  ✓ Processed " + ev.data.tags.length + " items in " + sn + "<br>";
+                                                w.terminate(); res();
+                                            }
+                                        };
+                                        w.postMessage({ content: csv, sheetName: sn });
+                                    });
+                                }
+                            } catch (err) { log.innerHTML += "  ❌ Error: " + err.message + "<br>"; }
+                            resolve();
+                        };
+                        reader.readAsArrayBuffer(f);
+                    });
+                }
+                setTimeout(() => { this.refreshUI(); this.switchTab('dashboard'); document.getElementById('drop-zone').classList.remove('hidden'); document.getElementById('processing-status').classList.add('hidden'); }, 1500);
+            },
+            clearDatabase: async function() { 
+                if(!DB.db) return;
+                if(confirm("ล้างข้อมูลฐานข้อมูลทั้งหมด?")) { 
+                    const tx = DB.db.transaction(['Tags','Records'], 'readwrite'); 
+                    tx.objectStore('Tags').clear(); 
+                    tx.objectStore('Records').clear(); 
+                    tx.oncomplete = () => {
+                        document.getElementById('time-filter').innerHTML = '<option value="all">แสดงทุกเวลา</option>';
+                        this.refreshUI();
+                    }; 
+                } 
+            }
+        };
+
+        window.onload = () => app.init();
+    </script>
+</body>
+</html>
