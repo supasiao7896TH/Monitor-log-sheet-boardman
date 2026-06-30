@@ -290,8 +290,20 @@
                     const lines = content.split(/\\r\\n|\\n/);
                     let currentTagsMap = {}, lastDescs = {}, tagsOut = [], recordsOut = [];
                     let globalDate = new Date().toISOString().split('T')[0];
-                    let lastRowTime = null; 
-                    let tagCounter = 0; 
+                    let dateLocked = false;
+                    let lastRowTime = null;
+                    let tagCounter = 0;
+
+                    function excelSerialToDateStr(n) {
+                        let jd = new Date((n - 25569) * 86400 * 1000);
+                        let y = jd.getUTCFullYear();
+                        if (y < 2000 || y > 2100) return null;
+                        return y + '-' + String(jd.getUTCMonth()+1).padStart(2,'0') + '-' + String(jd.getUTCDate()).padStart(2,'0');
+                    }
+
+                    function tryLockDate(dStr) {
+                        if (!dateLocked && dStr) { globalDate = dStr; dateLocked = true; }
+                    }
 
                     function isTag(v) {
                         if(!v || v.length < 3 || v.length > 25) return false;
@@ -313,8 +325,9 @@
                                 let sec = Math.round(n * 86400);
                                 return String(Math.floor(sec / 3600)).padStart(2,'0') + ':' + String(Math.floor((sec % 3600) / 60)).padStart(2,'0');
                             }
-                            if(!isNaN(n) && n > 40000) { 
+                            if(!isNaN(n) && n > 40000) {
                                 let jd = new Date((n - 25569) * 86400 * 1000);
+                                tryLockDate(excelSerialToDateStr(n));
                                 return String(jd.getUTCHours()).padStart(2,'0') + ':' + String(jd.getUTCMinutes()).padStart(2,'0');
                             }
                         }
@@ -346,6 +359,36 @@
                                     tagsOut.push(currentTagsMap[idx]);
                                 }
                             });
+                        }
+                        else if (firstZone.some(c => c === 'date')) {
+                            if (!dateLocked) {
+                                for (let c = 0; c < cols.length; c++) {
+                                    let s = (cols[c] || '').trim();
+                                    if (!s) continue;
+                                    let n = parseFloat(s.replace(/,/g, ''));
+                                    if (!isNaN(n) && n > 40000) {
+                                        tryLockDate(excelSerialToDateStr(n));
+                                        if (dateLocked) break;
+                                        continue;
+                                    }
+                                    let m1 = s.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})$/);
+                                    if (m1) {
+                                        let yy = parseInt(m1[1]), mm = parseInt(m1[2]), dd = parseInt(m1[3]);
+                                        if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+                                            tryLockDate(yy + '-' + String(mm).padStart(2,'0') + '-' + String(dd).padStart(2,'0'));
+                                            break;
+                                        }
+                                    }
+                                    let m2 = s.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);
+                                    if (m2) {
+                                        let dd = parseInt(m2[1]), mm = parseInt(m2[2]), yy = parseInt(m2[3]);
+                                        if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+                                            tryLockDate(yy + '-' + String(mm).padStart(2,'0') + '-' + String(dd).padStart(2,'0'));
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
                         }
                         else if (firstZone.some(c => c.includes('normal') || c.includes('norm'))) {
                             for(let idx in currentTagsMap) {
@@ -418,7 +461,7 @@
                     }
                     const finalMap = new Map();
                     tagsOut.forEach(t => {
-                        let key = t.tagNo + "_" + t.paramType;
+                        let key = t.machine + "_" + t.tagNo + "_" + t.paramType;
                         if(finalMap.has(key)) {
                             let ext = finalMap.get(key);
                             if(t.normalText && !ext.normalText) Object.assign(ext, t);
@@ -438,12 +481,12 @@
             db: null,
             init: function() {
                 return new Promise((resolve, reject) => {
-                    const req = indexedDB.open('LogAnalyzerDB', 23); 
+                    const req = indexedDB.open('LogAnalyzerDB', 24);
                     req.onupgradeneeded = (e) => {
                         const db = e.target.result;
                         if(db.objectStoreNames.contains('Tags')) db.deleteObjectStore('Tags');
                         if(db.objectStoreNames.contains('Records')) db.deleteObjectStore('Records');
-                        db.createObjectStore('Tags', { keyPath: ['tagNo', 'paramType'] });
+                        db.createObjectStore('Tags', { keyPath: ['machine', 'tagNo', 'paramType'] });
                         const s = db.createObjectStore('Records', { keyPath: 'id', autoIncrement: true });
                         s.createIndex('isAbnormal', 'isAbnormal', { unique: false });
                         s.createIndex('timeStr', 'timeStr', { unique: false });
@@ -493,6 +536,13 @@
                 });
             }
         };
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
 
         const app = {
             allTags: [],
@@ -646,14 +696,14 @@
                 document.getElementById('remark-modal-tag').innerText = `${record.tagNo} [${record.paramType}]`;
                 document.getElementById('remark-modal-time').innerText = `${record.dateStr} เวลา ${record.timeStr} น.`;
                 
-                const tagDef = this.allTags.find(t => t.tagNo === record.tagNo && t.paramType === record.paramType);
+                const tagDef = this.allTags.find(t => t.machine === record.machine && t.tagNo === record.tagNo && t.paramType === record.paramType);
                 document.getElementById('remark-modal-norm').innerText = tagDef ? (tagDef.normalText || '-') : '-';
                 
                 document.getElementById('remark-input').value = record.remark || '';
                 
                 // 💡 V28: Extract Historical Data for Chart
                 const history = this.allRecords
-                    .filter(r => r.tagNo === record.tagNo && r.paramType === record.paramType && r.dateStr === record.dateStr)
+                    .filter(r => r.machine === record.machine && r.tagNo === record.tagNo && r.paramType === record.paramType && r.dateStr === record.dateStr)
                     .sort((a, b) => a.timestamp - b.timestamp);
                 
                 this.renderChart(history, tagDef);
@@ -736,7 +786,7 @@
                             container.innerHTML = displayList.length ? '' : '<div class="col-span-full h-40 flex items-center justify-center text-slate-400 italic font-medium">ไม่พบพารามิเตอร์ผิดปกติในช่วงเวลานี้</div>';
                             
                             displayList.slice(0, 100).forEach(r => {
-                                const t = this.allTags.find(x => x.tagNo === r.tagNo && x.paramType === r.paramType);
+                                const t = this.allTags.find(x => x.machine === r.machine && x.tagNo === r.tagNo && x.paramType === r.paramType);
                                 
                                 const isAck = r.actionStatus === 'acknowledged';
                                 const stripColor = isAck ? 'bg-amber-400' : 'bg-red-500';
@@ -752,7 +802,7 @@
                                         <span class="text-[9px] font-black ${isAck ? 'text-amber-500' : 'text-red-400'} uppercase tracking-widest flex items-center gap-1">
                                             <i class="ph-bold ph-chat-text"></i> หมายเหตุการจัดการ
                                         </span>
-                                        <p class="text-xs ${isAck ? 'text-amber-800' : 'text-red-700'} font-medium leading-tight line-clamp-2">"${r.remark}"</p>
+                                        <p class="text-xs ${isAck ? 'text-amber-800' : 'text-red-700'} font-medium leading-tight line-clamp-2">"${escapeHtml(r.remark)}"</p>
                                     </div>`;
                                 }
 
@@ -760,19 +810,19 @@
                                     <div class="p-5 rounded-xl ${bgColor} border ${borderColor} shadow-sm relative overflow-hidden flex flex-col h-auto min-h-[8rem] transition-all animate-slide-in group cursor-pointer" onclick="app.openRemarkModal(${r.id})">
                                         <div class="absolute top-0 left-0 w-1.5 h-full ${stripColor} transition-colors"></div>
                                         <div class="flex justify-between text-[10px] text-slate-400 font-bold uppercase mb-2 tracking-tighter">
-                                            <span class="flex items-center gap-1.5">${icon} <span class="mt-0.5">${r.dateStr} • ${r.timeStr}</span></span>
-                                            <span class="bg-slate-100 px-2 py-0.5 rounded text-slate-600">${r.machine}</span>
+                                            <span class="flex items-center gap-1.5">${icon} <span class="mt-0.5">${escapeHtml(r.dateStr)} • ${escapeHtml(r.timeStr)}</span></span>
+                                            <span class="bg-slate-100 px-2 py-0.5 rounded text-slate-600">${escapeHtml(r.machine)}</span>
                                         </div>
                                         <div class="flex-1">
                                             <div class="flex items-center gap-2">
-                                                <span class="font-black text-slate-800 text-base leading-none">${r.tagNo}</span>
-                                                <span class="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded text-[9px] font-black tracking-widest uppercase">${r.paramType}</span>
+                                                <span class="font-black text-slate-800 text-base leading-none">${escapeHtml(r.tagNo)}</span>
+                                                <span class="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded text-[9px] font-black tracking-widest uppercase">${escapeHtml(r.paramType)}</span>
                                             </div>
-                                            <p class="text-[10px] text-slate-500 truncate mt-1 font-medium">${t?.description || ''}</p>
+                                            <p class="text-[10px] text-slate-500 truncate mt-1 font-medium">${escapeHtml(t?.description) || ''}</p>
                                         </div>
                                         <div class="flex justify-between items-end pt-3 mt-1">
-                                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Norm: ${t?.normalText || 'N/A'}</span>
-                                            <span class="text-2xl font-black ${textColor} leading-none transition-colors">${r.value}</span>
+                                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Norm: ${escapeHtml(t?.normalText) || 'N/A'}</span>
+                                            <span class="text-2xl font-black ${textColor} leading-none transition-colors">${escapeHtml(r.value)}</span>
                                         </div>
                                         ${remarkHtml}
                                         
@@ -803,11 +853,11 @@
                 this.allTags.forEach(t => {
                     b.innerHTML += `
                         <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors font-medium text-brand-900">
-                            <td class="py-3 px-6 text-slate-500 font-bold uppercase tracking-tighter font-sans">${t.machine}</td>
-                            <td class="py-3 px-6 font-black text-slate-800 font-sans">${t.tagNo}</td>
-                            <td class="py-3 px-6 font-sans"><span class="bg-blue-100 text-blue-700 px-2 rounded-full font-black text-[9px] tracking-widest uppercase">${t.paramType}</span></td>
-                            <td class="py-3 px-6 text-slate-600 text-[10px] truncate max-w-xs font-sans">${t.description}</td>
-                            <td class="py-3 px-6 text-center font-sans"><span class="px-2 py-0.5 bg-slate-100 rounded text-[9px] font-black text-slate-700 uppercase">${t.normalText || '-'}</span></td>
+                            <td class="py-3 px-6 text-slate-500 font-bold uppercase tracking-tighter font-sans">${escapeHtml(t.machine)}</td>
+                            <td class="py-3 px-6 font-black text-slate-800 font-sans">${escapeHtml(t.tagNo)}</td>
+                            <td class="py-3 px-6 font-sans"><span class="bg-blue-100 text-blue-700 px-2 rounded-full font-black text-[9px] tracking-widest uppercase">${escapeHtml(t.paramType)}</span></td>
+                            <td class="py-3 px-6 text-slate-600 text-[10px] truncate max-w-xs font-sans">${escapeHtml(t.description)}</td>
+                            <td class="py-3 px-6 text-center font-sans"><span class="px-2 py-0.5 bg-slate-100 rounded text-[9px] font-black text-slate-700 uppercase">${escapeHtml(t.normalText) || '-'}</span></td>
                             <td class="py-3 px-6 text-center text-blue-600 font-black font-sans">${t.min ?? (t.exactNum ?? '-')}</td>
                             <td class="py-3 px-6 text-center text-red-600 font-black font-sans">${t.max ?? (t.exactNum ?? (t.exactStr ? 'Match' : '-'))}</td>
                         </tr>`;
@@ -842,7 +892,7 @@
                             try {
                                 const wb = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
                                 for(let sn of wb.SheetNames) {
-                                    log.innerHTML += "> Extracting Sheet: " + sn + "...<br>";
+                                    log.innerHTML += "> Extracting Sheet: " + escapeHtml(sn) + "...<br>";
                                     const csv = XLSX.utils.sheet_to_csv(wb.Sheets[sn], {raw:true});
                                     await new Promise(res => {
                                         const w = new Worker(workerUrl);
@@ -852,14 +902,14 @@
                                                 document.getElementById('process-percent').innerText = ev.data.p + '%';
                                             } else if(ev.data.type==='done') {
                                                 await DB.save(ev.data.tags, ev.data.records);
-                                                log.innerHTML += "  ✓ Processed " + ev.data.tags.length + " items in " + sn + "<br>";
+                                                log.innerHTML += "  ✓ Processed " + ev.data.tags.length + " items in " + escapeHtml(sn) + "<br>";
                                                 w.terminate(); res();
                                             }
                                         };
                                         w.postMessage({ content: csv, sheetName: sn });
                                     });
                                 }
-                            } catch (err) { log.innerHTML += "  ❌ Error: " + err.message + "<br>"; }
+                            } catch (err) { log.innerHTML += "  ❌ Error: " + escapeHtml(err.message) + "<br>"; }
                             resolve();
                         };
                         reader.readAsArrayBuffer(f);
