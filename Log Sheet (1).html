@@ -189,11 +189,8 @@
 
             <div class="flex flex-col gap-1.5 hidden md:flex px-1">
                 <div class="flex items-center gap-1.5">
-                    <span id="status-dot" class="w-2 h-2 rounded-full bg-slate-300"></span>
-                    <span id="status-text" class="text-[9px] font-black uppercase tracking-wider text-slate-500">INIT</span>
-                </div>
-                <div class="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
-                    <div id="sync-progress" class="bg-brand-500 h-full w-0 transition-all duration-300"></div>
+                    <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                    <span class="text-[9px] font-black uppercase tracking-wider text-slate-500">LOCAL MODE</span>
                 </div>
             </div>
 
@@ -210,9 +207,6 @@
             <div class="flex items-center gap-3">
                 <div class="px-3 py-1.5 bg-sky-50 border border-sky-100 rounded-full text-[10px] font-bold text-sky-700 flex items-center shadow-sm">
                     <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-sky-500"></i> V29.40 Strict Numeric Core
-                </div>
-                <div id="user-badge" class="hidden items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-[10px] font-bold text-slate-600 shadow-sm">
-                    <i data-lucide="user" class="w-3.5 h-3.5"></i> <span id="user-id-text">Local</span>
                 </div>
             </div>
         </header>
@@ -715,7 +709,14 @@
                     <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Exact Value (Optional)</label>
                     <input type="number" step="any" id="master-edit-exact" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" placeholder="ค่าที่ต้องเป๊ะ (เว้นว่างได้)">
                 </div>
-                
+
+                <div class="flex items-start gap-2 pt-1">
+                    <input type="checkbox" id="master-edit-disable-zeroshield" class="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30">
+                    <label for="master-edit-disable-zeroshield" class="text-[11px] font-medium text-slate-600 leading-snug">
+                        ปิดการตรวจจับ Standby อัตโนมัติ (ค่าต่ำสุดใกล้ 0 ถือเป็นค่าผิดปกติจริง)
+                    </label>
+                </div>
+
                 <div class="bg-amber-50 p-3 rounded-lg border border-amber-100 mt-4">
                     <p class="text-[10px] text-amber-700 font-medium leading-tight flex gap-1.5 items-start">
                         <i data-lucide="info" class="w-3.5 h-3.5 shrink-0"></i>
@@ -730,28 +731,15 @@
         </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, writeBatch, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        let fbConfig = null;
-        try {
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                fbConfig = JSON.parse(__firebase_config);
-            }
-        } catch (e) { console.warn("Firebase config parse error"); }
-
-        const APP_CONFIG = {
-            appId: typeof __app_id !== 'undefined' ? __app_id : 'plant-log-analyzer-v29'
-        };
-
+    <script>
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
             return String(str).replace(/[&<>"']/g, c => ({
                 '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
             }[c]));
         }
+
+        function getTagId(r) { return `${r.machine}_${r.tagNo}_${r.paramType}`; }
 
         const SMART_AGENT = {
             analyze: (record, eMin, eMax, eExact) => {
@@ -774,17 +762,6 @@
             }
         };
 
-        let app = null, auth = null, db = null;
-        try {
-            if (APP_CONFIG.firebaseConfig) {
-                app = initializeApp(APP_CONFIG.firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-            }
-        } catch (e) {
-            console.warn("Firebase Init Bypassed (Local Mode):", e.message);
-        }
-
         const UI_RENDERER = {
             createEl: (tag, classes = "", textContent = null) => {
                 const el = document.createElement(tag);
@@ -792,31 +769,11 @@
                 if (textContent !== null) el.textContent = textContent;
                 return el;
             },
-            initIcons: () => { if (window.lucide) window.lucide.createIcons(); },
-            updateGlow: (status) => {
-                const dot = document.getElementById('status-dot');
-                const txt = document.getElementById('status-text');
-                if (!dot || !txt) return;
-                
-                dot.className = 'w-2.5 h-2.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]'; 
-                
-                if (status === 'online') {
-                    dot.classList.add('bg-emerald-400', 'shadow-emerald-400/50');
-                    txt.textContent = 'SECURE CLOUD';
-                } else if (status === 'syncing') {
-                    dot.classList.add('bg-sky-400', 'shadow-sky-400/50', 'animate-pulse');
-                    txt.textContent = 'SYNCING...';
-                } else {
-                    dot.classList.add('bg-amber-400', 'shadow-amber-400/50');
-                    txt.textContent = 'LOCAL MODE';
-                }
-            }
+            initIcons: () => { if (window.lucide) window.lucide.createIcons(); }
         };
 
         const STATE = {
             data: {
-                user: null,
-                syncStatus: 'offline', 
                 activeTab: 'dashboard',
                 tags: [],          
                 masterTags: [],    
@@ -840,7 +797,7 @@
             _deriveAbnormal: () => {
                 const mTagsMap = new Map(STATE.data.masterTags.map(m => [m.id, m]));
                 const updatedRecords = STATE.data.records.map(r => {
-                    const tId = `${r.machine}_${r.tagNo}_${r.paramType}`;
+                    const tId = getTagId(r);
                     const tDef = STATE.data.tags.find(t => t.id === tId);
                     const master = mTagsMap.get(tId);
                     
@@ -851,10 +808,11 @@
                     let val = parseFloat(String(r.value).replace(/,/g, ''));
                     let isAb = 0;
                     let isStandby = false;
-                    
+                    const zeroShieldDisabled = !!(master && master.disableZeroShield);
+
                     // V29.40 FIX: ต้องเป็นตัวเลขเท่านั้น (String ที่ถูกเว้นมาจะไม่ประมวลผล)
                     if (!isNaN(val) && String(r.value).trim() !== '') {
-                        if (Math.abs(val) <= 0.1) {
+                        if (!zeroShieldDisabled && Math.abs(val) <= 0.1) {
                             isStandby = true;
                             isAb = 0;
                         } else {
@@ -862,7 +820,7 @@
                             if (eMax !== null && val > (eMax + 0.0001)) isAb = 1;
                             if (eExact !== null && Math.abs(val - eExact) > 0.0001) isAb = 1;
 
-                            if (isAb === 1) {
+                            if (!zeroShieldDisabled && isAb === 1) {
                                 let refValue = eExact !== null ? eExact : (eMin !== null ? eMin : eMax);
                                 if (refValue !== null && Math.abs(refValue) >= 10) {
                                     if (Math.abs(val) <= 1.5 || Math.abs(val) < Math.abs(refValue) * 0.03) {
@@ -934,7 +892,7 @@
             saveBatch: (tags, records) => new Promise((resolve) => {
                 if(!STORAGE_ENGINE.db) return resolve();
                 const tx = STORAGE_ENGINE.db.transaction(['Tags', 'Records'], 'readwrite');
-                tags.forEach(t => { t.id = `${t.machine}_${t.tagNo}_${t.paramType}`; tx.objectStore('Tags').put(t); });
+                tags.forEach(t => { t.id = getTagId(t); tx.objectStore('Tags').put(t); });
                 records.forEach(r => tx.objectStore('Records').put(r));
                 tx.oncomplete = resolve;
             }),
@@ -976,56 +934,6 @@
             })
         };
 
-        const CLOUD_SYNC = {
-            syncLocalToCloud: async () => {
-                const user = STATE.get('user');
-                if (!db || !user || user.uid === 'local_offline_user') return;
-                
-                STATE.set('syncStatus', 'syncing');
-                const tags = await STORAGE_ENGINE.getAll('Tags');
-                const records = await STORAGE_ENGINE.getAll('Records');
-                const masterTags = await STORAGE_ENGINE.getAll('MasterTags');
-                
-                const pathBase = ['artifacts', APP_CONFIG.appId, 'users', user.uid];
-                
-                try {
-                    const chunkArray = (arr, size) => Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
-                    const payload = [
-                        ...tags.map(t => ({...t, _type: 'tag'})), 
-                        ...records.map(r => ({...r, _type: 'record'})),
-                        ...masterTags.map(m => ({...m, _type: 'master'}))
-                    ];
-                    const chunks = chunkArray(payload, 400);
-                    let processed = 0;
-                    const total = payload.length;
-
-                    for (const chunk of chunks) {
-                        const batch = writeBatch(db);
-                        chunk.forEach(item => {
-                            const collName = item._type === 'tag' ? 'tags' : (item._type === 'record' ? 'records' : 'master_tags');
-                            const ref = doc(db, ...pathBase, collName, String(item.id));
-                            const { _type, ...cleanItem } = item;
-                            batch.set(ref, cleanItem);
-                        });
-                        await batch.commit();
-                        processed += chunk.length;
-                        
-                        const pct = Math.min(100, Math.round((processed / total) * 100));
-                        document.getElementById('sync-progress').style.width = `${pct}%`;
-                    }
-                    
-                    setTimeout(() => {
-                        document.getElementById('sync-progress').style.width = '0%';
-                        STATE.set('syncStatus', 'online');
-                    }, 1000);
-
-                } catch (error) {
-                    console.error("Sync failed:", error);
-                    STATE.set('syncStatus', 'offline');
-                }
-            }
-        };
-
         const EXCEL_WORKER = {
             parseCSV: (text) => {
                 let ret = [], inQuote = false, value = '';
@@ -1038,19 +946,31 @@
                 ret.push(value);
                 return ret;
             },
-            
+
+            normalizeYear: (yStr) => {
+                let y;
+                if (yStr.length === 2) {
+                    let n = parseInt(yStr, 10);
+                    y = (n <= 49) ? (2000 + n) : (2500 + n - 543);
+                } else {
+                    y = parseInt(yStr, 10);
+                    if (y > 2500) y -= 543;
+                }
+                return y;
+            },
+
             extractGlobalDate: (lines, fileName) => {
                 let fileDateMatch = fileName.match(/\b(\d{1,2})[\.\-\/](\d{1,2})[\.\-\/](\d{2,4})\b/);
                 if (fileDateMatch) {
-                    let d = fileDateMatch[1].padStart(2, '0');
-                    let m = fileDateMatch[2].padStart(2, '0');
-                    let y = fileDateMatch[3];
-                    if (y.length === 2) y = parseInt(y) > 50 ? '19'+y : '20'+y;
-                    let yNum = parseInt(y);
-                    if (yNum > 2500) yNum -= 543; 
-                    return `${d}/${m}/${yNum}`;
+                    let dd = parseInt(fileDateMatch[1], 10), mm = parseInt(fileDateMatch[2], 10);
+                    if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12) {
+                        let d = fileDateMatch[1].padStart(2, '0');
+                        let m = fileDateMatch[2].padStart(2, '0');
+                        let yNum = EXCEL_WORKER.normalizeYear(fileDateMatch[3]);
+                        return `${d}/${m}/${yNum}`;
+                    }
                 }
-                
+
                 for (let i = 0; i < Math.min(20, lines.length); i++) {
                     let cols = EXCEL_WORKER.parseCSV(lines[i]);
                     for (let c = 0; c < cols.length; c++) {
@@ -1061,10 +981,7 @@
                         if (m1) {
                             let dd = parseInt(m1[1]), mm = parseInt(m1[2]);
                             if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12) {
-                                let y = m1[3];
-                                if (y.length === 2) y = parseInt(y) > 50 ? '19'+y : '20'+y;
-                                let yNum = parseInt(y);
-                                if (yNum > 2500) yNum -= 543;
+                                let yNum = EXCEL_WORKER.normalizeYear(m1[3]);
                                 return `${m1[1].padStart(2, '0')}/${m1[2].padStart(2, '0')}/${yNum}`;
                             }
                         }
@@ -1074,13 +991,10 @@
                             for (let nextC = c + 1; nextC <= c + 5 && nextC < cols.length; nextC++) {
                                 let nextTxt = (cols[nextC] || '').trim();
                                 if (!nextTxt) continue;
-                                
+
                                 let nm = nextTxt.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/);
                                 if (nm) {
-                                    let y = nm[3];
-                                    if(y.length === 2) y = parseInt(y) > 50 ? '19'+y : '20'+y;
-                                    let yNum = parseInt(y);
-                                    if (yNum > 2500) yNum -= 543;
+                                    let yNum = EXCEL_WORKER.normalizeYear(nm[3]);
                                     return `${nm[1].padStart(2, '0')}/${nm[2].padStart(2, '0')}/${yNum}`;
                                 }
                                 
@@ -1300,10 +1214,11 @@
                                 let val = rowDataExtracted[idx];
                                 
                                 const cleanTag = tag.tagNo.replace(/[^a-zA-Z0-9_]/g, '_');
+                                const cleanMachine = sheetName.replace(/[^a-zA-Z0-9_]/g, '_');
                                 let actualType = tag.paramType;
-                                
+
                                 recordsOut.push({
-                                    id: `rec_${finalDate}_${timeStr}_${cleanTag}_${actualType}_${idx}`, 
+                                    id: `rec_${cleanMachine}_${finalDate}_${timeStr}_${cleanTag}_${actualType}_${idx}`,
                                     machine: sheetName, tagNo: tag.tagNo, paramType: tag.paramType,
                                     dateStr: finalDate, timeStr: timeStr, timestamp: ts,
                                     value: val,
@@ -1333,35 +1248,8 @@
         const APP = {
             init: async () => {
                 UI_RENDERER.initIcons();
-                UI_RENDERER.updateGlow('offline');
-                
-                await STORAGE_ENGINE.init();
-                
-                if (auth) {
-                    try {
-                        if (APP_CONFIG.initialToken) await signInWithCustomToken(auth, APP_CONFIG.initialToken);
-                        else await signInAnonymously(auth);
-                    } catch (e) { 
-                        console.warn("Auth Network Blocked - Fallback to Local Mode");
-                        STATE.set('user', { uid: 'local_offline_user' });
-                    }
 
-                    onAuthStateChanged(auth, (user) => {
-                        if (user) {
-                            STATE.set('user', user);
-                            const ub = document.getElementById('user-badge');
-                            if (ub) {
-                                ub.classList.remove('hidden');
-                                ub.classList.add('flex');
-                            }
-                            const ut = document.getElementById('user-id-text');
-                            if (ut) ut.textContent = user.uid.substring(0,6) + '...';
-                            UI_RENDERER.updateGlow('online');
-                        }
-                    });
-                } else {
-                    STATE.set('user', { uid: 'local_offline_user' });
-                }
+                await STORAGE_ENGINE.init();
 
                 APP.bindEvents();
                 await APP.loadLocalData();
@@ -1486,7 +1374,7 @@
                 const mTagsMap = new Map(STATE.get('masterTags').map(m => [m.id, m]));
                 
                 let scored = strictlyAbnormal.map(r => {
-                    const tId = `${r.machine}_${r.tagNo}_${r.paramType}`;
+                    const tId = getTagId(r);
                     const tDef = tags.find(t => t.id === tId);
                     const master = mTagsMap.get(tId);
                     
@@ -1515,7 +1403,7 @@
                 const finalSelection = [];
 
                 for (let r of scored) {
-                    const tagKey = `${r.machine}_${r.tagNo}_${r.paramType}`;
+                    const tagKey = getTagId(r);
                     if (!uniqueTags.has(tagKey)) {
                         uniqueTags.set(tagKey, true); 
                         finalSelection.push(r);
@@ -1583,7 +1471,7 @@
                 }
 
                 logEl.appendChild(UI_RENDERER.createEl('div', 'text-emerald-400 mt-2 font-bold', `> Saving to Local Database...`));
-                const uniqueTags = Array.from(new Map(allTags.map(t => [`${t.machine}_${t.tagNo}_${t.paramType}`, t])).values());
+                const uniqueTags = Array.from(new Map(allTags.map(t => [getTagId(t), t])).values());
                 
                 await STORAGE_ENGINE.saveBatch(uniqueTags, allRecords);
                 
@@ -1592,8 +1480,6 @@
                 document.getElementById('view-filter').value = 'abnormal';
                 
                 await APP.loadLocalData();
-
-                setTimeout(CLOUD_SYNC.syncLocalToCloud, 500);
 
                 setTimeout(() => {
                     document.getElementById('drop-zone').classList.remove('hidden');
@@ -1612,9 +1498,6 @@
                 if (changedKey === 'activeTab') {
                     if (STATE.get('activeTab') === 'dashboard') APP.renderDashboard();
                     if (STATE.get('activeTab') === 'master') APP.renderMasterTable();
-                }
-                if (changedKey === 'syncStatus') {
-                    UI_RENDERER.updateGlow(STATE.get('syncStatus'));
                 }
             },
 
@@ -1733,7 +1616,7 @@
                     grid.appendChild(empty);
                 } else {
                     abs.slice(0, 300).forEach(r => {
-                        const tId = `${r.machine}_${r.tagNo}_${r.paramType}`;
+                        const tId = getTagId(r);
                         const tagDef = tags.find(t => t.id === tId) || {};
                         const master = mTagsMap.get(tId);
                         const isAck = r.actionStatus === 'acknowledged';
@@ -1868,7 +1751,7 @@
                 if (icnt) icnt.textContent = selectedRecords.length;
 
                 selectedRecords.forEach(r => {
-                    const tId = `${r.machine}_${r.tagNo}_${r.paramType}`;
+                    const tId = getTagId(r);
                     const tagDef = tags.find(t => t.id === tId) || {};
                     const master = mTagsMap.get(tId);
                     
@@ -2161,6 +2044,8 @@
                 }
                 const eExact = document.getElementById('master-edit-exact');
                 if (eExact) eExact.value = (master && master.exactNum !== null) ? master.exactNum : '';
+                const eDzs = document.getElementById('master-edit-disable-zeroshield');
+                if (eDzs) eDzs.checked = !!(master && master.disableZeroShield);
 
                 const mModal = document.getElementById('master-modal');
                 if (mModal) mModal.classList.remove('hidden');
@@ -2180,6 +2065,7 @@
                 const minEl = document.getElementById('master-edit-min');
                 const maxEl = document.getElementById('master-edit-max');
                 const exEl = document.getElementById('master-edit-exact');
+                const dzsEl = document.getElementById('master-edit-disable-zeroshield');
 
                 const desc = dEl ? dEl.value.trim() : '';
                 const minV = minEl ? minEl.value.trim() : '';
@@ -2192,6 +2078,7 @@
                     min: minV !== '' ? parseFloat(minV) : null,
                     max: maxV !== '' ? parseFloat(maxV) : null,
                     exactNum: exactV !== '' ? parseFloat(exactV) : null,
+                    disableZeroShield: dzsEl ? dzsEl.checked : false,
                     updatedAt: Date.now()
                 };
 
@@ -2203,14 +2090,14 @@
                 await STORAGE_ENGINE.updateRecordsBatch(STATE.get('records'));
                 
                 APP.closeMasterModal();
-                CLOUD_SYNC.syncLocalToCloud(); 
             },
 
             openActionModal: (recordId) => {
                 STATE.set('activeRecordId', recordId);
                 const record = STATE.get('records').find(r => r.id === recordId);
-                const tagDef = STATE.get('tags').find(t => t.id === `${record.machine}_${record.tagNo}_${record.paramType}`);
-                const master = STATE.get('masterTags').find(m => m.id === tagDef.id);
+                if (!record) return;
+                const tagDef = STATE.get('tags').find(t => t.id === getTagId(record));
+                const master = STATE.get('masterTags').find(m => m.id === getTagId(record));
                 
                 const mTagNo = document.getElementById('modal-tag-no');
                 if (mTagNo) mTagNo.textContent = record.tagNo;
@@ -2259,9 +2146,8 @@
                 const updates = { remark: text, actionStatus: text ? 'acknowledged' : 'new' };
                 
                 await STORAGE_ENGINE.updateRecord(id, updates);
-                await APP.loadLocalData(); 
+                await APP.loadLocalData();
                 APP.closeModal();
-                CLOUD_SYNC.syncLocalToCloud(); 
             },
 
             clearAction: async () => {
@@ -2270,7 +2156,6 @@
                 await STORAGE_ENGINE.updateRecord(id, { remark: '', actionStatus: 'new' });
                 await APP.loadLocalData();
                 APP.closeModal();
-                CLOUD_SYNC.syncLocalToCloud();
             },
 
             triggerSmartAssist: async () => {
@@ -2283,7 +2168,7 @@
                 const tags = STATE.get('tags');
                 const masterTagsMap = new Map(STATE.get('masterTags').map(m => [m.id, m]));
                 
-                const tId = `${record.machine}_${record.tagNo}_${record.paramType}`;
+                const tId = getTagId(record);
                 const tDef = tags.find(t => t.id === tId);
                 const master = masterTagsMap.get(tId);
                 
