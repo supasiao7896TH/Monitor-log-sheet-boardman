@@ -113,11 +113,12 @@
         @keyframes shimmer { to { background-position: 200% center; } }
         
         .info-export-bg {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
         }
         .info-card {
-            background: rgba(30, 41, 59, 0.7);
-            border: 1px solid rgba(51, 65, 85, 0.8);
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
     </style>
 </head>
@@ -603,43 +604,43 @@
                     <h4 class="text-sm font-black text-slate-700 uppercase tracking-wide flex items-center gap-2">
                         <i data-lucide="eye" class="w-4 h-4 text-brand-500"></i> Live Preview (ตัวอย่างภาพก่อนบันทึก)
                     </h4>
-                    <p class="text-[10px] text-slate-400 font-bold">Dark Mode Design</p>
+                    <p class="text-[10px] text-slate-400 font-bold">Light Mode Design</p>
                 </div>
 
-                <div id="infographic-container" class="info-export-bg rounded-2xl p-8 shadow-2xl relative overflow-hidden border border-slate-700/50">
+                <div id="infographic-container" class="info-export-bg rounded-2xl p-8 shadow-2xl relative overflow-hidden border border-slate-200">
                     <div class="absolute -top-32 -right-32 w-64 h-64 bg-brand-500/10 rounded-full blur-3xl"></div>
                     <div class="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-brand-500 via-sky-400 to-indigo-500"></div>
 
-                    <div class="flex justify-between items-start border-b border-slate-700/80 pb-5 mb-6">
+                    <div class="flex justify-between items-start border-b border-slate-200 pb-5 mb-6">
                         <div class="flex items-center gap-4">
                             <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-400 to-sky-500 p-[1px] shadow-lg flex items-center justify-center">
-                                <div class="w-full h-full bg-slate-900 rounded-lg flex items-center justify-center">
-                                    <i data-lucide="activity" class="w-6 h-6 text-brand-400"></i>
+                                <div class="w-full h-full bg-white rounded-lg flex items-center justify-center">
+                                    <i data-lucide="activity" class="w-6 h-6 text-brand-600"></i>
                                 </div>
                             </div>
                             <div>
-                                <h1 class="text-2xl font-black text-white tracking-tight uppercase">Plant Shift Report</h1>
-                                <p class="text-brand-400 text-xs font-bold tracking-widest uppercase mt-0.5">Executive Summary Dashboard</p>
+                                <h1 class="text-2xl font-black text-slate-800 tracking-tight uppercase">Plant Shift Report</h1>
+                                <p class="text-brand-600 text-xs font-bold tracking-widest uppercase mt-0.5">Executive Summary Dashboard</p>
                             </div>
                         </div>
                         <div class="text-right flex flex-col justify-between h-full">
-                            <p class="text-sm font-bold text-white"><i data-lucide="calendar" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i> <span id="info-date">23/04/2026</span></p>
-                            <p class="text-xs text-brand-300 font-black mt-1 bg-brand-900/50 px-2 py-0.5 rounded inline-block" id="info-shift-text">กะเช้า (07:30 - 19:30)</p>
+                            <p class="text-sm font-bold text-slate-800"><i data-lucide="calendar" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i> <span id="info-date">23/04/2026</span></p>
+                            <p class="text-xs text-brand-700 font-black mt-1 bg-brand-50 px-2 py-0.5 rounded inline-block" id="info-shift-text">กะเช้า (07:30 - 19:30)</p>
                         </div>
                     </div>
 
                     <div class="flex gap-4 mb-6">
                         <div class="flex-1 info-card rounded-xl p-4 flex flex-col justify-center border-l-2 border-l-sky-400">
-                            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Operator</p>
-                            <p class="text-sm font-black text-white truncate" id="info-operator">Supasit.A</p>
+                            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1">Operator</p>
+                            <p class="text-sm font-black text-slate-800 truncate" id="info-operator">Supasit.A</p>
                         </div>
                         <div class="flex-1 info-card rounded-xl p-4 flex flex-col justify-center border-l-2 border-l-indigo-400">
-                            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Handover To</p>
-                            <p class="text-sm font-black text-white truncate" id="info-handover">Thaweesak</p>
+                            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1">Handover To</p>
+                            <p class="text-sm font-black text-slate-800 truncate" id="info-handover">Thaweesak</p>
                         </div>
-                        <div class="flex-1 info-card rounded-xl p-4 flex flex-col justify-center items-end border-l-2 border-l-red-500 bg-red-900/10">
-                            <p class="text-[9px] text-red-400 font-bold uppercase tracking-widest mb-1">Abnormalities Handled</p>
-                            <p class="text-2xl font-black text-red-400 leading-none"><span id="info-abn-count">5</span> <span class="text-xs text-slate-500 font-medium">Tags</span></p>
+                        <div class="flex-1 info-card rounded-xl p-4 flex flex-col justify-center items-end border-l-2 border-l-red-500 bg-red-50">
+                            <p class="text-[9px] text-red-600 font-bold uppercase tracking-widest mb-1">Abnormalities Handled</p>
+                            <p class="text-2xl font-black text-red-600 leading-none"><span id="info-abn-count">5</span> <span class="text-xs text-slate-500 font-medium">Tags</span></p>
                         </div>
                     </div>
 
@@ -650,10 +651,10 @@
                         <div class="absolute -top-3 -right-3 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/40">
                             <i data-lucide="bot" class="w-4 h-4 text-white"></i>
                         </div>
-                        <h4 class="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-2 flex items-center gap-1.5">
+                        <h4 class="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-2 flex items-center gap-1.5">
                             <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Smart Shift Executive Summary
                         </h4>
-                        <p id="info-ai-summary" class="text-sm text-slate-300 leading-relaxed font-medium">กำลังวิเคราะห์และสรุปภาพรวมกะ...</p>
+                        <p id="info-ai-summary" class="text-sm text-slate-600 leading-relaxed font-medium">กำลังวิเคราะห์และสรุปภาพรวมกะ...</p>
                     </div>
 
                     <div class="mt-8 flex justify-between items-center opacity-50">
@@ -1768,7 +1769,7 @@
                     else normText = 'N/A';
 
                     const isAbnormal = r.isAbnormal;
-                    const valColor = isAbnormal ? 'text-red-400' : 'text-emerald-400';
+                    const valColor = isAbnormal ? 'text-red-600' : 'text-emerald-600';
                     const iconColor = isAbnormal ? 'text-red-500' : 'text-emerald-500';
                     const iconName = isAbnormal ? 'alert-triangle' : 'check-circle-2';
 
@@ -1778,14 +1779,14 @@
 
                             <div class="flex justify-between items-start mb-1 pl-2">
                                 <div>
-                                    <h4 class="font-black text-white text-lg tracking-wide">${escapeHtml(r.tagNo)} <span class="bg-slate-700/50 border border-slate-600 text-slate-300 px-1.5 py-0.5 rounded text-[9px] ml-1 uppercase">${escapeHtml(r.paramType)}</span></h4>
+                                    <h4 class="font-black text-slate-800 text-lg tracking-wide">${escapeHtml(r.tagNo)} <span class="bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[9px] ml-1 uppercase">${escapeHtml(r.paramType)}</span></h4>
                                 </div>
-                                <span class="${iconColor} bg-slate-800 p-1.5 rounded-lg border border-slate-700">
+                                <span class="${iconColor} bg-white p-1.5 rounded-lg border border-slate-200">
                                     <i data-lucide="${iconName}" class="w-4 h-4"></i>
                                 </span>
                             </div>
 
-                            <p class="text-[10px] text-slate-400 font-medium mb-4 pl-2 line-clamp-1">${escapeHtml(eDesc)}</p>
+                            <p class="text-[10px] text-slate-500 font-medium mb-4 pl-2 line-clamp-1">${escapeHtml(eDesc)}</p>
 
                             <div class="flex justify-between items-end mb-4 pl-2">
                                 <div class="flex flex-col">
@@ -1794,19 +1795,19 @@
                                 </div>
                                 <div class="text-right">
                                     <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest block mb-1">Time</span>
-                                    <span class="text-xs font-black text-slate-300 bg-slate-800 px-2 py-1 rounded-md border border-slate-700">${escapeHtml(r.timeStr)}</span>
+                                    <span class="text-xs font-black text-slate-600 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">${escapeHtml(r.timeStr)}</span>
                                 </div>
                             </div>
 
                             ${r.remark ? `
-                            <div class="mt-auto pt-3 border-t border-slate-700/50 pl-2">
-                                <span class="text-[8px] font-black uppercase text-brand-400 tracking-widest block mb-1"><i data-lucide="message-square" class="w-3 h-3 inline"></i> Action Remark</span>
-                                <p class="text-xs text-slate-300 leading-snug border-l-2 border-brand-500 pl-2 py-0.5">${escapeHtml(r.remark)}</p>
+                            <div class="mt-auto pt-3 border-t border-slate-100 pl-2">
+                                <span class="text-[8px] font-black uppercase text-brand-600 tracking-widest block mb-1"><i data-lucide="message-square" class="w-3 h-3 inline"></i> Action Remark</span>
+                                <p class="text-xs text-slate-600 leading-snug border-l-2 border-brand-500 pl-2 py-0.5">${escapeHtml(r.remark)}</p>
                             </div>
                             ` : `
-                            <div class="mt-auto pt-3 border-t border-slate-700/50 pl-2">
-                                <span class="text-[8px] font-black uppercase text-slate-500 tracking-widest block mb-1"><i data-lucide="message-square" class="w-3 h-3 inline"></i> Action Remark</span>
-                                <p class="text-xs text-slate-500 italic leading-snug pl-2 py-0.5">No action recorded.</p>
+                            <div class="mt-auto pt-3 border-t border-slate-100 pl-2">
+                                <span class="text-[8px] font-black uppercase text-slate-400 tracking-widest block mb-1"><i data-lucide="message-square" class="w-3 h-3 inline"></i> Action Remark</span>
+                                <p class="text-xs text-slate-400 italic leading-snug pl-2 py-0.5">No action recorded.</p>
                             </div>
                             `}
                         </div>
@@ -1847,8 +1848,8 @@
                     const targetElement = document.getElementById('infographic-container');
                     
                     const canvas = await html2canvas(targetElement, {
-                        scale: 2, 
-                        backgroundColor: '#0f172a', 
+                        scale: 2,
+                        backgroundColor: '#f8fafc',
                         logging: false,
                         useCORS: true
                     });
