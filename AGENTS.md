@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents (Claude Code, Codex, Cursor, and
 
 ## What this is
 
-A single self-contained HTML file — `index.html` — implementing "Plant Log Analyzer" (currently V29.44), a Thai-language browser tool for plant/machine monitoring engineers. Operators import Excel/CSV log sheets exported from plant SCADA/monitoring systems, and the tool auto-detects tag headers, normal-range limits, and per-row readings, flags out-of-range values, lets operators annotate abnormal readings, and exports a shift-summary "Infographic Report" as a JPG.
+A single self-contained HTML file — `index.html` — implementing "Plant Log Analyzer" (currently V29.46), a Thai-language browser tool for plant/machine monitoring engineers. Operators import Excel/CSV log sheets exported from plant SCADA/monitoring systems, and the tool auto-detects tag headers, normal-range limits, and per-row readings, flags out-of-range values, lets operators annotate abnormal readings, and exports a shift-summary "Infographic Report" as a JPG.
 
 See `context.md` for the domain/business background (who uses this, glossary, and the rationale behind recent feature decisions) — this file covers the "how the code works" side.
 
@@ -21,7 +21,7 @@ There is no build step, package manager, server, or test suite — everything (H
 
 Everything after line ~735 lives in one `<script>` block, organized as plain object modules (no framework, no build tooling, no modules/imports — just globals in file order):
 
-- **`SMART_AGENT`** — generates Thai-language natural-language summaries/analysis text for abnormal readings and shift summaries (rule-based, not an external AI call).
+- **`SMART_AGENT`** — generates Thai-language natural-language summaries/analysis text for abnormal readings and shift summaries (rule-based, not an external AI call). When a record's Tag No has a curated entry in `COUNTERMEASURE_DB` (a flat array of `{tagNo, direction, equipmentName, factor, sourceDoc, sourcePage, pdfTagRef, action}` sourced from internal MPS process-deviation manuals — see `COUNTERMEASURE_AGENT`, keyed by `tagNo`+`direction` for O(1) exact-match lookup, no fuzzy matching), it appends the manual's English recommended-action text after the generic Thai sentence; tags with no curated entry get the same output as before this feature existed. `COUNTERMEASURE_DB` is deliberately small and hand-curated — most real Tag Nos won't have an entry, and that's expected (falls back silently).
 - **`UI_RENDERER`** — tiny DOM helper (`createEl`, `initIcons` for lucide icons).
 - **`STATE`** — the single source of truth (`STATE.data`: tags, masterTags, records, filters, selection). `STATE.set(key, value)` triggers `_deriveAbnormal()` (recomputes `isAbnormal`/`isStandby` per record against min/max/exact limits, applies the "zero shield" to suppress false positives near zero, then filters/sorts into `STATE.data.abnormalRecords`) and notifies subscribers. `APP` subscribes once via `STATE.subscribe` and re-renders the active view based on the changed key (see `APP.render`, ~line 1492).
 - **`STORAGE_ENGINE`** — thin IndexedDB wrapper (object stores: `Tags`, `Records`, `MasterTags`) for persisting imported data and operator annotations across reloads.
