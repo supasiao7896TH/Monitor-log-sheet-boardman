@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A single self-contained HTML file — `Log Sheet (1).html` — implementing "Plant Log Analyzer" (currently V29.44), a Thai-language browser tool for plant/machine monitoring engineers. Operators import Excel/CSV log sheets exported from plant SCADA/monitoring systems, and the tool auto-detects tag headers, normal-range limits, and per-row readings, flags out-of-range values, lets operators annotate abnormal readings, and exports a shift-summary "Infographic Report" as a JPG.
+A single self-contained HTML file — `index.html` — implementing "Plant Log Analyzer" (currently V29.44), a Thai-language browser tool for plant/machine monitoring engineers. Operators import Excel/CSV log sheets exported from plant SCADA/monitoring systems, and the tool auto-detects tag headers, normal-range limits, and per-row readings, flags out-of-range values, lets operators annotate abnormal readings, and exports a shift-summary "Infographic Report" as a JPG.
 
 See `context.md` for the domain/business background (who uses this, glossary, and the rationale behind recent feature decisions) — this file (`CLAUDE.md`) covers the "how the code works" side. The same guidance is mirrored in `AGENTS.md` for tools that look for that file instead of `CLAUDE.md`; keep the two in sync when editing.
 
@@ -12,7 +12,7 @@ There is no build step, package manager, server, or test suite — everything (H
 
 ## Running / testing changes
 
-- Open `Log Sheet (1).html` directly in a browser (double-click or `start "" "Log Sheet (1).html"`). There is no dev server or bundler.
+- Open `index.html` directly in a browser (double-click or `start "" "index.html"`). There is no dev server or bundler.
 - There are no automated tests. Verify changes manually by importing a sample .xls/.xlsx/.csv log sheet through the "นำเข้าข้อมูล" (Import) tab and exercising the affected flow (import → dashboard flagging → annotate/report → infographic export).
 - Data persists client-side in IndexedDB (database `PlantLogAnalyzerEnterpriseDB`) — clearing site data/browser storage resets the app.
 - Bump the version string in the `<title>` (and the "Ultimate Edition (VXX.XX)" label) when making a notable fix, following the existing `V29.40`-style convention seen in commit history and in-code comments (e.g. `// V29.40 FIX: ...`).
