@@ -42,3 +42,21 @@ Everything after line ~735 lives in one `<script>` block, organized as plain obj
 - All external libraries (Tailwind, lucide icons, SheetJS `xlsx`, Chart.js, html2canvas) are loaded from CDNs in `<head>` — there's no local dependency management.
 - User-supplied strings that reach the DOM must go through `escapeHtml` (an XSS fix landed in this repo's early history — don't regress it).
 - Past fixes in this repo have centered on: tag-ID collisions across machines/sheets (always include `machine` in identity), date/time parsing edge cases in imported sheets, and text clipping in the exported Infographic JPG — when touching the infographic layout, verify the exported image (not just the on-screen preview), since html2canvas rendering can diverge from live CSS.
+## Available Subagents
+
+โปรเจกต์นี้มี Custom Subagent พร้อมใช้งาน 3 ตัว (อยู่ที่ `.claude/agents/`) ให้เรียกใช้ตามความเหมาะสม:
+
+| Subagent | ใช้เมื่อ | สิทธิ์ |
+|---|---|---|
+| `pta-explore` | เปิด session ใหม่ / อยากรู้ภาพรวมโค้ดก่อนเริ่มงาน / หาว่าฟังก์ชันอยู่ไฟล์ไหน | Read-only |
+| `pta-code-reviewer` | หลังแก้โค้ดเสร็จในแต่ละรอบ ก่อน commit | Read-only |
+| `pta-debugger` | โค้ด error / พฤติกรรมไม่ตรงที่คาด | Edit ได้ |
+
+**Workflow แนะนำ:**
+1. Session ใหม่ → เรียก `pta-explore` สำรวจโค้ดที่เกี่ยวข้องก่อน
+2. Plan Mode (Opus) → วางแผน
+3. Accept Edits (Sonnet) → ลงมือแก้
+4. เรียก `pta-code-reviewer` ก่อน commit
+5. ถ้าเจอ Critical issue → เรียก `pta-debugger` แก้ต่อ
+
+Subagent ทั้ง 3 ตัว sync ผ่าน GitHub ใช้ได้ทั้งเครื่องบ้านและที่ทำงาน
