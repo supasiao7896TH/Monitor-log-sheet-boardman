@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.46)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.50)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -36,6 +36,7 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -195,6 +196,14 @@
                 </div>
             </div>
 
+            <!-- V29.50 FEAT: สำรอง/กู้คืนข้อมูล (Backup/Restore) -->
+            <button id="btn-backup-db" class="flex items-center justify-center w-full px-4 py-2.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all font-bold text-xs border border-slate-100 hover:border-brand-100">
+                <i data-lucide="download-cloud" class="w-4 h-4 md:mr-2"></i><span class="hidden md:block">สำรองข้อมูล</span>
+            </button>
+            <button id="btn-restore-db" class="flex items-center justify-center w-full px-4 py-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all font-bold text-xs border border-slate-100 hover:border-indigo-100">
+                <i data-lucide="upload-cloud" class="w-4 h-4 md:mr-2"></i><span class="hidden md:block">กู้คืนข้อมูล</span>
+            </button>
+            <input type="file" id="restore-file-input" accept=".json" class="hidden">
             <button id="btn-clear-db" class="flex items-center justify-center w-full px-4 py-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all font-bold text-xs border border-slate-100 hover:border-red-100">
                 <i data-lucide="trash-2" class="w-4 h-4 md:mr-2"></i><span class="hidden md:block">ล้างฐานข้อมูล</span>
             </button>
@@ -207,7 +216,7 @@
             <h1 id="page-title" class="text-lg md:text-xl font-black text-slate-800 tracking-tight">System Overview</h1>
             <div class="flex items-center gap-3">
                 <div class="px-3 py-1.5 bg-sky-50 border border-sky-100 rounded-full text-[10px] font-bold text-sky-700 flex items-center shadow-sm">
-                    <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-sky-500"></i> V29.46 Strict Numeric Core
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-sky-500"></i> V29.50 Strict Numeric Core
                 </div>
             </div>
         </header>
@@ -277,6 +286,12 @@
                                 <i data-lucide="chevron-down" class="w-3 h-3 text-white absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
                             </div>
                             
+                            <!-- V29.50 FEAT: ช่องค้นหาใน Dashboard -->
+                            <div class="relative hidden sm:block">
+                                <i data-lucide="search" class="w-3.5 h-3.5 text-slate-300 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                                <input type="text" id="dashboard-search" placeholder="ค้นหา Tag, Machine..." class="w-40 pl-8 pr-2 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm font-medium transition-all bg-white/80 backdrop-blur-sm">
+                            </div>
+
                             <div class="flex items-center gap-2 bg-white px-2 py-1.5 rounded-xl border border-slate-200 shadow-sm">
                                 <i data-lucide="filter" class="w-4 h-4 text-slate-400 ml-1"></i>
                                 <select id="view-filter" class="bg-transparent text-slate-700 text-xs font-bold outline-none cursor-pointer pr-2">
@@ -474,7 +489,7 @@
                     </div>
                     
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.46 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.50 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by Supasit@1981th</p>
                     </div>
                 </div>
@@ -555,6 +570,14 @@
                         <span id="ai-source-badge" class="hidden text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded ml-1">จากคู่มือ</span>
                     </div>
                     <textarea id="action-input" class="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all placeholder:text-slate-300 resize-none" rows="3" placeholder="ระบุการแก้ไขปัญหา หรือสาเหตุความผิดปกติ..."></textarea>
+                </div>
+
+                <!-- V29.50 FEAT: ประวัติการแก้ไขก่อนหน้าของ Tag นี้ -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm mt-4">
+                    <label class="text-xs font-black text-slate-700 uppercase tracking-wide flex items-center gap-1 mb-3">
+                        <i data-lucide="history" class="w-4 h-4 text-slate-400"></i> ประวัติการแก้ไขก่อนหน้า (Past Actions)
+                    </label>
+                    <div id="past-actions-list" class="space-y-2 max-h-40 overflow-y-auto"></div>
                 </div>
             </div>
 
@@ -652,7 +675,7 @@
                         </div>
 
                     <div class="mt-8 flex justify-between items-center opacity-50">
-                        <p class="text-[8px] font-mono text-slate-400 tracking-widest">GENERATED BY PLANT LOG ANALYZER (V29.46 OFFLINE)</p>
+                        <p class="text-[8px] font-mono text-slate-400 tracking-widest">GENERATED BY PLANT LOG ANALYZER (V29.50 OFFLINE)</p>
                         <div class="flex items-center gap-2">
                             <i data-lucide="cpu" class="w-3 h-3 text-slate-400"></i>
                             <span class="text-[8px] font-black tracking-[0.15em] text-slate-400 uppercase">Supasit@1981th</span>
@@ -663,6 +686,9 @@
             
             <div class="px-6 py-4 bg-white border-t border-slate-100 flex justify-end gap-3 shrink-0">
                 <button id="btn-cancel-report" class="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors">ย้อนกลับ</button>
+                <button id="btn-export-pdf" class="px-6 py-2.5 rounded-xl text-sm font-black bg-white border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-50 transition-all flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-4 h-4"></i> Save as PDF
+                </button>
                 <button id="btn-export-image" class="px-6 py-2.5 rounded-xl text-sm font-black bg-gradient-to-r from-brand-600 to-sky-600 text-white shadow-md shadow-brand-500/30 hover:from-brand-500 hover:to-sky-500 transition-all flex items-center gap-2">
                     <i data-lucide="download" class="w-4 h-4"></i> Save as Image (JPG)
                 </button>
@@ -1247,6 +1273,30 @@
                 const tx = STORAGE_ENGINE.db.transaction([STORE_RECORDS], 'readwrite');
                 tx.objectStore(STORE_RECORDS).clear();
                 tx.oncomplete = resolve;
+            }),
+            // V29.50 FEAT: Backup / Restore (สำรอง/กู้คืนข้อมูลทั้ง 3 store เป็นไฟล์ JSON)
+            exportAll: async () => {
+                const [tags, records, masterTags] = await Promise.all([
+                    STORAGE_ENGINE.getAll(STORE_TAGS),
+                    STORAGE_ENGINE.getAll(STORE_RECORDS),
+                    STORAGE_ENGINE.getAll(STORE_MASTERTAGS)
+                ]);
+                return { schemaVersion: 1, exportedAt: new Date().toISOString(), tags, records, masterTags };
+            },
+            importAll: (payload) => new Promise((resolve, reject) => {
+                if(!STORAGE_ENGINE.db) return resolve();
+                if (!payload || !Array.isArray(payload.tags) || !Array.isArray(payload.records) || !Array.isArray(payload.masterTags)) {
+                    return reject(new Error('Invalid backup file structure'));
+                }
+                const tx = STORAGE_ENGINE.db.transaction([STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS], 'readwrite');
+                tx.objectStore(STORE_TAGS).clear();
+                tx.objectStore(STORE_RECORDS).clear();
+                tx.objectStore(STORE_MASTERTAGS).clear();
+                payload.tags.forEach(t => tx.objectStore(STORE_TAGS).put(t));
+                payload.records.forEach(r => tx.objectStore(STORE_RECORDS).put(r));
+                payload.masterTags.forEach(m => tx.objectStore(STORE_MASTERTAGS).put(m));
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
             })
         };
 
@@ -1570,7 +1620,53 @@
                 STATE.set('tags', tags);
                 STATE.set('masterTags', masterTags);
                 STATE.set('records', records); 
-                STATE.set('selectedForReport', []); 
+                STATE.set('selectedForReport', []);
+            },
+
+            // V29.50 FEAT: Export ข้อมูลทั้งหมด (Tags/Records/MasterTags) เป็นไฟล์ JSON สำรอง
+            backupData: async () => {
+                try {
+                    const payload = await STORAGE_ENGINE.exportAll();
+                    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    const dateStr = new Date().toISOString().slice(0, 10);
+                    link.href = url;
+                    link.download = `PlantLogAnalyzer_Backup_${dateStr}.json`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                } catch (error) {
+                    console.error("Backup Failed: ", error);
+                    alert("เกิดข้อผิดพลาดในการสำรองข้อมูล กรุณาลองใหม่อีกครั้ง");
+                }
+            },
+
+            // V29.50 FEAT: กู้คืนข้อมูลจากไฟล์ JSON สำรอง (เขียนทับข้อมูลปัจจุบันทั้งหมด)
+            restoreData: (file) => {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    let payload;
+                    try {
+                        payload = JSON.parse(e.target.result);
+                    } catch (error) {
+                        alert("ไฟล์สำรองไม่ถูกต้อง หรือเสียหาย ไม่สามารถอ่านเป็น JSON ได้");
+                        return;
+                    }
+                    if (!confirm("การกู้คืนข้อมูลจะเขียนทับข้อมูล Tag, Record และ Master ทั้งหมดที่มีอยู่ในขณะนี้ ต้องการดำเนินการต่อหรือไม่?")) return;
+                    try {
+                        await STORAGE_ENGINE.importAll(payload);
+                        await APP.loadLocalData();
+                        STATE.set('timeFilter', 'all');
+                        alert("กู้คืนข้อมูลสำเร็จ");
+                    } catch (error) {
+                        console.error("Restore Failed: ", error);
+                        alert("เกิดข้อผิดพลาดในการกู้คืนข้อมูล: ไฟล์อาจมีโครงสร้างไม่ถูกต้อง");
+                    }
+                };
+                reader.onerror = () => alert("ไม่สามารถอ่านไฟล์ได้ กรุณาลองใหม่อีกครั้ง");
+                reader.readAsText(file);
             },
 
             bindEvents: () => {
@@ -1617,6 +1713,20 @@
                     }
                 });
 
+                // V29.50 FEAT: สำรอง/กู้คืนข้อมูล (Backup/Restore)
+                assignEvent('btn-backup-db', APP.backupData);
+
+                assignEvent('btn-restore-db', () => {
+                    const input = document.getElementById('restore-file-input');
+                    if (input) input.click();
+                });
+
+                assignEvent('restore-file-input', (e) => {
+                    const file = e.target.files[0];
+                    e.target.value = '';
+                    if (file) APP.restoreData(file);
+                }, 'change');
+
                 const dz = document.getElementById('drop-zone');
                 const fi = document.getElementById('file-input');
                 if (fi && dz) {
@@ -1629,6 +1739,7 @@
                 assignEvent('view-filter', (e) => STATE.set('viewFilter', e.target.value), 'change');
                 assignEvent('tag-search', (e) => APP.renderTagTable(e.target.value), 'input');
                 assignEvent('master-search', (e) => APP.renderMasterTable(e.target.value), 'input');
+                assignEvent('dashboard-search', () => APP.renderDashboard(), 'input');
 
                 assignEvent('btn-close-modal', APP.closeActionModal);
                 assignEvent('btn-cancel-action', APP.closeActionModal);
@@ -1643,6 +1754,7 @@
                 assignEvent('btn-close-report', APP.closeReportModal);
 
                 assignEvent('btn-export-image', APP.exportInfographicImage);
+                assignEvent('btn-export-pdf', APP.exportInfographicPDF);
 
                 assignEvent('report-shift', APP.updateInfographicLive, 'change');
                 assignEvent('report-reporter', APP.updateInfographicLive, 'input');
@@ -1896,20 +2008,35 @@
                 const spen = document.getElementById('stat-pending');
                 if (spen) spen.textContent = totalAbnormal.length - ackCount;
 
+                // V29.50 FEAT: ช่องค้นหาใน Dashboard (ค้นหาภายในช่วงเวลา/filter ที่เลือกอยู่)
+                const searchInput = document.getElementById('dashboard-search');
+                const searchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
+                const visibleAbs = searchQuery ? abs.filter(r => {
+                    const tId = getTagId(r);
+                    const tagDef = tags.find(t => t.id === tId) || {};
+                    const master = mTagsMap.get(tId);
+                    const desc = (master && master.description) ? master.description : (tagDef.description || '');
+                    return (r.tagNo || '').toLowerCase().includes(searchQuery)
+                        || (r.machine || '').toLowerCase().includes(searchQuery)
+                        || desc.toLowerCase().includes(searchQuery);
+                }) : abs;
+
                 const grid = document.getElementById('abnormal-grid');
                 if (!grid) return;
                 while (grid.firstChild) grid.removeChild(grid.firstChild);
 
-                if (abs.length === 0) {
+                if (visibleAbs.length === 0) {
                     const empty = UI_RENDERER.createEl('div', 'col-span-full py-20 flex flex-col items-center justify-center text-slate-400 opacity-70');
-                    if(viewFilter === 'abnormal') {
+                    if (searchQuery) {
+                        empty.innerHTML = `<i data-lucide="search-x" class="w-12 h-12 mb-3 text-slate-300"></i><p class="text-sm font-medium text-slate-500">ไม่พบรายการที่ตรงกับคำค้นหา</p>`;
+                    } else if(viewFilter === 'abnormal') {
                         empty.innerHTML = `<i data-lucide="check-circle" class="w-12 h-12 mb-3 text-brand-400"></i><p class="text-sm font-medium text-slate-500">เยี่ยมมาก! ไม่พบรายการพารามิเตอร์ผิดปกติในช่วงเวลานี้</p>`;
                     } else {
                         empty.innerHTML = `<i data-lucide="inbox" class="w-12 h-12 mb-3 text-slate-300"></i><p class="text-sm font-medium text-slate-500">ยังไม่มีข้อมูล</p>`;
                     }
                     grid.appendChild(empty);
                 } else {
-                    abs.slice(0, SELECT_ALL_CAP).forEach(r => {
+                    visibleAbs.slice(0, SELECT_ALL_CAP).forEach(r => {
                         const tId = getTagId(r);
                         const tagDef = tags.find(t => t.id === tId) || {};
                         const master = mTagsMap.get(tId);
@@ -2114,32 +2241,38 @@
                 hideModal('report-modal');
             },
 
+            // V29.50: rasterize helper shared by JPG and PDF export (was inlined only in exportInfographicImage before)
+            renderInfographicCanvas: () => {
+                const targetElement = document.getElementById('infographic-container');
+                return html2canvas(targetElement, {
+                    scale: 2,
+                    backgroundColor: '#f8fafc',
+                    logging: false,
+                    useCORS: true
+                });
+            },
+
+            getInfographicDateStr: () => {
+                const idate = document.getElementById('info-date');
+                return idate ? idate.textContent.replace(/\//g, '-') : 'Report';
+            },
+
             exportInfographicImage: async () => {
                 const btn = document.getElementById('btn-export-image');
                 if (!btn) return;
                 const originalHtml = btn.innerHTML;
-                
+
                 btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Generating...';
                 btn.disabled = true;
                 if (window.lucide) window.lucide.createIcons();
 
                 try {
-                    const targetElement = document.getElementById('infographic-container');
-                    
-                    const canvas = await html2canvas(targetElement, {
-                        scale: 2,
-                        backgroundColor: '#f8fafc',
-                        logging: false,
-                        useCORS: true
-                    });
-
+                    const canvas = await APP.renderInfographicCanvas();
                     const image = canvas.toDataURL("image/jpeg", 0.95);
 
                     const link = document.createElement('a');
                     link.href = image;
-                    const idate = document.getElementById('info-date');
-                    const dateStr = idate ? idate.textContent.replace(/\//g, '-') : 'Report';
-                    link.download = `Shift_Report_Infographic_${dateStr}.jpg`;
+                    link.download = `Shift_Report_Infographic_${APP.getInfographicDateStr()}.jpg`;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -2149,6 +2282,38 @@
                 } catch (error) {
                     console.error("Image Export Failed: ", error);
                     alert("เกิดข้อผิดพลาดในการสร้างรูปภาพ กรุณาลองใหม่อีกครั้ง");
+                } finally {
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                    if (window.lucide) window.lucide.createIcons();
+                }
+            },
+
+            // V29.50 FEAT: Export Infographic Report เป็น PDF (ใช้ canvas เดียวกับ JPG export)
+            exportInfographicPDF: async () => {
+                const btn = document.getElementById('btn-export-pdf');
+                if (!btn) return;
+                const originalHtml = btn.innerHTML;
+
+                btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Generating...';
+                btn.disabled = true;
+                if (window.lucide) window.lucide.createIcons();
+
+                try {
+                    const canvas = await APP.renderInfographicCanvas();
+                    const image = canvas.toDataURL("image/png", 1.0);
+
+                    const { jsPDF } = window.jspdf;
+                    const orientation = canvas.width >= canvas.height ? 'l' : 'p';
+                    const pdf = new jsPDF({ orientation, unit: 'px', format: [canvas.width, canvas.height] });
+                    pdf.addImage(image, 'PNG', 0, 0, canvas.width, canvas.height);
+                    pdf.save(`Shift_Report_Infographic_${APP.getInfographicDateStr()}.pdf`);
+
+                    APP.closeReportModal();
+                    STATE.set('selectedForReport', []);
+                } catch (error) {
+                    console.error("PDF Export Failed: ", error);
+                    alert("เกิดข้อผิดพลาดในการสร้าง PDF กรุณาลองใหม่อีกครั้ง");
                 } finally {
                     btn.innerHTML = originalHtml;
                     btn.disabled = false;
@@ -2408,6 +2573,33 @@
                     .sort((a, b) => a.timestamp - b.timestamp);
 
                 APP.renderChart(history, eMin, eMax, eExact);
+
+                // V29.50 FEAT: ประวัติการแก้ไขก่อนหน้าของ Tag นี้ (ไม่รวม record ปัจจุบัน)
+                const pastAnnotations = history
+                    .filter(r => r.id !== record.id && r.remark && r.remark.trim())
+                    .sort((a, b) => b.timestamp - a.timestamp)
+                    .slice(0, 5);
+
+                const pastList = document.getElementById('past-actions-list');
+                if (pastList) {
+                    while (pastList.firstChild) pastList.removeChild(pastList.firstChild);
+                    if (pastAnnotations.length === 0) {
+                        const empty = UI_RENDERER.createEl('p', 'text-xs text-slate-400 italic text-center py-3');
+                        empty.textContent = 'ยังไม่มีประวัติการแก้ไขก่อนหน้าสำหรับ Tag นี้';
+                        pastList.appendChild(empty);
+                    } else {
+                        pastAnnotations.forEach(r => {
+                            const row = UI_RENDERER.createEl('div', 'bg-slate-50 border border-slate-100 rounded-lg p-2.5');
+                            const timeEl = UI_RENDERER.createEl('p', 'text-[10px] font-bold text-slate-400 mb-0.5');
+                            timeEl.textContent = `${r.dateStr} ${r.timeStr}`;
+                            const remarkEl = UI_RENDERER.createEl('p', 'text-xs font-medium text-slate-700');
+                            remarkEl.textContent = r.remark;
+                            row.appendChild(timeEl);
+                            row.appendChild(remarkEl);
+                            pastList.appendChild(row);
+                        });
+                    }
+                }
 
                 showModal('action-modal');
                 UI_RENDERER.initIcons();
