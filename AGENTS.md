@@ -8,11 +8,12 @@ A single self-contained HTML file — `index.html` — implementing "Plant Log A
 
 See `context.md` for the domain/business background (who uses this, glossary, and the rationale behind recent feature decisions) — this file covers the "how the code works" side.
 
-There is no build step, package manager, server, or test suite — everything (HTML, CSS via Tailwind CDN, JS) lives in that one file. Open it directly in a browser to run it.
+There is no build step, package manager, server, or test suite — everything (HTML, CSS via Tailwind, JS) lives in that one file, plus a `vendor/` folder of locally-hosted copies of the external libraries (see below). Open it directly in a browser to run it.
 
 ## Running / testing changes
 
 - Open `index.html` directly in a browser (double-click or `start "" "index.html"`). There is no dev server or bundler.
+- `index.html` loads Tailwind, lucide, SheetJS `xlsx`, Chart.js, html2canvas, and jsPDF from `./vendor/*.js` (vendored copies, not CDN — see "Working conventions" below) — keep the `vendor/` folder alongside `index.html` when copying the app anywhere (a normal `git clone` already keeps them together).
 - There are no automated tests. Verify changes manually by importing a sample .xls/.xlsx/.csv log sheet through the "นำเข้าข้อมูล" (Import) tab and exercising the affected flow (import → dashboard flagging → annotate/report → infographic export).
 - Data persists client-side in IndexedDB (database `PlantLogAnalyzerEnterpriseDB`) — clearing site data/browser storage resets the app.
 - Bump the version string in the `<title>` (and the "Ultimate Edition (VXX.XX)" label) when making a notable fix, following the existing `V29.40`-style convention seen in commit history and in-code comments (e.g. `// V29.40 FIX: ...`).
@@ -39,6 +40,6 @@ Everything after line ~735 lives in one `<script>` block, organized as plain obj
 ## Working conventions (from this repo's history)
 
 - All UI copy is Thai; keep new user-facing strings in Thai consistent with the surrounding tone.
-- All external libraries (Tailwind, lucide icons, SheetJS `xlsx`, Chart.js, html2canvas) are loaded from CDNs in `<head>` — there's no local dependency management.
+- All external libraries (Tailwind, lucide icons, SheetJS `xlsx`, Chart.js, html2canvas, jsPDF) are loaded from `./vendor/*.js` in `<head>` — vendored copies committed to the repo (not a CDN, and not npm-managed) so the app has zero network dependency once opened. Google Fonts (`index.html:8-10`) is the one deliberate exception, still loaded from `fonts.googleapis.com` — non-critical, degrades gracefully to a system font if offline. To update a vendored library, re-download it from its original CDN URL (see git history / `vendor/` filenames) and overwrite the file in place.
 - User-supplied strings that reach the DOM must go through `escapeHtml` (an XSS fix landed in this repo's early history — don't regress it).
 - Past fixes in this repo have centered on: tag-ID collisions across machines/sheets (always include `machine` in identity), date/time parsing edge cases in imported sheets, and text clipping in the exported Infographic JPG — when touching the infographic layout, verify the exported image (not just the on-screen preview), since html2canvas rendering can diverge from live CSS.

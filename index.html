@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.50)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.51)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- V29.51 FEAT: vendored locally (was CDN) so the app works fully offline once double-clicked -->
+    <script src="./vendor/tailwindcdn.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -32,11 +33,11 @@
         }
     </script>
 
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="./vendor/lucide.js"></script>
+    <script src="./vendor/xlsx.full.min.js"></script>
+    <script src="./vendor/chart.js"></script>
+    <script src="./vendor/html2canvas.min.js"></script>
+    <script src="./vendor/jspdf.umd.min.js"></script>
 
     <style>
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -196,7 +197,7 @@
                 </div>
             </div>
 
-            <!-- V29.50 FEAT: สำรอง/กู้คืนข้อมูล (Backup/Restore) -->
+            <!-- V29.51 FEAT: สำรอง/กู้คืนข้อมูล (Backup/Restore) -->
             <button id="btn-backup-db" class="flex items-center justify-center w-full px-4 py-2.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all font-bold text-xs border border-slate-100 hover:border-brand-100">
                 <i data-lucide="download-cloud" class="w-4 h-4 md:mr-2"></i><span class="hidden md:block">สำรองข้อมูล</span>
             </button>
@@ -216,7 +217,7 @@
             <h1 id="page-title" class="text-lg md:text-xl font-black text-slate-800 tracking-tight">System Overview</h1>
             <div class="flex items-center gap-3">
                 <div class="px-3 py-1.5 bg-sky-50 border border-sky-100 rounded-full text-[10px] font-bold text-sky-700 flex items-center shadow-sm">
-                    <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-sky-500"></i> V29.50 Strict Numeric Core
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-sky-500"></i> V29.51 Strict Numeric Core
                 </div>
             </div>
         </header>
@@ -224,7 +225,21 @@
         <div class="flex-1 overflow-hidden relative">
             
             <div id="view-dashboard" class="view-panel absolute inset-0 overflow-y-auto p-6 md:p-8 space-y-6 animate-fade-in pb-24">
-                
+
+                <!-- V29.51 FEAT: Backup reminder banner -->
+                <div id="backup-reminder-banner" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap">
+                    <div class="flex items-center gap-2.5">
+                        <i data-lucide="shield-alert" class="w-5 h-5 text-amber-500 shrink-0"></i>
+                        <p id="backup-reminder-text" class="text-xs font-bold text-amber-800"></p>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button id="btn-backup-reminder-action" class="px-3 py-1.5 rounded-lg text-xs font-black bg-amber-500 text-white hover:bg-amber-600 transition-all">สำรองตอนนี้</button>
+                        <button id="btn-backup-reminder-dismiss" class="text-amber-400 hover:text-amber-700 p-1">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
                 <div class="bg-white border border-slate-200 shadow-sm rounded-2xl p-4 flex flex-col gap-2">
                     <div class="flex items-center gap-2 mb-1">
                         <i data-lucide="history" class="w-4 h-4 text-slate-400"></i>
@@ -286,7 +301,7 @@
                                 <i data-lucide="chevron-down" class="w-3 h-3 text-white absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
                             </div>
                             
-                            <!-- V29.50 FEAT: ช่องค้นหาใน Dashboard -->
+                            <!-- V29.51 FEAT: ช่องค้นหาใน Dashboard -->
                             <div class="relative hidden sm:block">
                                 <i data-lucide="search" class="w-3.5 h-3.5 text-slate-300 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
                                 <input type="text" id="dashboard-search" placeholder="ค้นหา Tag, Machine..." class="w-40 pl-8 pr-2 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm font-medium transition-all bg-white/80 backdrop-blur-sm">
@@ -340,6 +355,14 @@
                     <div class="mt-5 bg-slate-850 rounded-xl p-4 h-48 overflow-y-auto shadow-inner border border-slate-700">
                         <div id="process-log" class="text-[11px] text-emerald-400 font-mono leading-relaxed flex flex-col gap-1"></div>
                     </div>
+                </div>
+
+                <!-- V29.51 FEAT: ประวัติการนำเข้าไฟล์ (Import Audit Trail) -->
+                <div class="mt-8 w-full max-w-2xl glass-card rounded-2xl p-6 shadow-sm border border-slate-100">
+                    <h3 class="text-sm font-black text-slate-700 uppercase tracking-wide flex items-center gap-2 mb-3">
+                        <i data-lucide="history" class="w-4 h-4 text-slate-400"></i> ประวัติการนำเข้าไฟล์ (Import History)
+                    </h3>
+                    <div id="import-history-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
                 </div>
             </div>
 
@@ -489,7 +512,7 @@
                     </div>
                     
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.50 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.51 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by Supasit@1981th</p>
                     </div>
                 </div>
@@ -572,7 +595,7 @@
                     <textarea id="action-input" class="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all placeholder:text-slate-300 resize-none" rows="3" placeholder="ระบุการแก้ไขปัญหา หรือสาเหตุความผิดปกติ..."></textarea>
                 </div>
 
-                <!-- V29.50 FEAT: ประวัติการแก้ไขก่อนหน้าของ Tag นี้ -->
+                <!-- V29.51 FEAT: ประวัติการแก้ไขก่อนหน้าของ Tag นี้ -->
                 <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm mt-4">
                     <label class="text-xs font-black text-slate-700 uppercase tracking-wide flex items-center gap-1 mb-3">
                         <i data-lucide="history" class="w-4 h-4 text-slate-400"></i> ประวัติการแก้ไขก่อนหน้า (Past Actions)
@@ -675,7 +698,7 @@
                         </div>
 
                     <div class="mt-8 flex justify-between items-center opacity-50">
-                        <p class="text-[8px] font-mono text-slate-400 tracking-widest">GENERATED BY PLANT LOG ANALYZER (V29.50 OFFLINE)</p>
+                        <p class="text-[8px] font-mono text-slate-400 tracking-widest">GENERATED BY PLANT LOG ANALYZER (V29.51 OFFLINE)</p>
                         <div class="flex items-center gap-2">
                             <i data-lucide="cpu" class="w-3 h-3 text-slate-400"></i>
                             <span class="text-[8px] font-black tracking-[0.15em] text-slate-400 uppercase">Supasit@1981th</span>
@@ -812,7 +835,7 @@
         function showModal(id) { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); }
         function hideModal(id) { const el = document.getElementById(id); if (el) el.classList.add('hidden'); }
 
-        const STORE_TAGS = 'Tags', STORE_RECORDS = 'Records', STORE_MASTERTAGS = 'MasterTags';
+        const STORE_TAGS = 'Tags', STORE_RECORDS = 'Records', STORE_MASTERTAGS = 'MasterTags', STORE_IMPORTHISTORY = 'ImportHistory';
 
         // Zero-shield / abnormal-detection tolerances (V29.40/V29.42-tuned — values frozen, names only)
         const LIMIT_EPSILON = 0.0001;
@@ -824,6 +847,10 @@
 
         const SELECT_ALL_CAP = 300;
         const TABLE_RENDER_CAP = 350;
+        const RECURRING_ABNORMAL_THRESHOLD = 3; // V29.51 FEAT: min abnormal occurrences (all-time) before a tag gets the "recurring" badge
+        const BACKUP_REMINDER_STALE_DAYS = 3; // V29.51 FEAT: prompt to back up if last backup is older than this (or never)
+        const LS_LAST_BACKUP_KEY = 'plantLogAnalyzer_lastBackupAt';
+        const LS_BACKUP_SNOOZE_KEY = 'plantLogAnalyzer_backupSnoozeUntil';
 
         const SMART_AGENT = {
             analyze: (record, eMin, eMax, eExact) => {
@@ -1219,7 +1246,7 @@
         const STORAGE_ENGINE = {
             db: null,
             init: () => new Promise((resolve, reject) => {
-                const req = indexedDB.open('PlantLogAnalyzerEnterpriseDB', 2);
+                const req = indexedDB.open('PlantLogAnalyzerEnterpriseDB', 3);
                 req.onupgradeneeded = (e) => {
                     const db = e.target.result;
                     if(!db.objectStoreNames.contains(STORE_TAGS)) db.createObjectStore(STORE_TAGS, { keyPath: 'id' });
@@ -1228,6 +1255,8 @@
                         s.createIndex('isAbnormal', 'isAbnormal', { unique: false });
                     }
                     if(!db.objectStoreNames.contains(STORE_MASTERTAGS)) db.createObjectStore(STORE_MASTERTAGS, { keyPath: 'id' });
+                    // V29.51 FEAT: Import audit trail
+                    if(!db.objectStoreNames.contains(STORE_IMPORTHISTORY)) db.createObjectStore(STORE_IMPORTHISTORY, { keyPath: 'id' });
                 };
                 req.onsuccess = (e) => { STORAGE_ENGINE.db = e.target.result; resolve(); };
                 req.onerror = reject;
@@ -1274,7 +1303,7 @@
                 tx.objectStore(STORE_RECORDS).clear();
                 tx.oncomplete = resolve;
             }),
-            // V29.50 FEAT: Backup / Restore (สำรอง/กู้คืนข้อมูลทั้ง 3 store เป็นไฟล์ JSON)
+            // V29.51 FEAT: Backup / Restore (สำรอง/กู้คืนข้อมูลทั้ง 3 store เป็นไฟล์ JSON)
             exportAll: async () => {
                 const [tags, records, masterTags] = await Promise.all([
                     STORAGE_ENGINE.getAll(STORE_TAGS),
@@ -1297,6 +1326,22 @@
                 payload.masterTags.forEach(m => tx.objectStore(STORE_MASTERTAGS).put(m));
                 tx.oncomplete = resolve;
                 tx.onerror = () => reject(tx.error);
+            }),
+            // V29.51 FEAT: Import audit trail (บันทึกประวัติการนำเข้าไฟล์ แยกจาก process-log ที่หายไปทุกครั้งที่ import ใหม่)
+            logImport: (entry) => new Promise((resolve) => {
+                if(!STORAGE_ENGINE.db) return resolve();
+                const tx = STORAGE_ENGINE.db.transaction([STORE_IMPORTHISTORY], 'readwrite');
+                tx.objectStore(STORE_IMPORTHISTORY).put(entry);
+                tx.oncomplete = resolve;
+            }),
+            getImportHistory: () => new Promise((resolve) => {
+                if(!STORAGE_ENGINE.db) return resolve([]);
+                const tx = STORAGE_ENGINE.db.transaction([STORE_IMPORTHISTORY], 'readonly');
+                const req = tx.objectStore(STORE_IMPORTHISTORY).getAll();
+                req.onsuccess = (e) => {
+                    const sorted = e.target.result.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+                    resolve(sorted.slice(0, 50));
+                };
             })
         };
 
@@ -1608,8 +1653,13 @@
                 await STORAGE_ENGINE.init();
 
                 APP.bindEvents();
-                await APP.loadLocalData();
+                // V29.51 FIX: subscribe BEFORE the initial loadLocalData so its STATE.set calls actually
+                // trigger the first render — previously, if IndexedDB already had data from a prior
+                // session (the normal case once an operator has imported before), the dashboard stayed
+                // stuck on its 0/blank loading state until some other STATE change (e.g. a nav click).
                 STATE.subscribe(APP.render);
+                await APP.loadLocalData();
+                await APP.renderImportHistory();
             },
             
             loadLocalData: async () => {
@@ -1619,11 +1669,52 @@
                 
                 STATE.set('tags', tags);
                 STATE.set('masterTags', masterTags);
-                STATE.set('records', records); 
+                STATE.set('records', records);
                 STATE.set('selectedForReport', []);
             },
 
-            // V29.50 FEAT: Export ข้อมูลทั้งหมด (Tags/Records/MasterTags) เป็นไฟล์ JSON สำรอง
+            // V29.51 FEAT: แสดงประวัติการนำเข้าไฟล์ (Import Audit Trail)
+            renderImportHistory: async () => {
+                const list = document.getElementById('import-history-list');
+                if (!list) return;
+
+                const history = await STORAGE_ENGINE.getImportHistory();
+                while (list.firstChild) list.removeChild(list.firstChild);
+
+                if (history.length === 0) {
+                    const empty = UI_RENDERER.createEl('p', 'text-xs text-slate-400 italic text-center py-3');
+                    empty.textContent = 'ยังไม่มีประวัติการนำเข้าไฟล์';
+                    list.appendChild(empty);
+                    return;
+                }
+
+                history.slice(0, 10).forEach(entry => {
+                    const isError = entry.status === 'error';
+                    const row = UI_RENDERER.createEl('div', `flex items-start gap-3 p-2.5 rounded-lg border ${isError ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`);
+
+                    const iconWrap = UI_RENDERER.createEl('div', `w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isError ? 'bg-red-100 text-red-500' : 'bg-brand-100 text-brand-600'}`);
+                    iconWrap.innerHTML = isError ? '<i data-lucide="x-circle" class="w-3.5 h-3.5"></i>' : '<i data-lucide="check" class="w-3.5 h-3.5"></i>';
+                    row.appendChild(iconWrap);
+
+                    const textWrap = UI_RENDERER.createEl('div', 'flex-1 min-w-0');
+                    const nameEl = UI_RENDERER.createEl('p', 'text-xs font-bold text-slate-700 truncate');
+                    nameEl.textContent = entry.fileName;
+                    const metaEl = UI_RENDERER.createEl('p', 'text-[10px] text-slate-400 font-medium');
+                    const dt = new Date(entry.importedAt);
+                    const dtStr = isNaN(dt.getTime()) ? entry.importedAt : dt.toLocaleString('th-TH');
+                    metaEl.textContent = isError
+                        ? `${dtStr} • ${entry.errorMessage || 'Import failed'}`
+                        : `${dtStr} • +${entry.tagsAdded} tags / +${entry.recordsAdded} records`;
+                    textWrap.appendChild(nameEl);
+                    textWrap.appendChild(metaEl);
+                    row.appendChild(textWrap);
+
+                    list.appendChild(row);
+                });
+                UI_RENDERER.initIcons();
+            },
+
+            // V29.51 FEAT: Export ข้อมูลทั้งหมด (Tags/Records/MasterTags) เป็นไฟล์ JSON สำรอง
             backupData: async () => {
                 try {
                     const payload = await STORAGE_ENGINE.exportAll();
@@ -1637,13 +1728,18 @@
                     link.click();
                     document.body.removeChild(link);
                     URL.revokeObjectURL(url);
+
+                    // V29.51 FEAT: บันทึกเวลาสำรองล่าสุด สำหรับ backup reminder banner
+                    localStorage.setItem(LS_LAST_BACKUP_KEY, new Date().toISOString());
+                    localStorage.removeItem(LS_BACKUP_SNOOZE_KEY);
+                    APP.renderBackupReminder();
                 } catch (error) {
                     console.error("Backup Failed: ", error);
                     alert("เกิดข้อผิดพลาดในการสำรองข้อมูล กรุณาลองใหม่อีกครั้ง");
                 }
             },
 
-            // V29.50 FEAT: กู้คืนข้อมูลจากไฟล์ JSON สำรอง (เขียนทับข้อมูลปัจจุบันทั้งหมด)
+            // V29.51 FEAT: กู้คืนข้อมูลจากไฟล์ JSON สำรอง (เขียนทับข้อมูลปัจจุบันทั้งหมด)
             restoreData: (file) => {
                 const reader = new FileReader();
                 reader.onload = async (e) => {
@@ -1713,8 +1809,17 @@
                     }
                 });
 
-                // V29.50 FEAT: สำรอง/กู้คืนข้อมูล (Backup/Restore)
+                // V29.51 FEAT: สำรอง/กู้คืนข้อมูล (Backup/Restore)
                 assignEvent('btn-backup-db', APP.backupData);
+
+                // V29.51 FEAT: Backup reminder banner actions
+                assignEvent('btn-backup-reminder-action', APP.backupData);
+                assignEvent('btn-backup-reminder-dismiss', () => {
+                    const snoozeUntil = new Date(Date.now() + BACKUP_REMINDER_STALE_DAYS * 86400000);
+                    localStorage.setItem(LS_BACKUP_SNOOZE_KEY, snoozeUntil.toISOString());
+                    const banner = document.getElementById('backup-reminder-banner');
+                    if (banner) banner.classList.add('hidden');
+                });
 
                 assignEvent('btn-restore-db', () => {
                     const input = document.getElementById('restore-file-input');
@@ -1827,15 +1932,18 @@
                 while (logEl.firstChild) logEl.removeChild(logEl.firstChild);
                 
                 let allTags = [], allRecords = [];
+                const fileLogEntries = []; // V29.51 FEAT: import audit trail, one entry per file
 
                 for(let f of files) {
                     document.getElementById('process-filename').textContent = "Analyzing: " + f.name;
                     logEl.appendChild(UI_RENDERER.createEl('div', '', `> Reading file structure: ${f.name}`));
-                    
+
+                    let fileTagsCount = 0, fileRecordsCount = 0;
+
                     try {
                         const buffer = await f.arrayBuffer();
                         const wb = XLSX.read(new Uint8Array(buffer), {type: 'array'});
-                        
+
                         let sharedDate = null;
                         for(let sn of wb.SheetNames) {
                             const csv = XLSX.utils.sheet_to_csv(wb.Sheets[sn], {raw:true});
@@ -1850,7 +1958,7 @@
                             sharedDate = new Date().toLocaleDateString('en-GB');
                             logEl.appendChild(UI_RENDERER.createEl('div', 'text-amber-500 ml-4', `> Date not found. Using system date: ${sharedDate}`));
                         }
-                        
+
                         let sIdx = 1;
                         for(let sn of wb.SheetNames) {
                             logEl.appendChild(UI_RENDERER.createEl('div', 'text-slate-300 ml-2', `> Parsing Sheet ${sIdx}/${wb.SheetNames.length}: ${sn}`));
@@ -1858,28 +1966,52 @@
                             const result = await EXCEL_WORKER.processData(csv, sn, f.name, sharedDate, logEl);
                             allTags.push(...result.tags);
                             allRecords.push(...result.records);
+                            fileTagsCount += result.tags.length;
+                            fileRecordsCount += result.records.length;
                             logEl.appendChild(UI_RENDERER.createEl('div', 'text-brand-400 ml-4 mb-1', `✓ Extracted ${result.records.length} records.`));
-                            
+
                             const pct = Math.round((sIdx / wb.SheetNames.length) * 100);
                             document.getElementById('process-bar').style.width = pct + '%';
                             document.getElementById('process-percent').textContent = pct + '%';
                             sIdx++;
                         }
+
+                        fileLogEntries.push({
+                            id: `${Date.now()}_${f.name}`,
+                            importedAt: new Date().toISOString(),
+                            fileName: f.name,
+                            fileSizeBytes: f.size,
+                            tagsAdded: fileTagsCount,
+                            recordsAdded: fileRecordsCount,
+                            status: 'success'
+                        });
                     } catch (err) {
                         logEl.appendChild(UI_RENDERER.createEl('div', 'text-red-400 font-bold', `❌ Error: ${err.message}`));
                         console.error(err);
+                        fileLogEntries.push({
+                            id: `${Date.now()}_${f.name}`,
+                            importedAt: new Date().toISOString(),
+                            fileName: f.name,
+                            fileSizeBytes: f.size,
+                            tagsAdded: fileTagsCount,
+                            recordsAdded: fileRecordsCount,
+                            status: 'error',
+                            errorMessage: err.message
+                        });
                     }
                 }
 
                 logEl.appendChild(UI_RENDERER.createEl('div', 'text-emerald-400 mt-2 font-bold', `> Saving to Local Database...`));
                 const uniqueTags = Array.from(new Map(allTags.map(t => [getTagId(t), t])).values());
-                
+
                 await STORAGE_ENGINE.saveBatch(uniqueTags, allRecords);
-                
-                STATE.set('timeFilter', 'all'); 
+                await Promise.all(fileLogEntries.map(entry => STORAGE_ENGINE.logImport(entry)));
+                await APP.renderImportHistory();
+
+                STATE.set('timeFilter', 'all');
                 STATE.set('viewFilter', 'abnormal');
                 document.getElementById('view-filter').value = 'abnormal';
-                
+
                 await APP.loadLocalData();
 
                 setTimeout(() => {
@@ -1936,7 +2068,44 @@
                 STATE.set('selectedForReport', abs.slice(0, SELECT_ALL_CAP).map(r => r.id));
             },
 
+            // V29.51 FEAT: Backup reminder banner (เตือนถ้ายังไม่เคยสำรอง หรือสำรองครั้งล่าสุดนานเกินไป)
+            renderBackupReminder: () => {
+                const banner = document.getElementById('backup-reminder-banner');
+                if (!banner) return;
+
+                const tags = STATE.get('tags');
+                const records = STATE.get('records');
+                if ((!tags || tags.length === 0) && (!records || records.length === 0)) {
+                    banner.classList.add('hidden');
+                    return;
+                }
+
+                const snoozeUntil = localStorage.getItem(LS_BACKUP_SNOOZE_KEY);
+                if (snoozeUntil && new Date(snoozeUntil) > new Date()) {
+                    banner.classList.add('hidden');
+                    return;
+                }
+
+                const lastBackupAt = localStorage.getItem(LS_LAST_BACKUP_KEY);
+                const daysSince = lastBackupAt ? (Date.now() - new Date(lastBackupAt).getTime()) / 86400000 : Infinity;
+
+                if (daysSince < BACKUP_REMINDER_STALE_DAYS) {
+                    banner.classList.add('hidden');
+                    return;
+                }
+
+                const textEl = document.getElementById('backup-reminder-text');
+                if (textEl) {
+                    textEl.textContent = lastBackupAt
+                        ? `สำรองข้อมูลล่าสุดเมื่อ ${Math.floor(daysSince)} วันที่แล้ว — สำรองข้อมูลเพื่อป้องกันข้อมูลสูญหาย`
+                        : 'ยังไม่เคยสำรองข้อมูล — สำรองข้อมูลเพื่อป้องกันข้อมูลสูญหายหากล้าง Browser Data';
+                }
+                banner.classList.remove('hidden');
+                UI_RENDERER.initIcons();
+            },
+
             renderDashboard: () => {
+                APP.renderBackupReminder();
                 const tags = STATE.get('tags');
                 const records = STATE.get('records');
                 const abs = STATE.get('abnormalRecords');
@@ -2008,7 +2177,7 @@
                 const spen = document.getElementById('stat-pending');
                 if (spen) spen.textContent = totalAbnormal.length - ackCount;
 
-                // V29.50 FEAT: ช่องค้นหาใน Dashboard (ค้นหาภายในช่วงเวลา/filter ที่เลือกอยู่)
+                // V29.51 FEAT: ช่องค้นหาใน Dashboard (ค้นหาภายในช่วงเวลา/filter ที่เลือกอยู่)
                 const searchInput = document.getElementById('dashboard-search');
                 const searchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
                 const visibleAbs = searchQuery ? abs.filter(r => {
@@ -2036,6 +2205,15 @@
                     }
                     grid.appendChild(empty);
                 } else {
+                    // V29.51 FEAT: Recurring-abnormality badge — count abnormal (non-standby) occurrences per tag across ALL loaded records, not just the current time/search filter
+                    const abnormalCounts = new Map();
+                    records.forEach(rec => {
+                        if (rec.isAbnormal === 1 && rec.isStandby !== true) {
+                            const tId = getTagId(rec);
+                            abnormalCounts.set(tId, (abnormalCounts.get(tId) || 0) + 1);
+                        }
+                    });
+
                     visibleAbs.slice(0, SELECT_ALL_CAP).forEach(r => {
                         const tId = getTagId(r);
                         const tagDef = tags.find(t => t.id === tId) || {};
@@ -2091,6 +2269,15 @@
                         
                         const mSpan = UI_RENDERER.createEl('span', 'bg-slate-100 px-2 py-0.5 rounded text-slate-500', r.machine);
                         topDiv.appendChild(timeSpan); topDiv.appendChild(mSpan);
+
+                        // V29.51 FEAT: Recurring-abnormality badge
+                        const recurCount = abnormalCounts.get(tId) || 0;
+                        if (isAbnormal && !isStandby && recurCount >= RECURRING_ABNORMAL_THRESHOLD) {
+                            const recurSpan = UI_RENDERER.createEl('span', 'bg-orange-100 text-orange-700 px-2 py-0.5 rounded flex items-center gap-1 ml-1.5');
+                            recurSpan.innerHTML = `<i data-lucide="repeat" class="w-3 h-3"></i> ผิดปกติซ้ำ ${recurCount} ครั้ง`;
+                            topDiv.appendChild(recurSpan);
+                        }
+
                         card.appendChild(topDiv);
 
                         const midDiv = UI_RENDERER.createEl('div', 'flex-1');
@@ -2241,7 +2428,7 @@
                 hideModal('report-modal');
             },
 
-            // V29.50: rasterize helper shared by JPG and PDF export (was inlined only in exportInfographicImage before)
+            // V29.51: rasterize helper shared by JPG and PDF export (was inlined only in exportInfographicImage before)
             renderInfographicCanvas: () => {
                 const targetElement = document.getElementById('infographic-container');
                 return html2canvas(targetElement, {
@@ -2289,7 +2476,7 @@
                 }
             },
 
-            // V29.50 FEAT: Export Infographic Report เป็น PDF (ใช้ canvas เดียวกับ JPG export)
+            // V29.51 FEAT: Export Infographic Report เป็น PDF (ใช้ canvas เดียวกับ JPG export)
             exportInfographicPDF: async () => {
                 const btn = document.getElementById('btn-export-pdf');
                 if (!btn) return;
@@ -2574,7 +2761,7 @@
 
                 APP.renderChart(history, eMin, eMax, eExact);
 
-                // V29.50 FEAT: ประวัติการแก้ไขก่อนหน้าของ Tag นี้ (ไม่รวม record ปัจจุบัน)
+                // V29.51 FEAT: ประวัติการแก้ไขก่อนหน้าของ Tag นี้ (ไม่รวม record ปัจจุบัน)
                 const pastAnnotations = history
                     .filter(r => r.id !== record.id && r.remark && r.remark.trim())
                     .sort((a, b) => b.timestamp - a.timestamp)
