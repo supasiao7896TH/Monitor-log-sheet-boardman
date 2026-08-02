@@ -43,3 +43,22 @@ Everything after line ~735 lives in one `<script>` block, organized as plain obj
 - All external libraries (Tailwind, lucide icons, SheetJS `xlsx`, Chart.js, html2canvas, jsPDF) are loaded from `./vendor/*.js` in `<head>` — vendored copies committed to the repo (not a CDN, and not npm-managed) so the app has zero network dependency once opened. Google Fonts (`index.html:8-10`) is the one deliberate exception, still loaded from `fonts.googleapis.com` — non-critical, degrades gracefully to a system font if offline. To update a vendored library, re-download it from its original CDN URL (see git history / `vendor/` filenames) and overwrite the file in place.
 - User-supplied strings that reach the DOM must go through `escapeHtml` (an XSS fix landed in this repo's early history — don't regress it).
 - Past fixes in this repo have centered on: tag-ID collisions across machines/sheets (always include `machine` in identity), date/time parsing edge cases in imported sheets, and text clipping in the exported Infographic JPG — when touching the infographic layout, verify the exported image (not just the on-screen preview), since html2canvas rendering can diverge from live CSS.
+
+## Available Subagents
+
+Subagent ที่ใช้กับโปรเจกต์นี้เป็น **global agent** อยู่ที่ `~/.claude/agents/` (ไม่ใช่ project-local) ภายใต้แบรนด์ "Supasit.A | A-Class WebCraft" — ใช้ร่วมกันได้ทุกโปรเจกต์ของผู้ใช้ และปรับตัวตามโครงสร้างจริงของแต่ละโปรเจกต์ (โปรเจกต์นี้ไม่ได้ใช้ 9-Module IIFE หรือ Neo-Glassmorphism ดังนั้น check ส่วนนั้นจะถูกข้ามไปโดยอัตโนมัติ):
+
+| Subagent | ใช้เมื่อ | สิทธิ์ |
+|---|---|---|
+| `sa-explore` | เปิด session ใหม่ / อยากรู้ภาพรวมโค้ดก่อนเริ่มงาน / หาว่าฟังก์ชันอยู่ไฟล์ไหน | Read-only |
+| `sa-code-reviewer` | หลังแก้โค้ดเสร็จในแต่ละรอบ ก่อน commit | Read-only |
+| `sa-debugger` | โค้ด error / พฤติกรรมไม่ตรงที่คาด | Edit ได้ |
+| `sa-architect` | ก่อนตัดสินใจโครงสร้างสำหรับฟีเจอร์ใหญ่ๆ | Read-only, plan-only |
+| `sa-handoff` | จะปิดเครื่อง หรือเพิ่งเปิดเครื่องมาทำงานต่อ (สลับบ้าน↔ที่ทำงาน) — อ่าน/เขียนเฉพาะ `HANDOFF.md` | Read + Write เฉพาะ `HANDOFF.md` |
+
+**Workflow แนะนำ:**
+1. Session ใหม่ → เรียก `sa-explore` สำรวจโค้ดที่เกี่ยวข้องก่อน
+2. Plan Mode (Opus) → วางแผน
+3. Accept Edits (Sonnet) → ลงมือแก้
+4. เรียก `sa-code-reviewer` ก่อน commit
+5. ถ้าเจอ Critical issue → เรียก `sa-debugger` แก้ต่อ
