@@ -2,20 +2,35 @@
   "hooks": {
     "Stop": [
       {
-        "type": "command",
-        "command": "powershell -ExecutionPolicy Bypass -File .claude/hooks/stop.ps1"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -ExecutionPolicy Bypass -File .claude/hooks/stop.ps1"
+          }
+        ]
       }
     ],
     "PermissionRequest": [
       {
-        "type": "command",
-        "command": "powershell -ExecutionPolicy Bypass -File .claude/hooks/approve.ps1"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -ExecutionPolicy Bypass -File .claude/hooks/approve.ps1"
+          }
+        ]
       }
     ],
-    "UserSubmit": [
+    "UserPromptSubmit": [
       {
-        "type": "command",
-        "command": "powershell -ExecutionPolicy Bypass -File .claude/hooks/start.ps1"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -ExecutionPolicy Bypass -File .claude/hooks/start.ps1"
+          }
+        ]
       }
     ]
   }
