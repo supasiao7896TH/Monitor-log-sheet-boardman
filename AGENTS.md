@@ -55,6 +55,7 @@ Subagent ที่ใช้กับโปรเจกต์นี้เป็�
 | `sa-debugger` | โค้ด error / พฤติกรรมไม่ตรงที่คาด | Edit ได้ |
 | `sa-architect` | ก่อนตัดสินใจโครงสร้างสำหรับฟีเจอร์ใหญ่ๆ | Read-only, plan-only |
 | `sa-handoff` | จะปิดเครื่อง หรือเพิ่งเปิดเครื่องมาทำงานต่อ (สลับบ้าน↔ที่ทำงาน) — อ่าน/เขียนเฉพาะ `HANDOFF.md` | Read + Write เฉพาะ `HANDOFF.md` |
+| `sa-git-manager` | จะ commit, จัดการ branch, เจอ merge conflict, หรือเตรียม PR — ยึด Git Safety Protocol เข้มงวด ไม่ push/force ops โดยไม่ขออนุญาตก่อน | Edit + Bash (git) |
 
 **Workflow แนะนำ:**
 1. Session ใหม่ → เรียก `sa-explore` สำรวจโค้ดที่เกี่ยวข้องก่อน
@@ -62,3 +63,4 @@ Subagent ที่ใช้กับโปรเจกต์นี้เป็�
 3. Accept Edits (Sonnet) → ลงมือแก้
 4. เรียก `sa-code-reviewer` ก่อน commit
 5. ถ้าเจอ Critical issue → เรียก `sa-debugger` แก้ต่อ
+6. เรียก `sa-git-manager` เพื่อ commit/push/PR อย่างปลอดภัย
