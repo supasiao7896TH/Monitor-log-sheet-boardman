@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.57)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.59)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -164,7 +164,11 @@
                 <button data-tab="master" class="nav-btn flex items-center px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl transition-all font-medium mt-4 border border-slate-100 bg-slate-50/50">
                     <i data-lucide="settings-2" class="w-5 h-5 text-indigo-500"></i><span class="ml-3 hidden md:block text-sm font-bold text-indigo-700">Tag Master</span>
                 </button>
-                
+                <!-- V29.58 FEAT: หลังบ้านให้เพิ่มคำแนะนำ Auto-Draft เอง (นอกเหนือจากคู่มือ MPS ที่ hardcode ไว้) -->
+                <button data-tab="countermeasure" class="nav-btn flex items-center px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl transition-all font-medium mt-1 border border-slate-100 bg-slate-50/50">
+                    <i data-lucide="lightbulb" class="w-5 h-5 text-teal-500"></i><span class="ml-3 hidden md:block text-sm font-bold text-teal-700">Countermeasure</span>
+                </button>
+
                 <div class="mt-6 pt-4 border-t border-slate-100">
                     <button data-tab="manual" class="nav-btn flex items-center px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl transition-all font-medium">
                         <i data-lucide="book-open" class="w-5 h-5 text-emerald-500"></i><span class="ml-3 hidden md:block text-sm font-bold text-emerald-700">คู่มือการใช้งาน</span>
@@ -433,6 +437,47 @@
                 </div>
             </div>
 
+            <!-- V29.58 FEAT: หลังบ้านให้เพิ่มคำแนะนำ Auto-Draft เอง (นอกเหนือจากคู่มือ MPS ที่ hardcode ไว้) -->
+            <div id="view-countermeasure" class="view-panel hidden absolute inset-0 flex flex-col p-6 md:p-8 animate-fade-in">
+                <div class="glass-card rounded-2xl flex-1 flex flex-col overflow-hidden border-2 border-teal-50/50">
+                    <div class="p-6 border-b border-teal-100/50 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-teal-50/20">
+                        <div>
+                            <h3 class="text-lg font-black text-teal-900 tracking-tight flex items-center gap-2">
+                                <i data-lucide="lightbulb" class="w-5 h-5 text-teal-500"></i> Countermeasure Database
+                            </h3>
+                            <p class="text-[10px] text-teal-600 font-bold uppercase mt-1">
+                                คำแนะนำสำหรับ Auto-Draft <i data-lucide="info" class="w-3 h-3 inline"></i>
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2 w-full xl:w-auto">
+                            <div class="relative w-full sm:w-72">
+                                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                <input type="text" id="countermeasure-search" placeholder="ค้นหา Tag..." class="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 shadow-sm font-medium transition-all bg-white/80 backdrop-blur-sm">
+                            </div>
+                            <button id="btn-add-countermeasure" class="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-teal-600 text-white rounded-xl text-xs font-black shadow-md shadow-teal-500/20 hover:bg-teal-500 transition-all whitespace-nowrap">
+                                <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มคำแนะนำใหม่
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-auto bg-white/60">
+                        <table class="w-full text-left whitespace-nowrap">
+                            <thead class="bg-teal-50/50 backdrop-blur-sm text-teal-800 sticky top-0 z-10 shadow-sm border-b border-teal-100 text-[10px] uppercase font-black tracking-wider">
+                                <tr>
+                                    <th class="py-3 px-6">Tag No</th>
+                                    <th class="py-3 px-6">Direction</th>
+                                    <th class="py-3 px-6">Equipment / Factor</th>
+                                    <th class="py-3 px-6">Source</th>
+                                    <th class="py-3 px-6">Action Text</th>
+                                    <th class="py-3 px-6 text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="countermeasure-table-body" class="divide-y divide-slate-100 text-xs">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- USER MANUAL VIEW (UPDATED COMPREHENSIVE EDITION) -->
             <div id="view-manual" class="view-panel hidden absolute inset-0 overflow-y-auto p-6 md:p-8 animate-fade-in bg-slate-50/50 pb-24">
                 <div class="max-w-4xl mx-auto space-y-6">
@@ -512,7 +557,7 @@
                     </div>
                     
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.57 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.59 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by Supasit@1981th</p>
                     </div>
                 </div>
@@ -782,6 +827,76 @@
         </div>
     </div>
 
+    <!-- V29.58 FEAT: Modal เพิ่ม/แก้ไขคำแนะนำ Auto-Draft ที่ผู้ใช้เพิ่มเอง -->
+    <div id="countermeasure-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"></div>
+        <div class="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden transform transition-all relative z-10 border border-teal-100 animate-slide-up max-h-[95vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-teal-50 bg-teal-50/30 flex justify-between items-center">
+                <h3 id="countermeasure-modal-title" class="text-base font-black text-teal-900 flex items-center gap-2">
+                    <i data-lucide="lightbulb" class="w-5 h-5 text-teal-500"></i> เพิ่มคำแนะนำใหม่
+                </h3>
+            </div>
+            <div class="p-6 space-y-4 overflow-y-auto">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Tag No</label>
+                        <input type="text" id="cm-edit-tagno" list="countermeasure-tag-options" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" placeholder="เช่น FI-1401">
+                        <datalist id="countermeasure-tag-options"></datalist>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Direction</label>
+                        <select id="cm-edit-direction" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all bg-white">
+                            <option value="high">สูงเกิน (High)</option>
+                            <option value="low">ต่ำกว่า (Low)</option>
+                            <option value="any">ทั้งสองทิศทาง (Any)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="cm-curated-warning" class="hidden bg-amber-50 p-3 rounded-lg border border-amber-100">
+                    <p class="text-[10px] text-amber-700 font-medium leading-tight flex gap-1.5 items-start">
+                        <i data-lucide="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i>
+                        Tag/ทิศทางนี้มีคำแนะนำจากคู่มืออยู่แล้ว ระบบจะใช้คำแนะนำจากคู่มือเป็นหลักเสมอ ข้อมูลที่เพิ่มตรงนี้จะยังไม่ถูกใช้งานจนกว่า Tag+ทิศทางนี้จะไม่มีในคู่มือ
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Equipment Name</label>
+                    <input type="text" id="cm-edit-equipment" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" placeholder="ชื่ออุปกรณ์ (ถ้ามี)">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Factor</label>
+                    <input type="text" id="cm-edit-factor" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" placeholder="สาเหตุ/ปัจจัย (ถ้ามี)">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Source Doc</label>
+                        <input type="text" id="cm-edit-sourcedoc" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" placeholder="เช่น SOP-001 (ถ้ามี)">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Source Page</label>
+                        <input type="number" id="cm-edit-sourcepage" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" placeholder="เลขหน้า (ถ้ามี)">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">PDF Tag Ref</label>
+                    <input type="text" id="cm-edit-pdftagref" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" placeholder="Tag อ้างอิงในเอกสาร (ถ้ามี)">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Action (คำแนะนำการแก้ไข)</label>
+                    <textarea id="cm-edit-action" rows="4" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all resize-none overflow-y-auto max-h-[320px]" placeholder="ระบุขั้นตอนการแก้ไข..."></textarea>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                <button id="btn-delete-countermeasure" class="hidden px-4 py-2 rounded-xl text-xs font-bold text-red-500 hover:bg-red-50 border border-red-100 transition-all">ลบ</button>
+                <div class="flex gap-2 ml-auto">
+                    <button id="btn-cancel-countermeasure" class="px-5 py-2 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-all">Cancel</button>
+                    <button id="btn-save-countermeasure" class="px-6 py-2 rounded-xl text-xs font-black bg-teal-600 text-white shadow-md shadow-teal-500/20 hover:bg-teal-500 transition-all">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
@@ -837,7 +952,7 @@
         function showModal(id) { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); }
         function hideModal(id) { const el = document.getElementById(id); if (el) el.classList.add('hidden'); }
 
-        const STORE_TAGS = 'Tags', STORE_RECORDS = 'Records', STORE_MASTERTAGS = 'MasterTags', STORE_IMPORTHISTORY = 'ImportHistory';
+        const STORE_TAGS = 'Tags', STORE_RECORDS = 'Records', STORE_MASTERTAGS = 'MasterTags', STORE_IMPORTHISTORY = 'ImportHistory', STORE_COUNTERMEASURES = 'UserCountermeasures';
 
         // Zero-shield / abnormal-detection tolerances (V29.40/V29.42-tuned — values frozen, names only)
         const LIMIT_EPSILON = 0.0001;
@@ -1185,7 +1300,19 @@
                 find: (tagNo, direction) => {
                     if (!tagNo || direction === 'deviation') return null;
                     const key = String(tagNo).trim().toUpperCase();
-                    return index.get(`${key}|${direction}`) || index.get(`${key}|any`) || null;
+                    // V29.58 FEAT: คู่มือ MPS เดิม (hardcode) มาก่อนเสมอ — คำแนะนำที่ผู้ใช้เพิ่มเองใช้เป็น fallback
+                    // เฉพาะตอนที่ Tag+ทิศทางนี้ไม่มีอยู่ในคู่มือเดิม ไม่ให้ทับของเดิมเด็ดขาด
+                    const curated = index.get(`${key}|${direction}`) || index.get(`${key}|any`);
+                    if (curated) return curated;
+                    const userMap = new Map();
+                    (STATE.get('userCountermeasures') || []).forEach(e => userMap.set(`${e.tagNo.trim().toUpperCase()}|${e.direction}`, e));
+                    return userMap.get(`${key}|${direction}`) || userMap.get(`${key}|any`) || null;
+                },
+                // V29.58 FEAT: เช็คว่า Tag+ทิศทางนี้มีคำแนะนำจากคู่มือ (hardcode) อยู่แล้วหรือไม่ — ใช้เตือนในฟอร์มเพิ่มคำแนะนำเอง
+                hasCurated: (tagNo, direction) => {
+                    if (!tagNo) return false;
+                    const key = String(tagNo).trim().toUpperCase();
+                    return index.has(`${key}|${direction}`) || index.has(`${key}|any`);
                 }
             };
         })();
@@ -1203,8 +1330,9 @@
         const STATE = {
             data: {
                 activeTab: 'dashboard',
-                tags: [],          
-                masterTags: [],    
+                tags: [],
+                masterTags: [],
+                userCountermeasures: [],
                 records: [],
                 abnormalRecords: [], 
                 timeFilter: 'all',
@@ -1309,7 +1437,7 @@
         const STORAGE_ENGINE = {
             db: null,
             init: () => new Promise((resolve, reject) => {
-                const req = indexedDB.open('PlantLogAnalyzerEnterpriseDB', 3);
+                const req = indexedDB.open('PlantLogAnalyzerEnterpriseDB', 4);
                 req.onupgradeneeded = (e) => {
                     const db = e.target.result;
                     if(!db.objectStoreNames.contains(STORE_TAGS)) db.createObjectStore(STORE_TAGS, { keyPath: 'id' });
@@ -1320,6 +1448,8 @@
                     if(!db.objectStoreNames.contains(STORE_MASTERTAGS)) db.createObjectStore(STORE_MASTERTAGS, { keyPath: 'id' });
                     // V29.51 FEAT: Import audit trail
                     if(!db.objectStoreNames.contains(STORE_IMPORTHISTORY)) db.createObjectStore(STORE_IMPORTHISTORY, { keyPath: 'id' });
+                    // V29.58 FEAT: คำแนะนำ Auto-Draft ที่ผู้ใช้เพิ่มเอง (นอกเหนือจากคู่มือ MPS ที่ hardcode ไว้)
+                    if(!db.objectStoreNames.contains(STORE_COUNTERMEASURES)) db.createObjectStore(STORE_COUNTERMEASURES, { keyPath: 'id' });
                 };
                 req.onsuccess = (e) => { STORAGE_ENGINE.db = e.target.result; resolve(); };
                 req.onerror = reject;
@@ -1336,6 +1466,21 @@
                 if(!STORAGE_ENGINE.db) return resolve();
                 const tx = STORAGE_ENGINE.db.transaction([STORE_MASTERTAGS], 'readwrite');
                 tx.objectStore(STORE_MASTERTAGS).put(masterData);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            }),
+            // V29.58 FEAT: บันทึก/ลบคำแนะนำ Auto-Draft ที่ผู้ใช้เพิ่มเอง
+            saveCountermeasure: (data) => new Promise((resolve, reject) => {
+                if(!STORAGE_ENGINE.db) return resolve();
+                const tx = STORAGE_ENGINE.db.transaction([STORE_COUNTERMEASURES], 'readwrite');
+                tx.objectStore(STORE_COUNTERMEASURES).put(data);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            }),
+            deleteCountermeasure: (id) => new Promise((resolve, reject) => {
+                if(!STORAGE_ENGINE.db) return resolve();
+                const tx = STORAGE_ENGINE.db.transaction([STORE_COUNTERMEASURES], 'readwrite');
+                tx.objectStore(STORE_COUNTERMEASURES).delete(id);
                 tx.oncomplete = resolve;
                 tx.onerror = () => reject(tx.error);
             }),
@@ -1373,26 +1518,32 @@
                 tx.onerror = () => reject(tx.error);
             }),
             // V29.51 FEAT: Backup / Restore (สำรอง/กู้คืนข้อมูลทั้ง 3 store เป็นไฟล์ JSON)
+            // V29.58 FEAT: เพิ่ม userCountermeasures เข้า backup/restore ด้วย
             exportAll: async () => {
-                const [tags, records, masterTags] = await Promise.all([
+                const [tags, records, masterTags, userCountermeasures] = await Promise.all([
                     STORAGE_ENGINE.getAll(STORE_TAGS),
                     STORAGE_ENGINE.getAll(STORE_RECORDS),
-                    STORAGE_ENGINE.getAll(STORE_MASTERTAGS)
+                    STORAGE_ENGINE.getAll(STORE_MASTERTAGS),
+                    STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES)
                 ]);
-                return { schemaVersion: 1, exportedAt: new Date().toISOString(), tags, records, masterTags };
+                return { schemaVersion: 1, exportedAt: new Date().toISOString(), tags, records, masterTags, userCountermeasures };
             },
             importAll: (payload) => new Promise((resolve, reject) => {
                 if(!STORAGE_ENGINE.db) return resolve();
                 if (!payload || !Array.isArray(payload.tags) || !Array.isArray(payload.records) || !Array.isArray(payload.masterTags)) {
                     return reject(new Error('Invalid backup file structure'));
                 }
-                const tx = STORAGE_ENGINE.db.transaction([STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS], 'readwrite');
+                // backup เก่าก่อนมีฟีเจอร์นี้จะไม่มี userCountermeasures — default เป็น array ว่างกันพัง
+                const userCountermeasures = Array.isArray(payload.userCountermeasures) ? payload.userCountermeasures : [];
+                const tx = STORAGE_ENGINE.db.transaction([STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES], 'readwrite');
                 tx.objectStore(STORE_TAGS).clear();
                 tx.objectStore(STORE_RECORDS).clear();
                 tx.objectStore(STORE_MASTERTAGS).clear();
+                tx.objectStore(STORE_COUNTERMEASURES).clear();
                 payload.tags.forEach(t => tx.objectStore(STORE_TAGS).put(t));
                 payload.records.forEach(r => tx.objectStore(STORE_RECORDS).put(r));
                 payload.masterTags.forEach(m => tx.objectStore(STORE_MASTERTAGS).put(m));
+                userCountermeasures.forEach(c => tx.objectStore(STORE_COUNTERMEASURES).put(c));
                 tx.oncomplete = resolve;
                 tx.onerror = () => reject(tx.error);
             }),
@@ -1737,10 +1888,12 @@
                 const tags = await STORAGE_ENGINE.getAll(STORE_TAGS);
                 const records = await STORAGE_ENGINE.getAll(STORE_RECORDS);
                 const masterTags = await STORAGE_ENGINE.getAll(STORE_MASTERTAGS);
-                
+                const userCountermeasures = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
+
                 STATE.set('tags', tags);
                 STATE.set('masterTags', masterTags);
                 STATE.set('records', records);
+                STATE.set('userCountermeasures', userCountermeasures);
                 STATE.set('selectedForReport', []);
             },
 
@@ -1915,6 +2068,7 @@
                 assignEvent('view-filter', (e) => STATE.set('viewFilter', e.target.value), 'change');
                 assignEvent('tag-search', (e) => APP.renderTagTable(e.target.value), 'input');
                 assignEvent('master-search', (e) => APP.renderMasterTable(e.target.value), 'input');
+                assignEvent('countermeasure-search', (e) => APP.renderCountermeasureTable(e.target.value), 'input');
                 assignEvent('dashboard-search', () => APP.renderDashboard(), 'input');
 
                 assignEvent('btn-close-modal', APP.closeActionModal);
@@ -1926,6 +2080,14 @@
 
                 assignEvent('btn-cancel-master', APP.closeMasterModal);
                 assignEvent('btn-save-master', APP.saveMasterSettings);
+
+                assignEvent('btn-add-countermeasure', () => APP.openCountermeasureModal(null));
+                assignEvent('btn-cancel-countermeasure', APP.closeCountermeasureModal);
+                assignEvent('btn-save-countermeasure', APP.saveCountermeasureEntry);
+                assignEvent('btn-delete-countermeasure', APP.deleteCountermeasureEntry);
+                assignEvent('cm-edit-tagno', APP.updateCountermeasureWarning, 'input');
+                assignEvent('cm-edit-action', (e) => autoResizeTextarea(e.target), 'input');
+                assignEvent('cm-edit-direction', APP.updateCountermeasureWarning, 'change');
 
                 assignEvent('btn-open-report', APP.openReportModal);
                 assignEvent('btn-close-report', APP.closeReportModal);
@@ -2097,18 +2259,21 @@
                 const activeTab = STATE.get('activeTab');
                 const tagSearchVal = () => { const el = document.getElementById('tag-search'); return el ? el.value : ''; };
                 const masterSearchVal = () => { const el = document.getElementById('master-search'); return el ? el.value : ''; };
+                const countermeasureSearchVal = () => { const el = document.getElementById('countermeasure-search'); return el ? el.value : ''; };
 
-                if (['tags', 'records', 'timeFilter', 'viewFilter', 'masterTags', 'selectedForReport'].includes(changedKey)) {
+                if (['tags', 'records', 'timeFilter', 'viewFilter', 'masterTags', 'userCountermeasures', 'selectedForReport'].includes(changedKey)) {
                     // V29.52 PERF: render only the table for the visible tab; hidden tabs re-render on switch below
                     if (activeTab === 'dashboard') APP.renderDashboard();
                     else if (activeTab === 'tags') APP.renderTagTable(tagSearchVal());
                     else if (activeTab === 'master') APP.renderMasterTable(masterSearchVal());
+                    else if (activeTab === 'countermeasure') APP.renderCountermeasureTable(countermeasureSearchVal());
                     APP.updateFloatingBar();
                 }
                 if (changedKey === 'activeTab') {
                     if (activeTab === 'dashboard') APP.renderDashboard();
                     if (activeTab === 'tags') APP.renderTagTable(tagSearchVal());
                     if (activeTab === 'master') APP.renderMasterTable(masterSearchVal());
+                    if (activeTab === 'countermeasure') APP.renderCountermeasureTable(countermeasureSearchVal());
                 }
             },
 
@@ -2824,8 +2989,184 @@
                 STATE.set('masterTags', newMasters);
 
                 await STORAGE_ENGINE.updateRecordsBatch(STATE.get('records'));
-                
+
                 APP.closeMasterModal();
+            },
+
+            // V29.58 FEAT: หลังบ้านให้เพิ่มคำแนะนำ Auto-Draft เอง (นอกเหนือจากคู่มือ MPS ที่ hardcode ไว้)
+            renderCountermeasureTable: (filterQuery = '') => {
+                const tbody = document.getElementById('countermeasure-table-body');
+                if (!tbody) return;
+
+                const userEntries = STATE.get('userCountermeasures') || [];
+                const combined = [
+                    ...COUNTERMEASURE_DB.map(e => ({ ...e, isCurated: true })),
+                    ...userEntries.map(e => ({ ...e, isCurated: false }))
+                ];
+
+                const q = filterQuery.trim().toLowerCase();
+                const filtered = q ? combined.filter(e => e.tagNo.toLowerCase().includes(q)) : combined;
+
+                while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+                if (filtered.length === 0) {
+                    const tr = UI_RENDERER.createEl('tr');
+                    const td = UI_RENDERER.createEl('td', 'text-center py-8 text-slate-400 italic font-medium');
+                    td.colSpan = 6; td.textContent = 'ไม่พบคำแนะนำ';
+                    tr.appendChild(td); tbody.appendChild(tr);
+                    return;
+                }
+
+                const directionLabel = { high: 'High', low: 'Low', any: 'Any' };
+
+                filtered.slice(0, TABLE_RENDER_CAP).forEach(e => {
+                    const tr = UI_RENDERER.createEl('tr', 'hover:bg-teal-50/20 border-b border-slate-50 transition-colors align-top');
+
+                    const tdTag = UI_RENDERER.createEl('td', 'py-3 px-6 font-black text-slate-800');
+                    tdTag.innerHTML = `${escapeHtml(e.tagNo)} ${e.isCurated ? '<span class="ml-2 text-[8px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-bold border border-slate-200">จากคู่มือ</span>' : '<span class="ml-2 text-[8px] text-teal-600 bg-teal-100 px-1.5 py-0.5 rounded font-bold border border-teal-200">เพิ่มเอง</span>'}`;
+                    tr.appendChild(tdTag);
+
+                    const tdDir = UI_RENDERER.createEl('td', 'py-3 px-6');
+                    tdDir.appendChild(UI_RENDERER.createEl('span', 'bg-slate-100 text-slate-600 px-2 rounded-md font-black text-[9px] tracking-widest uppercase', directionLabel[e.direction] || e.direction));
+                    tr.appendChild(tdDir);
+
+                    tr.appendChild(UI_RENDERER.createEl('td', 'py-3 px-6 text-slate-600 text-[11px] truncate max-w-[220px]', [e.equipmentName, e.factor].filter(Boolean).join(' — ') || '-'));
+
+                    const sourceText = e.sourceDoc ? `${e.sourceDoc}${e.sourcePage ? ' p.' + e.sourcePage : ''}` : '-';
+                    tr.appendChild(UI_RENDERER.createEl('td', 'py-3 px-6 text-slate-500 text-[11px]', sourceText));
+
+                    tr.appendChild(UI_RENDERER.createEl('td', 'py-3 px-6 text-slate-500 text-[11px] truncate max-w-[260px]', e.action || '-'));
+
+                    const tdAct = UI_RENDERER.createEl('td', 'py-3 px-6 text-center');
+                    if (e.isCurated) {
+                        tdAct.appendChild(UI_RENDERER.createEl('span', 'text-[10px] text-slate-400 italic', 'Read-only'));
+                    } else {
+                        const btnEdit = UI_RENDERER.createEl('button', 'px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-teal-600 hover:bg-teal-50 shadow-sm transition-all');
+                        btnEdit.textContent = 'แก้ไข';
+                        btnEdit.onclick = () => APP.openCountermeasureModal(e.id);
+                        tdAct.appendChild(btnEdit);
+                    }
+                    tr.appendChild(tdAct);
+
+                    tbody.appendChild(tr);
+                });
+                UI_RENDERER.initIcons();
+            },
+
+            // แจ้งเตือนแบบไม่บล็อกถ้า Tag+ทิศทางที่เลือกมีคำแนะนำจากคู่มืออยู่แล้ว (คู่มือชนะเสมอ ตามที่ยืนยันไว้)
+            updateCountermeasureWarning: () => {
+                const tagEl = document.getElementById('cm-edit-tagno');
+                const dirEl = document.getElementById('cm-edit-direction');
+                const warnEl = document.getElementById('cm-curated-warning');
+                if (!tagEl || !dirEl || !warnEl) return;
+                const hasCurated = COUNTERMEASURE_AGENT.hasCurated(tagEl.value, dirEl.value);
+                warnEl.classList.toggle('hidden', !hasCurated);
+            },
+
+            openCountermeasureModal: (id = null) => {
+                APP._activeCountermeasureId = id;
+
+                const datalist = document.getElementById('countermeasure-tag-options');
+                if (datalist) {
+                    while (datalist.firstChild) datalist.removeChild(datalist.firstChild);
+                    const distinctTagNos = Array.from(new Set(STATE.get('tags').map(t => t.tagNo))).sort();
+                    distinctTagNos.forEach(tagNo => {
+                        const opt = document.createElement('option');
+                        opt.value = tagNo;
+                        datalist.appendChild(opt);
+                    });
+                }
+
+                const entry = id ? (STATE.get('userCountermeasures') || []).find(e => e.id === id) : null;
+
+                const titleEl = document.getElementById('countermeasure-modal-title');
+                if (titleEl) titleEl.innerHTML = `<i data-lucide="lightbulb" class="w-5 h-5 text-teal-500"></i> ${entry ? 'แก้ไขคำแนะนำ' : 'เพิ่มคำแนะนำใหม่'}`;
+
+                const setVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = (val === null || val === undefined) ? '' : val; };
+                setVal('cm-edit-tagno', entry ? entry.tagNo : '');
+                setVal('cm-edit-direction', entry ? entry.direction : 'high');
+                setVal('cm-edit-equipment', entry ? entry.equipmentName : '');
+                setVal('cm-edit-factor', entry ? entry.factor : '');
+                setVal('cm-edit-sourcedoc', entry ? entry.sourceDoc : '');
+                setVal('cm-edit-sourcepage', entry ? entry.sourcePage : '');
+                setVal('cm-edit-pdftagref', entry ? entry.pdfTagRef : '');
+                setVal('cm-edit-action', entry ? entry.action : '');
+
+                const actionEl = document.getElementById('cm-edit-action');
+                if (actionEl) autoResizeTextarea(actionEl);
+
+                const btnDelete = document.getElementById('btn-delete-countermeasure');
+                if (btnDelete) btnDelete.classList.toggle('hidden', !entry);
+
+                APP.updateCountermeasureWarning();
+                showModal('countermeasure-modal');
+                UI_RENDERER.initIcons();
+            },
+
+            closeCountermeasureModal: () => {
+                hideModal('countermeasure-modal');
+                APP._activeCountermeasureId = null;
+            },
+
+            saveCountermeasureEntry: async () => {
+                const tagEl = document.getElementById('cm-edit-tagno');
+                const dirEl = document.getElementById('cm-edit-direction');
+                const equipEl = document.getElementById('cm-edit-equipment');
+                const factorEl = document.getElementById('cm-edit-factor');
+                const srcDocEl = document.getElementById('cm-edit-sourcedoc');
+                const srcPageEl = document.getElementById('cm-edit-sourcepage');
+                const pdfRefEl = document.getElementById('cm-edit-pdftagref');
+                const actionEl = document.getElementById('cm-edit-action');
+
+                const tagNo = tagEl ? tagEl.value.trim() : '';
+                const direction = dirEl ? dirEl.value : 'high';
+                const action = actionEl ? actionEl.value.trim() : '';
+
+                if (!tagNo || !action) {
+                    alert('กรุณากรอก Tag No และ Action (คำแนะนำการแก้ไข) ให้ครบก่อนบันทึก');
+                    return;
+                }
+
+                const id = `${tagNo.toUpperCase()}|${direction}`;
+                const sourcePageV = srcPageEl ? srcPageEl.value.trim() : '';
+
+                const entry = {
+                    id,
+                    tagNo,
+                    direction,
+                    equipmentName: equipEl ? equipEl.value.trim() || null : null,
+                    factor: factorEl ? factorEl.value.trim() || null : null,
+                    sourceDoc: srcDocEl ? srcDocEl.value.trim() || null : null,
+                    sourcePage: sourcePageV !== '' ? parseInt(sourcePageV, 10) : null,
+                    pdfTagRef: pdfRefEl ? pdfRefEl.value.trim() || null : null,
+                    action,
+                    updatedAt: Date.now()
+                };
+
+                await STORAGE_ENGINE.saveCountermeasure(entry);
+
+                // ถ้าแก้ไข entry เดิมแล้วเปลี่ยน Tag/Direction จน id เปลี่ยนไป ต้องลบ entry เก่าทิ้ง กัน record ค้าง
+                const originalId = APP._activeCountermeasureId;
+                if (originalId && originalId !== id) {
+                    await STORAGE_ENGINE.deleteCountermeasure(originalId);
+                }
+
+                const newList = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
+                STATE.set('userCountermeasures', newList);
+
+                APP.closeCountermeasureModal();
+            },
+
+            deleteCountermeasureEntry: async () => {
+                const id = APP._activeCountermeasureId;
+                if (!id) return;
+                if (!confirm('ต้องการลบคำแนะนำนี้ใช่หรือไม่?')) return;
+
+                await STORAGE_ENGINE.deleteCountermeasure(id);
+                const newList = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
+                STATE.set('userCountermeasures', newList);
+
+                APP.closeCountermeasureModal();
             },
 
             openActionModal: (recordId) => {
