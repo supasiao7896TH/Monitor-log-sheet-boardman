@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.53)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.57)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -512,7 +512,7 @@
                     </div>
                     
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.53 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.57 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by Supasit@1981th</p>
                     </div>
                 </div>
@@ -592,7 +592,7 @@
                         </button>
                         <span id="ai-source-badge" class="hidden text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded ml-1">จากคู่มือ</span>
                     </div>
-                    <textarea id="action-input" class="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all placeholder:text-slate-300 resize-none" rows="3" placeholder="ระบุการแก้ไขปัญหา หรือสาเหตุความผิดปกติ..."></textarea>
+                    <textarea id="action-input" class="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all placeholder:text-slate-300 resize-none overflow-y-auto max-h-[320px]" rows="4" placeholder="ระบุการแก้ไขปัญหา หรือสาเหตุความผิดปกติ..."></textarea>
                 </div>
 
                 <!-- V29.51 FEAT: ประวัติการแก้ไขก่อนหน้าของ Tag นี้ -->
@@ -854,6 +854,66 @@
         const LS_LAST_BACKUP_KEY = 'plantLogAnalyzer_lastBackupAt';
         const LS_BACKUP_SNOOZE_KEY = 'plantLogAnalyzer_backupSnoozeUntil';
 
+        // V29.56 FEAT: ขยายความสูง textarea ให้พอดีกับเนื้อหา แทนที่จะให้เลื่อน scroll ทีละบรรทัด
+        function autoResizeTextarea(el) {
+            if (!el) return;
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 320) + 'px'; // cap ~320px กันกรณีเนื้อหายาวผิดปกติ เกินจากนี้ scroll ในกล่องเอง
+        }
+
+        // V29.57 FEAT: แปลวลีอังกฤษที่ซ้ำบ่อยในคู่มือ MPS เป็นไทย (เฉพาะ pattern ที่มั่นใจว่าแปลถูก) เก็บ tag code ไว้เป็นอังกฤษเดิม
+        const TAG_CODE = '[A-Z][A-Za-z0-9\\-\\/]*(?:\\s*\\([A-Za-z]\\))?(?:\\s*(?:and|,)\\s*[A-Z][A-Za-z0-9\\-\\/]*(?:\\s*\\([A-Za-z]\\))?)*';
+        const verbCase = (w) => `[${w[0].toUpperCase()}${w[0].toLowerCase()}]${w.slice(1)}`;
+        const COMMON_PHRASES = [
+            [new RegExp(`${verbCase('compare')} the indication on (${TAG_CODE}) with that on (${TAG_CODE})`, 'g'), 'เทียบค่าที่ $1 กับ $2'],
+            [new RegExp(`${verbCase('check')} the indication on (${TAG_CODE}) with that on (${TAG_CODE})`, 'g'), 'ตรวจสอบค่าที่ $1 เทียบกับ $2'],
+            [new RegExp(`${verbCase('compare')} the indication (?:of|on) (${TAG_CODE})`, 'g'), 'เทียบค่าที่ $1'],
+            [new RegExp(`${verbCase('check')} the indication on (${TAG_CODE})`, 'g'), 'ตรวจสอบค่าที่ $1'],
+            [new RegExp(`${verbCase('check')} the working condition of (${TAG_CODE})`, 'g'), 'ตรวจสอบสภาพการทำงานของ $1'],
+            [new RegExp(`${verbCase('confirm')} that (${TAG_CODE}) is functioning properly`, 'g'), 'ยืนยันว่า $1 ทำงานปกติ'],
+            [new RegExp(`${verbCase('switch')} (${TAG_CODE}) over to the stand-by side`, 'g'), 'สลับ $1 ไปฝั่งสำรอง'],
+            [/[Ss]witch the operation over to the Recycle Solvent Run/g, 'สลับการทำงานไปที่ Recycle Solvent Run'],
+            [new RegExp(`${verbCase('adjust')} the flow rate of (${TAG_CODE})`, 'g'), 'ปรับอัตราการไหลของ $1'],
+        ];
+        function translateCommonPhrases(text) {
+            let out = text;
+            COMMON_PHRASES.forEach(([re, replacement]) => { out = out.replace(re, replacement); });
+            return out;
+        }
+
+        // V29.55 FEAT: แยก action text จากคู่มือเป็น bullet สั้นๆ ตามเลขวงกลม (①②③...) ที่คู่มือใช้เป็น step marker อยู่แล้ว
+        // แล้วแยกต่อทีละประโยคถ้า step หนึ่งมีหลายประโยคมัดรวมกัน พร้อมตัดคำฟุ่มเฟือยที่ไม่กระทบความหมาย
+        function formatCountermeasureAction(action) {
+            const cleaned = translateCommonPhrases(action)
+                .replace(/\bto be sure that\b/gi, 'that')
+                .replace(/\s+in the field\b/gi, '')
+                .replace(/\s+\./g, '.')
+                .replace(/\s{2,}/g, ' ')
+                .trim();
+
+            // แยก step เฉพาะเลขวงกลมที่เป็นจุดเริ่ม step จริง (ต้นข้อความ / หลังจบประโยค / หลัง group marker "a)-")
+            // ไม่แยกที่เลขวงกลมซึ่งถูกอ้างอิงกลางประโยค เช่น "the items ① and ② above"
+            const stepBoundary = /(?:^|(?<=[.;]\s)|(?<=\)-))(?=[①②③④⑤⑥⑦⑧⑨⑩])/;
+            const steps = cleaned.split(stepBoundary).map(s => s.trim()).filter(Boolean);
+            if (steps.length > 1 && !/^[①②③④⑤⑥⑦⑧⑨⑩]/.test(steps[0])) {
+                const prefix = steps.shift();
+                steps[0] = prefix + steps[0];
+            }
+
+            // แยก step ที่มีหลายประโยคมัดรวมกันออกเป็น bullet ย่อย โดยไม่ตัดเนื้อหา แค่จัดบรรทัดใหม่
+            const bullets = [];
+            steps.forEach(step => {
+                const parts = step.split(/([.;])\s+(?=[A-Z])/);
+                for (let i = 0; i < parts.length; i += 2) {
+                    const sentence = (parts[i] + (parts[i + 1] || '')).trim();
+                    if (sentence) bullets.push(sentence);
+                }
+            });
+
+            if (bullets.length <= 1) return cleaned;
+            return bullets.map(s => `• ${s}`).join('\n');
+        }
+
         const SMART_AGENT = {
             analyze: (record, eMin, eMax, eExact) => {
                 const val = parseNum(record.value);
@@ -870,7 +930,7 @@
                 const cm = COUNTERMEASURE_AGENT.find(record.tagNo, direction);
                 if (!cm) return baseText;
 
-                return `${baseText}\n\nแนวทางแก้ไขจากคู่มือ (${cm.sourceDoc} — ${cm.equipmentName} / ${cm.factor}):\n${cm.action}`;
+                return `${baseText}\n\nแนวทางแก้ไขจากคู่มือ (${cm.sourceDoc} — ${cm.equipmentName} / ${cm.factor}):\n${formatCountermeasureAction(cm.action)}`;
             }
         };
 
@@ -1862,6 +1922,7 @@
                 assignEvent('btn-save-action', APP.saveAction);
                 assignEvent('btn-clear-action', APP.clearAction);
                 assignEvent('btn-ai-assist', APP.triggerSmartAssist);
+                assignEvent('action-input', (e) => autoResizeTextarea(e.target), 'input');
 
                 assignEvent('btn-cancel-master', APP.closeMasterModal);
                 assignEvent('btn-save-master', APP.saveMasterSettings);
@@ -2832,6 +2893,8 @@
 
                 showModal('action-modal');
                 UI_RENDERER.initIcons();
+                // V29.56 FIX: ต้องขยาย textarea หลัง showModal เพราะตอน modal ยังซ่อนอยู่ (display:none) scrollHeight จะอ่านค่าไม่ถูกต้อง
+                if (aInput) autoResizeTextarea(aInput);
             },
 
             closeActionModal: () => {
@@ -2892,6 +2955,7 @@
                     }
 
                     input.value = SMART_AGENT.analyze(record, eMin, eMax, eExact);
+                    autoResizeTextarea(input);
                     btn.disabled = false;
                     btn.classList.remove('opacity-50');
                     btn.innerHTML = prevHtml;
