@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.59)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.70)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -557,7 +557,7 @@
                     </div>
                     
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.59 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.70 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by Supasit@1981th</p>
                     </div>
                 </div>
@@ -853,6 +853,11 @@
                     </div>
                 </div>
 
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Machine/Unit (เว้นว่าง = ใช้ได้ทุกเครื่อง)</label>
+                    <input type="text" id="cm-edit-machine" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" placeholder="ระบุเฉพาะถ้า Tag No นี้ซ้ำกันคนละเครื่อง">
+                </div>
+
                 <div id="cm-curated-warning" class="hidden bg-amber-50 p-3 rounded-lg border border-amber-100">
                     <p class="text-[10px] text-amber-700 font-medium leading-tight flex gap-1.5 items-start">
                         <i data-lucide="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i>
@@ -913,7 +918,15 @@
             return String(s).toLowerCase().replace(keepDigits ? /[^a-z0-9]/g : /[^a-z]/g, '');
         }
 
-        function isValidDayMonth(dd, mm) { return dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12; }
+        // V29.67 FIX: เดิมเช็คแค่ range 1-31/1-12 ไม่เช็คจำนวนวันจริงต่อเดือน — วันที่แบบ 31/04 (เม.ย.มี 30 วัน)
+        // ผ่าน validation ไปได้ทั้งที่ new Date(...) จะ auto-rollover เป็น 01/05 แบบเงียบๆ ทีหลัง
+        function isValidDayMonth(dd, mm, yyyy) {
+            if (!(mm >= 1 && mm <= 12) || !(dd >= 1)) return false;
+            if (yyyy) return dd <= new Date(yyyy, mm, 0).getDate();
+            // ไม่รู้ปี (เผื่อปีอธิกสุรทิน) ใช้ตารางวันสูงสุดต่อเดือนแบบ leap-year (Feb 29)
+            const maxDays = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+            return dd <= maxDays[mm - 1];
+        }
 
         function excelSerialToDateStr(n, rawText) {
             if (isNaN(n) || n <= 40000 || n >= 60000 || rawText.includes(':')) return null;
@@ -1042,7 +1055,7 @@
 
                 const baseText = `ตรวจพบค่าพารามิเตอร์ ${status} ที่ระดับ ${val} ได้ทำการตรวจสอบความผิดปกติหน้างานและเฝ้าระวังอย่างใกล้ชิดเพื่อป้องกันผลกระทบต่อระบบ`;
 
-                const cm = COUNTERMEASURE_AGENT.find(record.tagNo, direction);
+                const cm = COUNTERMEASURE_AGENT.find(record.tagNo, direction, record.machine);
                 if (!cm) return baseText;
 
                 return `${baseText}\n\nแนวทางแก้ไขจากคู่มือ (${cm.sourceDoc} — ${cm.equipmentName} / ${cm.factor}):\n${formatCountermeasureAction(cm.action)}`;
@@ -1297,16 +1310,30 @@
             const index = new Map();
             COUNTERMEASURE_DB.forEach(e => index.set(`${e.tagNo.trim().toUpperCase()}|${e.direction}`, e));
             return {
-                find: (tagNo, direction) => {
+                find: (tagNo, direction, machine = null) => {
                     if (!tagNo || direction === 'deviation') return null;
                     const key = String(tagNo).trim().toUpperCase();
                     // V29.58 FEAT: คู่มือ MPS เดิม (hardcode) มาก่อนเสมอ — คำแนะนำที่ผู้ใช้เพิ่มเองใช้เป็น fallback
                     // เฉพาะตอนที่ Tag+ทิศทางนี้ไม่มีอยู่ในคู่มือเดิม ไม่ให้ทับของเดิมเด็ดขาด
+                    // (คู่มือ MPS ไม่มีข้อมูล machine ต่อรายการ จึงยังคง match แค่ tagNo+direction เหมือนเดิม)
                     const curated = index.get(`${key}|${direction}`) || index.get(`${key}|any`);
                     if (curated) return curated;
-                    const userMap = new Map();
-                    (STATE.get('userCountermeasures') || []).forEach(e => userMap.set(`${e.tagNo.trim().toUpperCase()}|${e.direction}`, e));
-                    return userMap.get(`${key}|${direction}`) || userMap.get(`${key}|any`) || null;
+                    // V29.63 FIX: entry ที่ผู้ใช้ระบุ machine ไว้ ต้อง match เฉพาะเครื่องนั้น กัน tagNo ซ้ำกันคนละ
+                    // เครื่อง/train แล้วได้คำแนะนำผิดตัว — entry ที่ไม่ได้ระบุ machine (ของเดิมก่อน fix นี้) ยังคง
+                    // ใช้ได้กับทุกเครื่องเหมือนเดิม (fallback)
+                    const mKey = machine ? String(machine).trim().toUpperCase() : null;
+                    const machineMap = new Map();
+                    const anyMachineMap = new Map();
+                    (STATE.get('userCountermeasures') || []).forEach(e => {
+                        const k = `${e.tagNo.trim().toUpperCase()}|${e.direction}`;
+                        if (e.machine) machineMap.set(`${k}|${String(e.machine).trim().toUpperCase()}`, e);
+                        else anyMachineMap.set(k, e);
+                    });
+                    if (mKey) {
+                        const machineSpecific = machineMap.get(`${key}|${direction}|${mKey}`) || machineMap.get(`${key}|any|${mKey}`);
+                        if (machineSpecific) return machineSpecific;
+                    }
+                    return anyMachineMap.get(`${key}|${direction}`) || anyMachineMap.get(`${key}|any`) || null;
                 },
                 // V29.58 FEAT: เช็คว่า Tag+ทิศทางนี้มีคำแนะนำจากคู่มือ (hardcode) อยู่แล้วหรือไม่ — ใช้เตือนในฟอร์มเพิ่มคำแนะนำเอง
                 hasCurated: (tagNo, direction) => {
@@ -1373,7 +1400,15 @@
                     }
                     // V29.40 FIX: ต้องเป็นตัวเลขเท่านั้น (String ที่ถูกเว้นมาจะไม่ประมวลผล)
                     else if (!isNaN(val) && String(r.value).trim() !== '') {
-                        if (!zeroShieldDisabled && Math.abs(val) <= ZERO_SHIELD_ABS) {
+                        // V29.61 FIX: absolute zero-shield มีไว้จับ "เครื่องมือ offline อ่านค่า 0" ซึ่งมีความหมาย
+                        // เฉพาะ tag ที่ช่วงค่าปกติมี magnitude ใหญ่พอ (>= ZERO_SHIELD_REF_MAGNITUDE) หรือไม่มี limit
+                        // กำหนดไว้เลย — ถ้า tag มีช่วงค่าปกติเล็กใกล้ 0 อยู่แล้ว (เช่น leak/ppm sensor eMax=0.08)
+                        // ต้องไม่ปล่อยให้ shield นี้กลืนค่าที่หลุด limit จริงแบบไม่มีร่องรอย
+                        const limitMags = [eMin, eMax, eExact].filter(v => v !== null).map(Math.abs);
+                        const limitMagnitude = limitMags.length ? Math.max(...limitMags) : null;
+                        const zeroShieldEligible = limitMagnitude === null || limitMagnitude >= ZERO_SHIELD_REF_MAGNITUDE;
+
+                        if (!zeroShieldDisabled && zeroShieldEligible && Math.abs(val) <= ZERO_SHIELD_ABS) {
                             isStandby = true;
                             isAb = 0;
                         } else {
@@ -1382,7 +1417,13 @@
                             if (eExact !== null && Math.abs(val - eExact) > LIMIT_EPSILON) isAb = 1;
 
                             if (!zeroShieldDisabled && isAb === 1) {
-                                let refValue = eExact !== null ? eExact : (eMin !== null ? eMin : eMax);
+                                // V29.61 FIX: เลือก refValue ตามทิศทางที่หลุด limit จริง แทนที่จะใช้ eMin ก่อนเสมอ
+                                let refValue;
+                                if (eExact !== null) refValue = eExact;
+                                else if (eMax !== null && val > (eMax + LIMIT_EPSILON)) refValue = eMax;
+                                else if (eMin !== null && val < (eMin - LIMIT_EPSILON)) refValue = eMin;
+                                else refValue = eMin !== null ? eMin : eMax;
+
                                 if (refValue !== null && Math.abs(refValue) >= ZERO_SHIELD_REF_MAGNITUDE) {
                                     if (Math.abs(val) <= ZERO_SHIELD_REF_ABS || Math.abs(val) < Math.abs(refValue) * ZERO_SHIELD_REF_RATIO) {
                                         isStandby = true;
@@ -1453,6 +1494,9 @@
                 };
                 req.onsuccess = (e) => { STORAGE_ENGINE.db = e.target.result; resolve(); };
                 req.onerror = reject;
+                // V29.64 FIX: ถ้าเปิดแอปนี้ค้างไว้อีก tab หนึ่งพร้อมกันตอนต้อง upgrade version, onsuccess/onerror
+                // จะไม่ยิงเลยและ tab นี้จะค้างเงียบๆ ตลอดไป — อย่างน้อยแจ้งให้ operator รู้ว่าต้องปิด tab อื่นก่อน
+                req.onblocked = () => alert("ไม่สามารถเปิดฐานข้อมูลได้เนื่องจากมีการเปิดแอปนี้ค้างไว้ในแท็บอื่น กรุณาปิดแท็บอื่นที่เปิดแอปนี้อยู่ แล้วโหลดหน้านี้ใหม่อีกครั้ง");
             }),
             saveBatch: (tags, records) => new Promise((resolve, reject) => {
                 if(!STORAGE_ENGINE.db) return resolve();
@@ -1572,7 +1616,13 @@
                 let ret = [], inQuote = false, value = '';
                 for (let i = 0; i < text.length; i++) {
                     let char = text[i];
-                    if (char === '"') { inQuote = !inQuote; }
+                    if (char === '"') {
+                        // V29.65 FIX: รองรับ RFC4180 escaped-quote ("" ภายใน field ที่ quote ไว้ = quote ตัวเดียว
+                        // ตามตัวอักษร) — เดิมไม่รองรับ ทำให้ cell ที่มี quote ฝังอยู่ (เช่น remark แบบ
+                        // "Valve ""A"" closed") นับ quote เพี้ยนจน column หลังจากนั้นเลื่อนผิดตำแหน่งทั้งแถว
+                        if (inQuote && text[i + 1] === '"') { value += '"'; i++; }
+                        else { inQuote = !inQuote; }
+                    }
                     else if (char === ',' && !inQuote) { ret.push(value); value = ''; }
                     else { value += char; }
                 }
@@ -1596,10 +1646,10 @@
                 let fileDateMatch = fileName.match(/\b(\d{1,2})[\.\-\/](\d{1,2})[\.\-\/](\d{2,4})\b/);
                 if (fileDateMatch) {
                     let dd = parseInt(fileDateMatch[1], 10), mm = parseInt(fileDateMatch[2], 10);
-                    if (isValidDayMonth(dd, mm)) {
+                    let yNum = EXCEL_WORKER.normalizeYear(fileDateMatch[3]);
+                    if (isValidDayMonth(dd, mm, yNum)) {
                         let d = fileDateMatch[1].padStart(2, '0');
                         let m = fileDateMatch[2].padStart(2, '0');
-                        let yNum = EXCEL_WORKER.normalizeYear(fileDateMatch[3]);
                         return `${d}/${m}/${yNum}`;
                     }
                 }
@@ -1613,8 +1663,8 @@
                         let m1 = txt.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/);
                         if (m1) {
                             let dd = parseInt(m1[1]), mm = parseInt(m1[2]);
-                            if (isValidDayMonth(dd, mm)) {
-                                let yNum = EXCEL_WORKER.normalizeYear(m1[3]);
+                            let yNum = EXCEL_WORKER.normalizeYear(m1[3]);
+                            if (isValidDayMonth(dd, mm, yNum)) {
                                 return `${m1[1].padStart(2, '0')}/${m1[2].padStart(2, '0')}/${yNum}`;
                             }
                         }
@@ -1627,8 +1677,12 @@
 
                                 let nm = nextTxt.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/);
                                 if (nm) {
+                                    let ndd = parseInt(nm[1], 10), nmm = parseInt(nm[2], 10);
                                     let yNum = EXCEL_WORKER.normalizeYear(nm[3]);
-                                    return `${nm[1].padStart(2, '0')}/${nm[2].padStart(2, '0')}/${yNum}`;
+                                    // V29.67 FIX: จุดนี้เดิมไม่เช็ค isValidDayMonth เลย ต่างจากอีก 2 จุดข้างบน
+                                    if (isValidDayMonth(ndd, nmm, yNum)) {
+                                        return `${nm[1].padStart(2, '0')}/${nm[2].padStart(2, '0')}/${yNum}`;
+                                    }
                                 }
                                 
                                 let n = parseNum(nextTxt);
@@ -1653,8 +1707,11 @@
                 return null;
             },
 
-            extractTime: (cols) => {
+            // V29.68 FIX: skipIdx (ปกติคือ activeTagsMap) กันไม่ให้คอลัมน์ที่รู้อยู่แล้วว่าเป็น tag/reading
+            // (เช่น totalizer/flow value ที่บังเอิญตัวเลขอยู่ในช่วงเดียวกับ Excel-serial time) ถูกอ่านผิดเป็นเวลา
+            extractTime: (cols, skipIdx = null) => {
                 for(let c = 0; c < Math.min(30, cols.length); c++) {
+                    if (skipIdx && skipIdx[c] !== undefined) continue;
                     let s = (cols[c] || '').toString().trim();
                     if(!s) continue;
                     
@@ -1696,8 +1753,17 @@
                     let nonEmptyCols = cols.filter(c => c.trim() !== '');
                     if (nonEmptyCols.length === 0) continue;
                     
-                    let headerDetectStr = cleanStr(nonEmptyCols.slice(0, 8).join(''));
-                    let firstColsForIgnore = cleanStr(nonEmptyCols.slice(0, 5).join(''));
+                    // V29.69 FIX: เดิม join('') ก่อน cleanStr ทำให้คำจากคนละ cell ที่บังเอิญอยู่ติดกันเรียง
+                    // ต่อกันเป็น keyword ปลอมได้ (เช่น cell ท้ายด้วย "...Nam" ต่อด้วย cell ที่ขึ้นต้น "e..."
+                    // กลายเป็น "...name...") — cleanStr แยกทีละ cell ก่อน (ยังคง fuse คำภายใน cell เดียวกันไว้
+                    // ตามเดิม เช่น "Tag No" -> "tagno" ซึ่งจำเป็นสำหรับ keyword ที่เช็คด้านล่าง) แล้วค่อย join
+                    // ด้วย space จริงที่ไม่ถูกลบทิ้งซ้ำ
+                    let headerDetectStr = nonEmptyCols.slice(0, 8).map(v => cleanStr(v)).join(' ');
+                    // V29.69 FIX: ใช้ regex คงรักษา word boundary (แปลงเครื่องหมาย/ช่องว่างเป็น space เดียว)
+                    // แทน cleanStr ที่ fuse ทุกคำในเซลล์เดียวกันเป็นก้อนเดียว — กันคำที่บังเอิญมี "min"/"max"
+                    // เป็นส่วนหนึ่งของคำอื่น (เช่น "Maximum", "aluminum", "administrator") ถูกตีความผิดว่าเป็น
+                    // label ที่ต้อง ignore ทั้งแถว
+                    let firstColsForIgnore = nonEmptyCols.slice(0, 5).map(v => String(v).toLowerCase().replace(/[^a-z0-9]+/g, ' ')).join(' ');
 
                     if (headerDetectStr.includes('name') || headerDetectStr.includes('item') || headerDetectStr.includes('description')) {
                         lastDescMap = {};
@@ -1710,7 +1776,7 @@
                         continue;
                     } 
                     
-                    else if (headerDetectStr.includes('tagno') || headerDetectStr.includes('tagnumber') || (headerDetectStr.includes('tag') && headerDetectStr.length < 15)) {
+                    else if (headerDetectStr.includes('tagno') || headerDetectStr.includes('tagnumber') || (headerDetectStr.includes('tag') && headerDetectStr.replace(/ /g, '').length < 15)) {
                         activeTagsMap = {};
                         const ignore = ['time','date','shift','remark','tagno','tag','name','item','unit','normal'];
                         cols.forEach((v, idx) => {
@@ -1757,10 +1823,25 @@
                                     if (m) numbers.push(parseFloat(m[0]));
                                 }
                                 
-                                if (cleanTxt.includes('<') || cleanTxt.includes('max')) { 
-                                    if (numbers.length > 0) tag.max = numbers[0]; 
-                                } else if (cleanTxt.includes('>') || cleanTxt.includes('min')) { 
-                                    if (numbers.length > 0) tag.min = numbers[0]; 
+                                // V29.66 FIX: ใช้ word-boundary แทน substring match — เดิม includes('min')/includes('max')
+                                // ทำให้คำที่บังเอิญมี "min"/"max" เป็นส่วนหนึ่งของคำอื่น (เช่น "minor", "aluminum")
+                                // ถูกตีความผิดว่าเป็น limit label
+                                const hasMinWord = /\bmin\b/.test(cleanTxt);
+                                const hasMaxWord = /\bmax\b/.test(cleanTxt);
+
+                                if (hasMinWord && hasMaxWord) {
+                                    // V29.66 FIX: cell มีทั้ง Min และ Max ในก้อนเดียวกันแบบไม่มี range separator
+                                    // เช่น "Min: 10 Max: 20" — เดิมดึงตัวเลขตัวแรกที่เจอมาตัวเดียวแล้วเข้า branch
+                                    // max/min ตามลำดับ if/else แบบตายตัว ทำให้ค่าที่ 2 หายไปเงียบๆ และค่าแรกอาจถูก
+                                    // ติดป้ายผิด (เช่นเจอ "10" ก่อนแต่ดันไปเข้า branch max)
+                                    const minM = cleanTxt.match(/min\D*(-?\d+(?:\.\d+)?)/);
+                                    const maxM = cleanTxt.match(/max\D*(-?\d+(?:\.\d+)?)/);
+                                    if (minM) tag.min = parseFloat(minM[1]);
+                                    if (maxM) tag.max = parseFloat(maxM[1]);
+                                } else if (cleanTxt.includes('<') || hasMaxWord) {
+                                    if (numbers.length > 0) tag.max = numbers[0];
+                                } else if (cleanTxt.includes('>') || hasMinWord) {
+                                    if (numbers.length > 0) tag.min = numbers[0];
                                 } else if (numbers.length >= 2) {
                                     let v1 = numbers[0], v2 = numbers[1];
                                     tag.min = Math.min(v1, v2); tag.max = Math.max(v1, v2);
@@ -1775,19 +1856,23 @@
                     else {
                         if (Object.keys(activeTagsMap).length === 0) continue;
                         
-                        if (firstColsForIgnore.includes('target') || firstColsForIgnore.includes('unit') || firstColsForIgnore.includes('alarm') || firstColsForIgnore.includes('remark') || firstColsForIgnore.includes('max') || firstColsForIgnore.includes('min')) {
+                        // V29.69 FIX: word-boundary แทน substring match (firstColsForIgnore ตอนนี้เป็น word-preserving แล้ว)
+                        if (/\b(target|unit|alarm|remark|max|min)\b/.test(firstColsForIgnore)) {
                             continue;
                         }
 
-                        let timeStr = EXCEL_WORKER.extractTime(cols);
+                        let timeStr = EXCEL_WORKER.extractTime(cols, activeTagsMap);
                         
                         let validPvCount = 0;
-                        let rowDataExtracted = {}; 
+                        let rowDataExtracted = {};
+                        // V29.69 FIX: เดิม cell ข้างเคียงที่ถูก "ยืม" ไม่ถูก mark ว่าใช้แล้ว ทำให้ 2 tag ที่ค่า
+                        // หายพร้อมกันในแถวเดียวกันอาจแอบยืมค่าเดียวกันซ้ำ (duplicate ค่าดิบเข้า 2 tag)
+                        const consumedNeighborIdx = new Set();
 
                         for (let idxStr in activeTagsMap) {
                             let idx = parseInt(idxStr);
                             let tag = activeTagsMap[idx];
-                            
+
                             let vStr = (cols[idx] || '').trim();
                             let val = parseNum(vStr);
 
@@ -1798,10 +1883,12 @@
                                 let leftStr = (cols[leftIdx] || '').trim();
                                 let rightStr = (cols[rightIdx] || '').trim();
 
-                                if (!activeTagsMap[leftIdx] && leftStr !== '' && !isNaN(parseNum(leftStr))) {
+                                if (!activeTagsMap[leftIdx] && !consumedNeighborIdx.has(leftIdx) && leftStr !== '' && !isNaN(parseNum(leftStr))) {
                                     vStr = leftStr; val = parseNum(leftStr);
-                                } else if (!activeTagsMap[rightIdx] && rightStr !== '' && !isNaN(parseNum(rightStr))) {
+                                    consumedNeighborIdx.add(leftIdx);
+                                } else if (!activeTagsMap[rightIdx] && !consumedNeighborIdx.has(rightIdx) && rightStr !== '' && !isNaN(parseNum(rightStr))) {
                                     vStr = rightStr; val = parseNum(rightStr);
+                                    consumedNeighborIdx.add(rightIdx);
                                 }
                             }
 
@@ -1832,6 +1919,9 @@
                             let safeTimeStr = timeStr;
                             if (safeTimeStr.startsWith('24:')) safeTimeStr = '23:59';
                             let ts = new Date(sharedDate.split('/').reverse().join('-') + 'T' + safeTimeStr + ':00').getTime();
+                            // V29.67 FIX: ถ้า sharedDate/timeStr ผิดรูปแบบจนได้ ts = NaN เดิมจะบันทึกค่านี้ต่อไปเงียบๆ
+                            // จน sort ลำดับเวลา/trend chart เพี้ยนทั้งชีท — ข้าม row นี้แทนที่จะเก็บ timestamp ที่เสีย
+                            if (isNaN(ts)) continue;
 
                             for (let idx in rowDataExtracted) {
                                 let tag = activeTagsMap[idx];
@@ -1871,17 +1961,24 @@
         const APP = {
             init: async () => {
                 UI_RENDERER.initIcons();
-
-                await STORAGE_ENGINE.init();
-
                 APP.bindEvents();
-                // V29.51 FIX: subscribe BEFORE the initial loadLocalData so its STATE.set calls actually
-                // trigger the first render — previously, if IndexedDB already had data from a prior
-                // session (the normal case once an operator has imported before), the dashboard stayed
-                // stuck on its 0/blank loading state until some other STATE change (e.g. a nav click).
-                STATE.subscribe(APP.render);
-                await APP.loadLocalData();
-                await APP.renderImportHistory();
+
+                try {
+                    await STORAGE_ENGINE.init();
+
+                    // V29.51 FIX: subscribe BEFORE the initial loadLocalData so its STATE.set calls actually
+                    // trigger the first render — previously, if IndexedDB already had data from a prior
+                    // session (the normal case once an operator has imported before), the dashboard stayed
+                    // stuck on its 0/blank loading state until some other STATE change (e.g. a nav click).
+                    STATE.subscribe(APP.render);
+                    await APP.loadLocalData();
+                    await APP.renderImportHistory();
+                } catch (error) {
+                    // V29.64 FIX: เดิมถ้า IndexedDB เปิดไม่สำเร็จ (private mode, ถูก block, หรือเปิดแอปนี้ค้าง
+                    // ไว้หลาย tab พร้อมกันจน version-upgrade ค้าง) แอปจะค้างเงียบๆ ไม่มี error แจ้ง operator เลย
+                    console.error("App Init Failed: ", error);
+                    alert("เปิดฐานข้อมูลของแอป (IndexedDB) ไม่สำเร็จ อาจเกิดจากเปิดแอปนี้ค้างไว้หลายแท็บพร้อมกัน หรือใช้ Private/Incognito mode กรุณาปิดแท็บอื่นที่เปิดแอปนี้อยู่แล้วโหลดหน้านี้ใหม่ หากยังไม่หาย ลองเปิดด้วย Browser mode ปกติ (ไม่ใช่ Private/Incognito)");
+                }
             },
             
             loadLocalData: async () => {
@@ -1894,7 +1991,12 @@
                 STATE.set('masterTags', masterTags);
                 STATE.set('records', records);
                 STATE.set('userCountermeasures', userCountermeasures);
-                STATE.set('selectedForReport', []);
+                // V29.60 FIX: keep the operator's Infographic Report selection alive across
+                // annotation save/clear (saveAction/clearAction call loadLocalData to refresh
+                // records) — only drop IDs that no longer exist, don't wipe the whole selection.
+                const validRecordIds = new Set(records.map(r => r.id));
+                const prevSelected = STATE.get('selectedForReport') || [];
+                STATE.set('selectedForReport', prevSelected.filter(id => validRecordIds.has(id)));
             },
 
             // V29.51 FEAT: แสดงประวัติการนำเข้าไฟล์ (Import Audit Trail)
@@ -2024,12 +2126,17 @@
 
                 assignEvent('btn-clear-db', async () => {
                     if (confirm("ต้องการล้างค่าที่บันทึกไว้ (Readings) ของรอบก่อนหน้าใช่หรือไม่? (รายการ Tag และการตั้งค่า Master จะไม่ถูกลบ)")) {
-                        await STORAGE_ENGINE.clearImportedData();
-                        STATE.set('timeFilter', 'all');
-                        STATE.set('viewFilter', 'abnormal');
-                        const vf = document.getElementById('view-filter');
-                        if (vf) vf.value = 'abnormal';
-                        await APP.loadLocalData();
+                        try {
+                            await STORAGE_ENGINE.clearImportedData();
+                            STATE.set('timeFilter', 'all');
+                            STATE.set('viewFilter', 'abnormal');
+                            const vf = document.getElementById('view-filter');
+                            if (vf) vf.value = 'abnormal';
+                            await APP.loadLocalData();
+                        } catch (error) {
+                            console.error("Clear DB Failed: ", error);
+                            alert("ล้างข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+                        }
                     }
                 });
 
@@ -2237,16 +2344,40 @@
                 logEl.appendChild(UI_RENDERER.createEl('div', 'text-emerald-400 mt-2 font-bold', `> Saving to Local Database...`));
                 const uniqueTags = Array.from(new Map(allTags.map(t => [getTagId(t), t])).values());
 
-                await STORAGE_ENGINE.saveBatch(uniqueTags, allRecords);
-                await Promise.all(fileLogEntries.map(entry => STORAGE_ENGINE.logImport(entry)));
-                await APP.renderImportHistory();
+                // V29.62 FIX: saveBatch does a full put() overwrite per tag — if this import's sheet
+                // format doesn't carry limit/description info for a tag that's already known (e.g. a
+                // partial/differently-formatted sheet), don't blank out the previously-learned
+                // normalText/min/max/exactNum. Carry over the old value only where the new one is empty.
+                const existingTagsMap = new Map(STATE.get('tags').map(t => [t.id, t]));
+                uniqueTags.forEach(t => {
+                    const existing = existingTagsMap.get(getTagId(t));
+                    if (!existing) return;
+                    if (!t.normalText && existing.normalText) t.normalText = existing.normalText;
+                    if (!t.description && existing.description) t.description = existing.description;
+                    if (t.min === null && existing.min !== null && existing.min !== undefined) t.min = existing.min;
+                    if (t.max === null && existing.max !== null && existing.max !== undefined) t.max = existing.max;
+                    if (t.exactNum === null && existing.exactNum !== null && existing.exactNum !== undefined) t.exactNum = existing.exactNum;
+                });
 
-                STATE.set('timeFilter', 'all');
-                STATE.set('viewFilter', 'abnormal');
-                const vfEl = document.getElementById('view-filter');
-                if (vfEl) vfEl.value = 'abnormal';
+                // V29.64 FIX: เดิมถ้าบันทึกลง IndexedDB ไม่สำเร็จ (quota เต็ม, private mode, เปิดแอปค้างไว้
+                // หลาย tab พร้อมกัน ฯลฯ) หน้าจอจะค้างที่ "Saving to Local Database..." ตลอดไปโดยไม่มี error
+                // แจ้ง operator เลย และข้อมูลที่เพิ่ง import มาจะหายไปเงียบๆ
+                try {
+                    await STORAGE_ENGINE.saveBatch(uniqueTags, allRecords);
+                    await Promise.all(fileLogEntries.map(entry => STORAGE_ENGINE.logImport(entry)));
+                    await APP.renderImportHistory();
 
-                await APP.loadLocalData();
+                    STATE.set('timeFilter', 'all');
+                    STATE.set('viewFilter', 'abnormal');
+                    const vfEl = document.getElementById('view-filter');
+                    if (vfEl) vfEl.value = 'abnormal';
+
+                    await APP.loadLocalData();
+                } catch (error) {
+                    console.error("Save Import Failed: ", error);
+                    logEl.appendChild(UI_RENDERER.createEl('div', 'text-red-400 font-bold', `❌ บันทึกข้อมูลลงฐานข้อมูลไม่สำเร็จ: ${error.message}`));
+                    alert("บันทึกข้อมูลที่ import ลงฐานข้อมูล (IndexedDB) ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง หากยังไม่สำเร็จ ลองปิดแท็บอื่นที่เปิดแอปนี้อยู่ หรือตรวจสอบพื้นที่ว่างของ Browser Storage");
+                }
 
                 setTimeout(() => {
                     document.getElementById('drop-zone').classList.remove('hidden');
@@ -2983,14 +3114,19 @@
                     updatedAt: Date.now()
                 };
 
-                await STORAGE_ENGINE.saveMasterTag(masterObj);
-                
-                const newMasters = await STORAGE_ENGINE.getAll(STORE_MASTERTAGS);
-                STATE.set('masterTags', newMasters);
+                try {
+                    await STORAGE_ENGINE.saveMasterTag(masterObj);
 
-                await STORAGE_ENGINE.updateRecordsBatch(STATE.get('records'));
+                    const newMasters = await STORAGE_ENGINE.getAll(STORE_MASTERTAGS);
+                    STATE.set('masterTags', newMasters);
 
-                APP.closeMasterModal();
+                    await STORAGE_ENGINE.updateRecordsBatch(STATE.get('records'));
+
+                    APP.closeMasterModal();
+                } catch (error) {
+                    console.error("Save Master Settings Failed: ", error);
+                    alert("บันทึกการตั้งค่า Master ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+                }
             },
 
             // V29.58 FEAT: หลังบ้านให้เพิ่มคำแนะนำ Auto-Draft เอง (นอกเหนือจากคู่มือ MPS ที่ hardcode ไว้)
@@ -3023,7 +3159,9 @@
                     const tr = UI_RENDERER.createEl('tr', 'hover:bg-teal-50/20 border-b border-slate-50 transition-colors align-top');
 
                     const tdTag = UI_RENDERER.createEl('td', 'py-3 px-6 font-black text-slate-800');
-                    tdTag.innerHTML = `${escapeHtml(e.tagNo)} ${e.isCurated ? '<span class="ml-2 text-[8px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-bold border border-slate-200">จากคู่มือ</span>' : '<span class="ml-2 text-[8px] text-teal-600 bg-teal-100 px-1.5 py-0.5 rounded font-bold border border-teal-200">เพิ่มเอง</span>'}`;
+                    // V29.63 FEAT: แสดง machine badge ถ้า entry นี้ผูกไว้เฉพาะเครื่อง (กันสับสนเวลา tagNo ซ้ำกันคนละเครื่อง)
+                    const machineBadge = e.machine ? `<span class="ml-2 text-[8px] text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded font-bold border border-indigo-200">${escapeHtml(e.machine)}</span>` : '';
+                    tdTag.innerHTML = `${escapeHtml(e.tagNo)} ${machineBadge} ${e.isCurated ? '<span class="ml-2 text-[8px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-bold border border-slate-200">จากคู่มือ</span>' : '<span class="ml-2 text-[8px] text-teal-600 bg-teal-100 px-1.5 py-0.5 rounded font-bold border border-teal-200">เพิ่มเอง</span>'}`;
                     tr.appendChild(tdTag);
 
                     const tdDir = UI_RENDERER.createEl('td', 'py-3 px-6');
@@ -3085,6 +3223,7 @@
                 const setVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = (val === null || val === undefined) ? '' : val; };
                 setVal('cm-edit-tagno', entry ? entry.tagNo : '');
                 setVal('cm-edit-direction', entry ? entry.direction : 'high');
+                setVal('cm-edit-machine', entry ? entry.machine : '');
                 setVal('cm-edit-equipment', entry ? entry.equipmentName : '');
                 setVal('cm-edit-factor', entry ? entry.factor : '');
                 setVal('cm-edit-sourcedoc', entry ? entry.sourceDoc : '');
@@ -3111,6 +3250,7 @@
             saveCountermeasureEntry: async () => {
                 const tagEl = document.getElementById('cm-edit-tagno');
                 const dirEl = document.getElementById('cm-edit-direction');
+                const machineEl = document.getElementById('cm-edit-machine');
                 const equipEl = document.getElementById('cm-edit-equipment');
                 const factorEl = document.getElementById('cm-edit-factor');
                 const srcDocEl = document.getElementById('cm-edit-sourcedoc');
@@ -3120,6 +3260,7 @@
 
                 const tagNo = tagEl ? tagEl.value.trim() : '';
                 const direction = dirEl ? dirEl.value : 'high';
+                const machine = machineEl ? machineEl.value.trim() : '';
                 const action = actionEl ? actionEl.value.trim() : '';
 
                 if (!tagNo || !action) {
@@ -3127,13 +3268,16 @@
                     return;
                 }
 
-                const id = `${tagNo.toUpperCase()}|${direction}`;
+                // V29.63 FIX: รวม machine เข้า id ด้วยถ้าระบุไว้ (กัน tagNo ซ้ำกันคนละเครื่องชนกัน)
+                // — ถ้าไม่ระบุ machine, id คงรูปแบบเดิม (tagNo|direction) ให้เข้ากันได้กับ entry เก่า
+                const id = machine ? `${tagNo.toUpperCase()}|${direction}|${machine.toUpperCase()}` : `${tagNo.toUpperCase()}|${direction}`;
                 const sourcePageV = srcPageEl ? srcPageEl.value.trim() : '';
 
                 const entry = {
                     id,
                     tagNo,
                     direction,
+                    machine: machine || null,
                     equipmentName: equipEl ? equipEl.value.trim() || null : null,
                     factor: factorEl ? factorEl.value.trim() || null : null,
                     sourceDoc: srcDocEl ? srcDocEl.value.trim() || null : null,
@@ -3143,18 +3287,23 @@
                     updatedAt: Date.now()
                 };
 
-                await STORAGE_ENGINE.saveCountermeasure(entry);
+                try {
+                    await STORAGE_ENGINE.saveCountermeasure(entry);
 
-                // ถ้าแก้ไข entry เดิมแล้วเปลี่ยน Tag/Direction จน id เปลี่ยนไป ต้องลบ entry เก่าทิ้ง กัน record ค้าง
-                const originalId = APP._activeCountermeasureId;
-                if (originalId && originalId !== id) {
-                    await STORAGE_ENGINE.deleteCountermeasure(originalId);
+                    // ถ้าแก้ไข entry เดิมแล้วเปลี่ยน Tag/Direction จน id เปลี่ยนไป ต้องลบ entry เก่าทิ้ง กัน record ค้าง
+                    const originalId = APP._activeCountermeasureId;
+                    if (originalId && originalId !== id) {
+                        await STORAGE_ENGINE.deleteCountermeasure(originalId);
+                    }
+
+                    const newList = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
+                    STATE.set('userCountermeasures', newList);
+
+                    APP.closeCountermeasureModal();
+                } catch (error) {
+                    console.error("Save Countermeasure Failed: ", error);
+                    alert("บันทึกคำแนะนำไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
                 }
-
-                const newList = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
-                STATE.set('userCountermeasures', newList);
-
-                APP.closeCountermeasureModal();
             },
 
             deleteCountermeasureEntry: async () => {
@@ -3162,11 +3311,16 @@
                 if (!id) return;
                 if (!confirm('ต้องการลบคำแนะนำนี้ใช่หรือไม่?')) return;
 
-                await STORAGE_ENGINE.deleteCountermeasure(id);
-                const newList = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
-                STATE.set('userCountermeasures', newList);
+                try {
+                    await STORAGE_ENGINE.deleteCountermeasure(id);
+                    const newList = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
+                    STATE.set('userCountermeasures', newList);
 
-                APP.closeCountermeasureModal();
+                    APP.closeCountermeasureModal();
+                } catch (error) {
+                    console.error("Delete Countermeasure Failed: ", error);
+                    alert("ลบคำแนะนำไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+                }
             },
 
             openActionModal: (recordId) => {
@@ -3250,17 +3404,27 @@
                 const text = aInput ? aInput.value.trim() : '';
                 const updates = { remark: text, actionStatus: text ? 'acknowledged' : 'new' };
 
-                await STORAGE_ENGINE.updateRecord(id, updates);
-                await APP.loadLocalData();
-                APP.closeActionModal();
+                try {
+                    await STORAGE_ENGINE.updateRecord(id, updates);
+                    await APP.loadLocalData();
+                    APP.closeActionModal();
+                } catch (error) {
+                    console.error("Save Remark Failed: ", error);
+                    alert("บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+                }
             },
 
             clearAction: async () => {
                 const id = STATE.get('activeRecordId');
                 if(!id) return;
-                await STORAGE_ENGINE.updateRecord(id, { remark: '', actionStatus: 'new' });
-                await APP.loadLocalData();
-                APP.closeActionModal();
+                try {
+                    await STORAGE_ENGINE.updateRecord(id, { remark: '', actionStatus: 'new' });
+                    await APP.loadLocalData();
+                    APP.closeActionModal();
+                } catch (error) {
+                    console.error("Clear Remark Failed: ", error);
+                    alert("ลบข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+                }
             },
 
             triggerSmartAssist: async () => {
@@ -3286,17 +3450,22 @@
                 UI_RENDERER.initIcons();
 
                 setTimeout(() => {
-                    const val = parseNum(record.value);
-                    const direction = classifyDeviation(val, eMin, eMax);
-                    const cm = COUNTERMEASURE_AGENT.find(record.tagNo, direction);
-                    const aiBadge = document.getElementById('ai-source-badge');
-                    if (aiBadge) {
-                        if (cm) { aiBadge.textContent = `จากคู่มือ ${cm.sourceDoc}`; aiBadge.classList.remove('hidden'); }
-                        else { aiBadge.classList.add('hidden'); }
-                    }
+                    // V29.70 FIX: #action-input/#btn-ai-assist ใช้ element เดียวกันซ้ำทุก record — ถ้า operator
+                    // ปิด modal นี้แล้วเปิด record อื่นภายใน 400ms ผลลัพธ์ของ record เก่าต้องไม่เขียนทับ textarea
+                    // ของ record ใหม่ที่กำลังเปิดอยู่
+                    if (STATE.get('activeRecordId') === id) {
+                        const val = parseNum(record.value);
+                        const direction = classifyDeviation(val, eMin, eMax);
+                        const cm = COUNTERMEASURE_AGENT.find(record.tagNo, direction, record.machine);
+                        const aiBadge = document.getElementById('ai-source-badge');
+                        if (aiBadge) {
+                            if (cm) { aiBadge.textContent = `จากคู่มือ ${cm.sourceDoc}`; aiBadge.classList.remove('hidden'); }
+                            else { aiBadge.classList.add('hidden'); }
+                        }
 
-                    input.value = SMART_AGENT.analyze(record, eMin, eMax, eExact);
-                    autoResizeTextarea(input);
+                        input.value = SMART_AGENT.analyze(record, eMin, eMax, eExact);
+                        autoResizeTextarea(input);
+                    }
                     btn.disabled = false;
                     btn.classList.remove('opacity-50');
                     btn.innerHTML = prevHtml;
