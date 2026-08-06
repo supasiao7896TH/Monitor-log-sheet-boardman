@@ -1,64 +1,68 @@
 # HANDOFF — Plant Log Analyzer
 
 ## 📅 อัปเดตล่าสุด
-2026-08-02 (บ่าย/เย็น) — เครื่อง: PC 4000D (ที่ทำงาน)
+2026-08-06 (ค่ำ) — เครื่อง: PC 26007294 (ที่ทำงาน)
 Branch: `main` | สถานะ repo ตอนปิดเครื่อง: **clean, up to date with origin/main**
-Commit ล่าสุด: `9dc091c` — "Fix O(n^2) tag lookups, add min>max guard, reduce redundant renders (V29.52)"
-(ถัดจาก `9fae88b` V29.51)
+Commit ล่าสุด: `60640e2` — "Trigger fresh Cloudflare Workers deploy run" (empty commit เพื่อ trigger workflow ใหม่)
+(ก่อนหน้า `f7b3d3a` — "Add Cloudflare Workers deploy config with GitHub Actions auto-deploy")
+
+---
+
+## 🎯 บริบทงาน session นี้: Deploy Cloudflare Workers + GitHub Actions auto-deploy
+
+เป้าหมาย: deploy "Plant Log Analyzer" (`index.html`) ขึ้น Cloudflare Workers ให้ได้ URL เดียวไปแปะในหน้า Excel ให้คนอื่นเปิดใช้งานได้ พร้อมตั้ง auto-deploy ผ่าน GitHub Actions + wrangler (ใช้ `cloudflare-workers-deploy` skill)
 
 ---
 
 ## ✅ ทำเสร็จแล้ว push ขึ้น main แล้ว (session นี้)
 
-รีวิวไฟล์ `index.html` ทั้งไฟล์ (2,962 บรรทัด) พบ 8 ประเด็น จัดลำดับ 🔴🟡🟢 แล้วแก้ 5 ข้อที่ได้รับอนุมัติ → bump เป็น **V29.52**:
-
-- 🔴 เพิ่ม `getTagMap()` helper (index.html:834, เลียนแบบ `getMasterMap()`) แทนที่ `tags.find()` ที่วนแบบ O(n²) ใน 4 จุด: `STATE._deriveAbnormal`, `APP.renderDashboard` (2 จุด), `APP.autoSelectCritical`, `APP.openReportModal`
-- 🔴 เพิ่ม validation กัน Min > Max ใน `APP.saveMasterSettings` (แจ้งเตือน alert ภาษาไทย แล้วไม่บันทึกถ้ากรอกสลับ)
-- 🟡 ตัด double-render ที่ซ้ำซ้อนใน `btn-clear-select` และ `autoSelectCritical` (STATE.set trigger render อยู่แล้ว ไม่ต้อง render ซ้ำ)
-- 🟡 ปรับ `APP.render` ให้ render เฉพาะตารางของแท็บที่เปิดอยู่ (ก่อนหน้านี้ render ตาราง Tag/Master ทุกครั้งแม้ซ่อนอยู่)
-- 🟢 เพิ่ม null-check ใน `handleFiles` สำหรับ element `view-filter`
-
-**ทดสอบแล้ว**: เปิดผ่าน Chrome จริง (ใช้ local Python HTTP server เพราะ extension บล็อก `file://` ตรงๆ) ทุกจุดผ่าน ไม่มี console error ยืนยันด้วยการอ่าน IndexedDB จริง (301 tags / 1200 records จากการทดสอบก่อนหน้า) — ล้างข้อมูลทดสอบที่ฉีดเข้า IndexedDB ระหว่างทดสอบเรียบร้อยแล้ว **ไม่มีไฟล์/ข้อมูลทดสอบตกค้างใน repo**
+- สร้าง `wrangler.jsonc` (name: `monitor-log-sheet-boardman`, account_id: `e87e6b4e7ec59834a35db192e7e37eb8`, assets.directory: `./`)
+- สร้าง `.assetsignore` — กัน `node_modules`, `.git`, `.github`, ไฟล์ config/เอกสาร, และ**สำคัญที่สุด**คือกัน `*.pdf` `*.xls` `*.xlsx` `*.xlsm` `*.csv` ไม่ให้หลุดขึ้นเป็น public asset (repo นี้มีเอกสาร internal ของโรงงาน PTA อยู่ที่ root เช่น MPS control manual, PTA interlock, PI training manual)
+- สร้าง `.github/workflows/deploy.yml` — รัน `wrangler deploy` ผ่าน `cloudflare/wrangler-action@v4` ทุกครั้งที่ push ขึ้น main
+- ตั้งค่า GitHub Secret `CLOUDFLARE_API_TOKEN` เรียบร้อยแล้ว (token ชื่อ "Edit Cloudflare Workers" ใน Cloudflare dashboard — เดิมมี token ซ้ำหลายอันจากการลองผิดลองถูก ลบอันที่ไม่ได้ใช้ทิ้งแล้ว เหลืออันเดียวที่ Active)
 
 ---
 
-## 🚧 ค้างอยู่ / ยังไม่ได้ทำ
+## 🚧 ปัญหาที่ block อยู่ตอนนี้ (ไม่เกี่ยวกับโค้ด/config ของเราเลย)
 
-1. **คำถามที่ตอบไปแล้วแต่ยังไม่ได้ลงมือทำอะไรต่อ**: พี่ A ถามว่า "Web App นี้อ่านข้อมูล Excel ยังไงและอ่านได้ครบทุก Tag หรือไม่" — อธิบายกลไก `EXCEL_WORKER.processData` (index.html:1351-1645) และตอบว่า **ไม่การันตี 100%** เพราะเป็นระบบ heuristic-based (keyword matching ไม่ใช่ fixed schema) จุดอ่อน 4 อย่าง:
-   - พึ่ง keyword header ตรงรูปแบบ
-   - Tag No ต้องยาว 3–30 ตัวอักษรและมีตัวเลขปน
-   - ยึดตำแหน่งคอลัมน์คงที่หลังเจอแถว Tag No
-   - ค่าที่ไม่ใช่ตัวเลขล้วนถูกทิ้งเสมอ (Strict Numeric Mode)
+- GitHub มี infrastructure incident ระดับ global กับ GitHub Actions เริ่มตั้งแต่ ~15:22 UTC วันที่ 6 ส.ค. 2569 (runners ถูก assign job ที่ไม่ valid, webhook throttled)
+- Deploy run แรก (attempt #1-3) fail ด้วย error `CLOUDFLARE_API_TOKEN` ไม่เจอ (เพราะตอนแรกตั้งชื่อ secret ผิดเป็น `MONITOR_LOG_SHEET_BOARDMAN` — **แก้ไขแล้ว**) จากนั้น fail ต่อด้วย error จาก GitHub Actions incident โดยตรง (`runner not acquired`, `internal server error`)
+- Attempt #4 (re-run ล่าสุดก่อน incident เริ่มดีขึ้น) ค้างสถานะ **Queued มา 2+ ชั่วโมง** ลองกด "Cancel run" ผ่าน GitHub UI ไปแล้ว 3 ครั้งแต่ไม่สำเร็จ (cancel API เองก็ยัง degraded ตอนนั้น)
+- ล่าสุด GitHub รายงานว่า deploy fix แล้ว (22:18 UTC) job ใหม่ที่ trigger สำเร็จขึ้นไป 97% แต่ **webhook ยัง throttled อยู่** ทำให้ push ใหม่ยังไม่ trigger workflow run เลย
+- เพิ่ง push commit เปล่า (`git commit --allow-empty`, commit `60640e2`) เพื่อพยายาม trigger run ใหม่ที่ไม่ติด attempt เก่า — **ยังไม่เห็นผลตอนที่เขียน handoff นี้** (webhook ยังไม่ตอบสนอง ณ ตอนปิดเครื่อง)
 
-2. **ข้อเสนอที่ค้างอยู่ ยังไม่ได้รับคำตอบจากพี่ A**: เสนอจะช่วยตรวจสอบไฟล์ log sheet จริง (`Log sheet 08-3-26.xls` ที่มีอยู่ในโปรเจกต์) ว่ามี tag ไหนหลุดจากการอ่านบ้างไหม — **ยังไม่ได้ตอบรับ/ปฏิเสธ**
-
-3. **ประเด็น 🟢 อื่นจากรีวิวที่ยังไม่ได้แก้** (priority ต่ำ ยังไม่มีแผนจะทำ เว้นแต่พี่ A ขอ):
-   - ปุ่ม icon-only ยังไม่มี `aria-label`
-   - เลขเวอร์ชันซ้ำหลายจุดในไฟล์ (ต้องแก้เองทุกจุดเวลา bump version)
-   - `parseCSV` ไม่รองรับ escaped-quote `""`
+**สถานะ URL:** Cloudflare Worker `monitor-log-sheet-boardman` **ยังไม่เคย deploy สำเร็จสักครั้ง** เพราะฉะนั้นยังไม่มี URL จริงให้ใช้งาน — ยังไม่ขึ้นในหน้า Cloudflare dashboard → Workers & Pages ด้วย (Worker จะถูกสร้างอัตโนมัติเมื่อ `wrangler deploy` สำเร็จครั้งแรกเท่านั้น)
 
 ---
 
-## 🎯 ขั้นตอนถัดไปที่ตั้งใจจะทำ
+## 🎯 ขั้นตอนถัดไปที่ตั้งใจจะทำ (ที่เครื่องบ้าน)
 
-1. ถามพี่ A ว่าต้องการให้ตรวจสอบ `Log sheet 08-3-26.xls` เทียบกับผลลัพธ์การอ่านจริงหรือไม่ (ข้อ 2 ด้านบน) — ถ้าใช่ ให้เปิดไฟล์นั้นและไล่เทียบ tag ที่อ่านได้กับที่มีในไฟล์ต้นฉบับ
-2. ถ้าไม่ ให้ถามว่าจะทำประเด็น 🟢 ที่เหลือต่อไหม หรือมีงานใหม่
+1. เช็ค GitHub Actions tab: https://github.com/supasiao7896TH/Monitor-log-sheet-boardman/actions — ดูว่า workflow run ใหม่ (จาก commit `60640e2` หรือใหม่กว่า) ขึ้น ✅ หรือยัง
+2. เช็ค GitHub Status: https://www.githubstatus.com — ดูว่า incident "Incident with Actions" resolved หรือยัง
+3. ถ้า workflow ยังไม่ trigger เอง และ incident resolved แล้ว ให้ไปที่ Actions tab กด "Re-run jobs" บน run ที่ค้างอยู่ หรือ push commit ใหม่อีกครั้ง (เช่น `git commit --allow-empty -m "..."`)
+4. เมื่อ deploy สำเร็จครั้งแรก ให้ตรวจสอบตาม checklist ของ `cloudflare-workers-deploy` skill:
+   - (ก) Actions tab ขึ้น ✅
+   - (ข) Cloudflare dashboard → Worker → Versions ล่าสุดต้องเป็น source **"Wrangler"** ไม่ใช่ "Dashboard"
+   - (ค) เปิด URL จริงเช็คว่าแอปโหลดได้
+   - (ง) **สำคัญ:** ลองเข้า URL + ชื่อไฟล์ PDF/Excel ตรงๆ ต้องเข้าไม่ได้ (ยืนยันว่า `.assetsignore` ทำงาน กันเอกสาร internal ไม่ให้หลุด)
+5. ถ้า deploy สำเร็จแล้ว เอา URL ที่ได้ (รูปแบบ `monitor-log-sheet-boardman.<account>.workers.dev`) ไปแปะในหน้า Excel ตามที่พี่ A ต้องการ
 
 ---
 
 ## ⚠️ ข้อควรระวัง / สิ่งที่ต้องไม่ลืม
 
-- ไฟล์แผนงาน/รายละเอียดรีวิวเต็มทั้ง 8 ข้อ (ทั้งที่แก้แล้วและยังไม่แก้) อยู่ที่ `C:\Users\PC 4000D\.claude\plans\index-html-whimsical-lampson.md` — **ไฟล์นี้อยู่นอก repo** (ใน `.claude/plans` ของ user profile ไม่ใช่ของโปรเจกต์) จึงไม่ sync ผ่าน GitHub ข้ามเครื่อง ถ้าทำงานจากเครื่องอื่น ไฟล์นี้จะไม่มี — ต้องอาศัย HANDOFF.md นี้แทน
-- การทดสอบ V29.52 ต้องรัน local HTTP server (เช่น `python -m http.server`) แล้วเปิดผ่าน `http://localhost:...` ไม่ใช่เปิดไฟล์ `file://` ตรงๆ เพราะ extension ที่ใช้ตรวจสอบบล็อก local file access
-- เวลา bump version ต้องแก้ที่ 2 จุดในไฟล์: `<title>` และ label "Ultimate Edition (VXX.XX)" (ยังไม่ได้ consolidate เป็นจุดเดียว — ดูข้อ 🟢 ด้านบน)
+- **ห้ามลบ `.assetsignore` หรือลด pattern `*.pdf` `*.xls` `*.xlsx` `*.xlsm` `*.csv` ออก** — repo นี้มีเอกสาร internal ของโรงงาน PTA อยู่ที่ root จริง ถ้าหลุดขึ้น public asset จะเป็นปัญหาความปลอดภัยข้อมูล
+- ปัญหาที่ค้างทั้งหมดตอนนี้เป็นฝั่ง GitHub infrastructure incident ไม่ใช่ bug ในโค้ด/config ของเรา — ไม่ต้องไล่แก้ `wrangler.jsonc`/`deploy.yml` ซ้ำถ้ายังไม่เห็นหลักฐานว่า config ผิด
+- อย่าลืมเช็ค GitHub Secret ชื่อต้องเป็น `CLOUDFLARE_API_TOKEN` เป๊ะๆ (เคยพลาดตั้งชื่อผิดมาแล้วรอบหนึ่ง)
+- ไม่ต้องติดตั้ง Node.js ที่เครื่องบ้านเลย เพราะ `wrangler deploy` รันบน GitHub-hosted runner (cloud) ทั้งหมด — เครื่องบ้านแค่ต้องมี git + เข้าเว็บได้ก็พอ
 
 ---
 
 ## 🔧 คำสั่งที่ต้องรันก่อนทำงานต่อ
 
 ```bash
-cd "C:\Users\PC 4000D\Check Out of Range Log"
+cd "C:\Users\26007294\Monitor log sheet boardman"
 git pull
 ```
 
-ไม่มี npm install / build step ใดๆ (เป็น single-file app เปิด `index.html` ตรงได้เลย หรือรัน local server ถ้าต้องทดสอบผ่าน extension)
+ไม่มี npm install / build step ใดๆ ที่เครื่อง local (deploy ทั้งหมดรันบน GitHub Actions runner) — งานที่ต้องทำที่เครื่องบ้านคือเช็คสถานะผ่านเว็บเบราว์เซอร์เป็นหลัก (GitHub Actions tab + GitHub Status page)
