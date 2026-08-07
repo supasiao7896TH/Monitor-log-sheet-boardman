@@ -18,7 +18,12 @@ Commit ล่าสุด: `542420f` — "Update HANDOFF.md with Cloudflare Work
 
 **Root cause ของปัญหาที่ค้างไว้ (ไม่ใช่ GitHub incident แล้ว):** Deploy #2-#4 (attempt แรกๆ) fail ด้วย `Authentication error [code: 10000]` / `Invalid access token [code: 9109]` — GitHub Secret `CLOUDFLARE_API_TOKEN` เดิม invalid/หมดสิทธิ์ พี่ A สร้าง Cloudflare API Token ใหม่และอัปเดต Secret แล้ว (2026-08-07) → re-run jobs สำเร็จทันที
 
-**ขั้นต่อไป (ถ้ามี):** เอา URL ด้านบนไปแปะในหน้า Excel ตามที่ตั้งใจไว้ — งาน deploy ส่วนนี้ถือว่าจบแล้ว
+**สูตร HYPERLINK สำหรับแปะในหน้า Excel** (พี่ A แปะเองในไฟล์ log sheet):
+```
+=HYPERLINK("https://monitor-log-sheet-boardman.supasiao.workers.dev/", "@Open Plant Log Analyzer")
+```
+
+**ขั้นต่อไป (ถ้ามี):** งาน deploy ส่วนนี้ถือว่าจบแล้ว
 
 ---
 
