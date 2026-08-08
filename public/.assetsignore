@@ -1,0 +1,10 @@
+# Cloudflare Workers reads .assetsignore from inside the configured assets
+# directory (now ./dist, built by Vite) — this file lives in public/ so Vite
+# copies it into dist/ verbatim on every build.
+#
+# Internal plant documents (PDF manuals, .xls/.xlsm samples) and repo/config
+# files never enter dist/ in the first place since nothing in src/ or public/
+# references them, so this is just a safety net for anything dropped into
+# public/ by mistake later.
+.DS_Store
+Thumbs.db

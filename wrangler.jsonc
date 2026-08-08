@@ -3,7 +3,7 @@
   "account_id": "e87e6b4e7ec59834a35db192e7e37eb8",
   "compatibility_date": "2026-08-06",
   "assets": {
-    "directory": "./"
+    "directory": "./dist"
   },
   "observability": {
     "enabled": false,

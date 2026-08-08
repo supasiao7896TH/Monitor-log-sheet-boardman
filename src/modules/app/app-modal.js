@@ -1,0 +1,165 @@
+import { STATE } from '../state.js';
+import { STORAGE_ENGINE } from '../storage-engine.js';
+import { UI_RENDERER } from '../ui-renderer.js';
+import { SMART_AGENT } from '../smart-agent.js';
+import { COUNTERMEASURE_AGENT } from '../countermeasure-agent.js';
+import { escapeHtml, getTagId, parseNum, classifyDeviation, resolveEffectiveLimits, formatLimitText, getMasterMap, showModal, hideModal, autoResizeTextarea } from '../shared.js';
+import { APP } from './app.js';
+/* global lucide */
+
+Object.assign(APP, {
+
+            openActionModal: (recordId) => {
+                STATE.set('activeRecordId', recordId);
+                const record = STATE.get('records').find(r => r.id === recordId);
+                if (!record) return;
+                const tagDef = STATE.get('tags').find(t => t.id === getTagId(record));
+                const master = STATE.get('masterTags').find(m => m.id === getTagId(record));
+                
+                const mTagNo = document.getElementById('modal-tag-no');
+                if (mTagNo) mTagNo.textContent = record.tagNo;
+                const mType = document.getElementById('modal-tag-type');
+                if (mType) mType.textContent = record.paramType;
+                const mDesc = document.getElementById('modal-tag-desc');
+                if (mDesc) mDesc.textContent = (master && master.description) ? master.description : (tagDef?.description || '-');
+                const mVal = document.getElementById('modal-value');
+                if (mVal) mVal.textContent = record.value;
+                const mTime = document.getElementById('modal-time');
+                if (mTime) mTime.textContent = `${record.dateStr} ${record.timeStr}`;
+                
+                const { eMin, eMax, eExact } = resolveEffectiveLimits(tagDef, master);
+                const maxMinText = escapeHtml(formatLimitText(eMin, eMax, eExact, 'N/A'));
+
+                const mNorm = document.getElementById('modal-norm-text');
+                if (mNorm) mNorm.innerHTML = `${master ? '<i data-lucide="shield-check" class="w-3 h-3 inline text-indigo-500"></i> Master: ' : 'Excel: '}` + maxMinText;
+
+                const aInput = document.getElementById('action-input');
+                if (aInput) aInput.value = record.remark || '';
+
+                const aiBadge = document.getElementById('ai-source-badge');
+                if (aiBadge) aiBadge.classList.add('hidden');
+
+                const history = STATE.get('records')
+                    .filter(r => r.tagNo === record.tagNo && r.paramType === record.paramType && r.machine === record.machine)
+                    .sort((a, b) => a.timestamp - b.timestamp);
+
+                APP.renderChart(history, eMin, eMax, eExact);
+
+                // V29.51 FEAT: ประวัติการแก้ไขก่อนหน้าของ Tag นี้ (ไม่รวม record ปัจจุบัน)
+                const pastAnnotations = history
+                    .filter(r => r.id !== record.id && r.remark && r.remark.trim())
+                    .sort((a, b) => b.timestamp - a.timestamp)
+                    .slice(0, 5);
+
+                const pastList = document.getElementById('past-actions-list');
+                if (pastList) {
+                    while (pastList.firstChild) pastList.removeChild(pastList.firstChild);
+                    if (pastAnnotations.length === 0) {
+                        const empty = UI_RENDERER.createEl('p', 'text-xs text-slate-400 italic text-center py-3');
+                        empty.textContent = 'ยังไม่มีประวัติการแก้ไขก่อนหน้าสำหรับ Tag นี้';
+                        pastList.appendChild(empty);
+                    } else {
+                        pastAnnotations.forEach(r => {
+                            const row = UI_RENDERER.createEl('div', 'bg-slate-50 border border-slate-100 rounded-lg p-2.5');
+                            const timeEl = UI_RENDERER.createEl('p', 'text-[10px] font-bold text-slate-400 mb-0.5');
+                            timeEl.textContent = `${r.dateStr} ${r.timeStr}`;
+                            const remarkEl = UI_RENDERER.createEl('p', 'text-xs font-medium text-slate-700');
+                            remarkEl.textContent = r.remark;
+                            row.appendChild(timeEl);
+                            row.appendChild(remarkEl);
+                            pastList.appendChild(row);
+                        });
+                    }
+                }
+
+                showModal('action-modal');
+                UI_RENDERER.initIcons();
+                // V29.56 FIX: ต้องขยาย textarea หลัง showModal เพราะตอน modal ยังซ่อนอยู่ (display:none) scrollHeight จะอ่านค่าไม่ถูกต้อง
+                if (aInput) autoResizeTextarea(aInput);
+            },
+
+
+            closeActionModal: () => {
+                hideModal('action-modal');
+                STATE.set('activeRecordId', null);
+            },
+
+
+            saveAction: async () => {
+                const id = STATE.get('activeRecordId');
+                if(!id) return;
+                const aInput = document.getElementById('action-input');
+                const text = aInput ? aInput.value.trim() : '';
+                const updates = { remark: text, actionStatus: text ? 'acknowledged' : 'new' };
+
+                try {
+                    await STORAGE_ENGINE.updateRecord(id, updates);
+                    await APP.loadLocalData();
+                    APP.closeActionModal();
+                } catch (error) {
+                    console.error("Save Remark Failed: ", error);
+                    alert("บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+                }
+            },
+
+
+            clearAction: async () => {
+                const id = STATE.get('activeRecordId');
+                if(!id) return;
+                try {
+                    await STORAGE_ENGINE.updateRecord(id, { remark: '', actionStatus: 'new' });
+                    await APP.loadLocalData();
+                    APP.closeActionModal();
+                } catch (error) {
+                    console.error("Clear Remark Failed: ", error);
+                    alert("ลบข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+                }
+            },
+
+
+            triggerSmartAssist: async () => {
+                const btn = document.getElementById('btn-ai-assist');
+                const input = document.getElementById('action-input');
+                const id = STATE.get('activeRecordId');
+                if(!id || !btn || !input) return;
+
+                const record = STATE.get('records').find(r => r.id === id);
+                const tags = STATE.get('tags');
+                const masterTagsMap = getMasterMap();
+
+                const tId = getTagId(record);
+                const tDef = tags.find(t => t.id === tId);
+                const master = masterTagsMap.get(tId);
+
+                const { eMin, eMax, eExact } = resolveEffectiveLimits(tDef, master);
+
+                btn.disabled = true;
+                btn.classList.add('opacity-50');
+                const prevHtml = btn.innerHTML;
+                btn.innerHTML = '<i data-lucide="loader-2" class="w-3 h-3 animate-spin text-teal-500"></i> Processing...';
+                UI_RENDERER.initIcons();
+
+                setTimeout(() => {
+                    // V29.70 FIX: #action-input/#btn-ai-assist ใช้ element เดียวกันซ้ำทุก record — ถ้า operator
+                    // ปิด modal นี้แล้วเปิด record อื่นภายใน 400ms ผลลัพธ์ของ record เก่าต้องไม่เขียนทับ textarea
+                    // ของ record ใหม่ที่กำลังเปิดอยู่
+                    if (STATE.get('activeRecordId') === id) {
+                        const val = parseNum(record.value);
+                        const direction = classifyDeviation(val, eMin, eMax);
+                        const cm = COUNTERMEASURE_AGENT.find(record.tagNo, direction, record.machine);
+                        const aiBadge = document.getElementById('ai-source-badge');
+                        if (aiBadge) {
+                            if (cm) { aiBadge.textContent = `จากคู่มือ ${cm.sourceDoc}`; aiBadge.classList.remove('hidden'); }
+                            else { aiBadge.classList.add('hidden'); }
+                        }
+
+                        input.value = SMART_AGENT.analyze(record, eMin, eMax, eExact);
+                        autoResizeTextarea(input);
+                    }
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50');
+                    btn.innerHTML = prevHtml;
+                    UI_RENDERER.initIcons();
+                }, 400);
+            },
+});
