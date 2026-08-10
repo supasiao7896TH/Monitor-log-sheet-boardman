@@ -1,7 +1,6 @@
 import { STATE } from '../state.js';
 import { STORAGE_ENGINE } from '../storage-engine.js';
 import { UI_RENDERER } from '../ui-renderer.js';
-import { EXCEL_WRITEBACK } from '../excel-writeback.js';
 import { autoResizeTextarea, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY } from '../shared.js';
 import { APP } from './app.js';
 
@@ -9,12 +8,6 @@ Object.assign(APP, {
             init: async () => {
                 UI_RENDERER.initIcons();
                 APP.bindEvents();
-
-                // V29.71 FEAT: ปุ่ม "นำเข้าและเชื่อมต่อไฟล์" (เขียน remark กลับไฟล์เดิมบน disk อัตโนมัติ)
-                // ใช้ได้เฉพาะ browser ที่รองรับ File System Access API (Chrome/Edge) — ซ่อนไปเลยถ้าไม่รองรับ
-                // แทนที่จะโชว์ปุ่มที่กดแล้วพัง
-                const importConnectBtn = document.getElementById('btn-import-connect');
-                if (importConnectBtn) importConnectBtn.classList.toggle('hidden', !EXCEL_WRITEBACK.isFsAccessSupported());
 
                 try {
                     await STORAGE_ENGINE.init();
@@ -182,54 +175,15 @@ Object.assign(APP, {
                 const dz = document.getElementById('drop-zone');
                 const fi = document.getElementById('file-input');
                 if (fi && dz) {
-                    // ปกติ <input type=file> ไม่มีทางได้ FileSystemFileHandle ที่เขียนกลับได้ — import ทางนี้
-                    // จะ sync remark กลับ Excel ได้เฉพาะผ่านปุ่ม "Export Updated Excel" (fallback) เท่านั้น
                     fi.addEventListener('change', (e) => APP.handleFiles(e.target.files));
                     dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('bg-brand-50/50'); });
                     dz.addEventListener('dragleave', () => dz.classList.remove('bg-brand-50/50'));
-                    // V29.71 FEAT: ลาก-วางไฟล์ใน Chrome/Edge อาจให้ FileSystemFileHandle ที่เขียนกลับได้จริง
-                    // (DataTransferItem.getAsFileSystemHandle) — ลองดึงมาเผื่อไว้ ถ้า browser ไม่รองรับก็ได้ null เฉยๆ
-                    dz.addEventListener('drop', async (e) => {
+                    dz.addEventListener('drop', (e) => {
                         e.preventDefault();
                         dz.classList.remove('bg-brand-50/50');
-                        const files = e.dataTransfer.files;
-                        let handles = null;
-                        if (EXCEL_WRITEBACK.isFsAccessSupported() && e.dataTransfer.items) {
-                            const items = Array.from(e.dataTransfer.items);
-                            handles = await Promise.all(items.map(item =>
-                                (typeof item.getAsFileSystemHandle === 'function')
-                                    ? item.getAsFileSystemHandle().catch(() => null)
-                                    : Promise.resolve(null)
-                            ));
-                        }
-                        APP.handleFiles(files, handles);
+                        APP.handleFiles(e.dataTransfer.files);
                     });
                 }
-
-                // V29.71 FEAT: เลือกไฟล์ผ่าน showOpenFilePicker เพื่อได้ FileSystemFileHandle ที่เขียนกลับได้จริง
-                assignEvent('btn-import-connect', async () => {
-                    try {
-                        const fileHandles = await window.showOpenFilePicker({
-                            multiple: true,
-                            types: [{
-                                description: 'Excel Log Sheet',
-                                accept: {
-                                    'application/vnd.ms-excel.sheet.macroEnabled.12': ['.xlsm'],
-                                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-                                    'application/vnd.ms-excel': ['.xls'],
-                                    'text/csv': ['.csv']
-                                }
-                            }]
-                        });
-                        const files = await Promise.all(fileHandles.map(h => h.getFile()));
-                        APP.handleFiles(files, fileHandles);
-                    } catch (err) {
-                        if (err && err.name !== 'AbortError') {
-                            console.error('Import & Connect failed:', err);
-                            alert('ไม่สามารถเปิดไฟล์ได้: ' + err.message);
-                        }
-                    }
-                });
 
                 assignEvent('view-filter', (e) => STATE.set('viewFilter', e.target.value), 'change');
                 assignEvent('tag-search', (e) => APP.renderTagTable(e.target.value), 'input');
@@ -242,7 +196,6 @@ Object.assign(APP, {
                 assignEvent('btn-save-action', APP.saveAction);
                 assignEvent('btn-clear-action', APP.clearAction);
                 assignEvent('btn-ai-assist', APP.triggerSmartAssist);
-                assignEvent('btn-export-updated-excel', APP.exportUpdatedExcelForActiveRecord);
                 assignEvent('action-input', (e) => autoResizeTextarea(e.target), 'input');
 
                 assignEvent('btn-cancel-master', APP.closeMasterModal);

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.72)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.74)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -345,14 +345,6 @@
                     </div>
                 </div>
 
-                <!-- V29.71 FEAT: เชื่อมต่อไฟล์ผ่าน File System Access API (Chrome/Edge) เพื่อให้ sync
-                     Resolution Remark กลับไปเป็น Excel cell comment บนไฟล์เดิมบน disk ได้อัตโนมัติ —
-                     ซ่อนไว้เป็น default, โชว์เฉพาะ browser ที่รองรับ (toggle ใน APP.init) -->
-                <button id="btn-import-connect" type="button" class="hidden mt-4 inline-flex items-center gap-2 text-xs font-bold text-brand-600 bg-white border border-brand-200 hover:bg-brand-50 px-4 py-2.5 rounded-xl shadow-sm transition-all">
-                    <i data-lucide="link-2" class="w-3.5 h-3.5"></i>
-                    <span>นำเข้าและเชื่อมต่อไฟล์ (Sync Remark กลับ Excel อัตโนมัติ)</span>
-                </button>
-
                 <div id="processing-status" class="hidden mt-8 w-full max-w-2xl glass-card rounded-2xl p-8 shadow-lg border border-brand-100">
                     <div class="flex justify-between mb-3 items-end">
                         <span class="font-bold text-slate-700 flex items-center gap-2">
@@ -565,7 +557,7 @@
                     </div>
                     
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.72 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.74 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by Supasit@1981th</p>
                     </div>
                 </div>
@@ -663,11 +655,6 @@
                 <div class="flex items-center gap-3">
                     <button id="btn-clear-action" class="text-xs font-bold text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors">
                         <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Clear Action
-                    </button>
-                    <!-- V29.71 FEAT: fallback สำหรับตอนที่ sync อัตโนมัติใช้ไม่ได้ (ไม่ได้เชื่อมไฟล์ /
-                         browser ไม่รองรับ) — export ไฟล์ Excel ใหม่ที่มี Remark ทุกรายการเป็น comment แล้ว -->
-                    <button id="btn-export-updated-excel" class="hidden text-xs font-bold text-slate-400 hover:text-brand-600 flex items-center gap-1 transition-colors">
-                        <i data-lucide="download" class="w-3.5 h-3.5"></i> Export Updated Excel
                     </button>
                 </div>
                 <div class="flex gap-2">

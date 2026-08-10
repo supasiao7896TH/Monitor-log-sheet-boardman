@@ -80,9 +80,6 @@ export function showTransientMessage(elId, text, variant = 'info', duration = 40
 }
 
 export const STORE_TAGS = 'Tags', STORE_RECORDS = 'Records', STORE_MASTERTAGS = 'MasterTags', STORE_IMPORTHISTORY = 'ImportHistory', STORE_COUNTERMEASURES = 'UserCountermeasures';
-// V29.71 FEAT: sync remark กลับไปเป็น Excel cell comment ในไฟล์ต้นฉบับ — เก็บไฟล์ดิบไว้ (ทุก browser)
-// และ FileSystemFileHandle ถ้า browser รองรับ (เขียนกลับไฟล์เดิมบน disk ได้อัตโนมัติ)
-export const STORE_SOURCEWORKBOOKS = 'SourceWorkbooks', STORE_FILEHANDLES = 'FileHandles';
 
 // Zero-shield / abnormal-detection tolerances (V29.40/V29.42-tuned — values frozen, names only)
 export const LIMIT_EPSILON = 0.0001;

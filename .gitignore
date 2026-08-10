@@ -2,3 +2,4 @@
 node_modules
 dist
 .migration-tmp
+bridge/*.log

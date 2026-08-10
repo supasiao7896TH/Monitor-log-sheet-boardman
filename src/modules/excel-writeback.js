@@ -1,122 +1,68 @@
-import { STORAGE_ENGINE } from './storage-engine.js';
-/* global XLSX */
-
 // V29.71 FEAT: sync "Resolution Remark (Action Taken)" กลับไปเป็น native Excel cell comment
 // (เทียบเท่า right-click -> "New Comment" ที่ operator เคยต้องพิมพ์ซ้ำเองในไฟล์ต้นฉบับ) —
 // ปิด loop ให้จบงานที่ Web App ได้เลยโดยไม่ต้องไปแก้ Excel เพิ่ม
+//
+// V29.74 ARCH: เดิมโมดูลนี้อ่าน-เขียนไฟล์ Excel เองผ่าน SheetJS (XLSX.read/XLSX.write) แต่การทดสอบจริง
+// กับไฟล์ log sheet ที่มีสูตรเชื่อม OSIsoft PI System แบบ live พบว่าไม่มีไลบรารี JS ฟรีตัวไหน (SheetJS,
+// exceljs) เขียนไฟล์กลับได้ครบถ้วนปลอดภัย — ไฟล์ที่เขียนออกมาทำให้ Excel บังคับคำนวณสูตร PI ใหม่ทั้งหมด
+// (เพราะเขียน calcChain.xml ไม่ถูกต้อง) กลายเป็น #NAME? ทุกช่องแม้ค่าจริงจะยังถูกต้องอยู่ก็ตาม (รายละเอียด
+// การทดสอบและหลักฐานอยู่ใน context.md) จึงเปลี่ยนมาให้ Excel ตัวจริงเป็นคนเขียนแทน ผ่าน Local Bridge
+// (bridge/excel-bridge.ps1, PowerShell + Excel COM automation) ที่รันบนเครื่อง operator เอง — โมดูลนี้
+// เหลือแค่ fetch คุยกับ bridge ผ่าน HTTP บนเครื่องเดียวกันเท่านั้น ไม่แตะไฟล์ Excel โดยตรงอีกต่อไป
 const APP_COMMENT_AUTHOR = 'Plant Log Analyzer (Web App)';
+const BRIDGE_URL = 'http://localhost:5175';
+const FETCH_TIMEOUT_MS = 4000;
 
-function pickBookType(fileName) {
-    return (fileName || '').toLowerCase().endsWith('.xlsm') ? 'xlsm' : 'xlsx';
+async function fetchWithTimeout(url, options) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 export const EXCEL_WRITEBACK = {
 
-            // File System Access API (showOpenFilePicker / FileSystemFileHandle.createWritable)
-            // รองรับเฉพาะ Chrome/Edge — ใช้ feature-detect แทนการเดา browser
-            isFsAccessSupported: () => typeof window !== 'undefined' && typeof window.showOpenFilePicker === 'function',
+            // Pure: ประกอบ request body ที่จะส่งให้ bridge — แยกออกมาให้ test เรียกตรงได้โดยไม่ต้องพึ่ง fetch จริง
+            buildWriteRemarkPayload: (record, remarkText) => ({
+                fileName: record.sourceFileName,
+                machine: record.machine,
+                cellRef: record.cellRef,
+                remarkText: (remarkText || '').trim(),
+                author: APP_COMMENT_AUTHOR
+            }),
 
-            // Pure: แก้ cell.c ของ cellRef ที่ระบุใน wb (SheetJS workbook object) แล้ว return wb เดิม (mutate in place)
-            // ไม่แตะ I/O ใดๆ ทั้งสิ้น เพื่อให้ unit test ได้โดยไม่ต้องพึ่ง browser API จริง
-            applyRemarkToWorkbook: (wb, record, remarkText) => {
-                const sheet = wb && wb.Sheets && wb.Sheets[record.machine];
-                if (!sheet || !record.cellRef) return { status: 'error' };
-
-                let cell = sheet[record.cellRef];
-                if (!cell) {
-                    // เผื่อ cell หายไปจริงๆ (เช่นแถวถูกลบใน Excel หลัง import) — สร้าง cell ว่างไว้ให้ comment เกาะได้
-                    cell = { t: 's', v: '' };
-                    sheet[record.cellRef] = cell;
+            // เช็คว่า Local Bridge (bridge/excel-bridge.ps1) กำลังรันอยู่บนเครื่องนี้ไหม
+            checkBridgeStatus: async () => {
+                try {
+                    const res = await fetchWithTimeout(`${BRIDGE_URL}/ping`, { method: 'GET' });
+                    return res.ok;
+                } catch {
+                    return false;
                 }
-
-                const existing = Array.isArray(cell.c) ? cell.c : null;
-                const hasForeignComment = existing && existing.length > 0 && existing[0].a && existing[0].a !== APP_COMMENT_AUTHOR;
-
-                if (hasForeignComment) {
-                    // มีคนพิมพ์ comment เองตรงๆ ใน Excel (ไม่ใช่จาก Web App) — ห้ามเขียนทับเงียบๆ
-                    return { status: 'conflict' };
-                }
-
-                const trimmed = (remarkText || '').trim();
-                if (trimmed) {
-                    cell.c = [{ a: APP_COMMENT_AUTHOR, t: trimmed, hidden: true }];
-                } else if (existing) {
-                    // ล้าง Resolution Remark ใน Web App แล้ว -> ล้าง comment ที่ Web App เคยเขียนไว้ด้วย
-                    delete cell.c;
-                }
-                return { status: 'ok' };
             },
 
-            // เขียนกลับไฟล์เดิมบน disk อัตโนมัติผ่าน FileSystemFileHandle ที่เก็บไว้ตอน import
-            // (ต้องเชื่อมไฟล์ผ่านปุ่ม "นำเข้าและเชื่อมต่อไฟล์" ก่อน — ดู app-import.js)
+            // ส่ง Resolution Remark ไปให้ Local Bridge เขียนกลับเป็น Excel cell comment บนไฟล์ต้นฉบับ
+            // ที่ operator เปิดค้างไว้ใน Excel จริง — status ที่เป็นไปได้: 'ok' | 'conflict' | 'no-file-open' |
+            // 'no-source-file' (record import มาก่อนมีฟีเจอร์นี้) | 'bridge-offline' | 'error'
             syncRemarkToExcel: async (record, remarkText) => {
-                if (!record.sourceFileId || !record.cellRef || !record.machine) return 'no-handle';
-                if (!EXCEL_WRITEBACK.isFsAccessSupported()) return 'no-handle';
+                if (!record.sourceFileName || !record.cellRef || !record.machine) return 'no-source-file';
 
-                let handleEntry;
+                const payload = EXCEL_WRITEBACK.buildWriteRemarkPayload(record, remarkText);
                 try {
-                    handleEntry = await STORAGE_ENGINE.getFileHandle(record.sourceFileId);
+                    const res = await fetchWithTimeout(`${BRIDGE_URL}/write-remark`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!res.ok) return 'error';
+                    const data = await res.json();
+                    return data.status || 'error';
                 } catch (err) {
-                    console.error('EXCEL_WRITEBACK: getFileHandle failed', err);
-                    return 'error';
+                    console.error('EXCEL_WRITEBACK.syncRemarkToExcel: bridge unreachable', err);
+                    return 'bridge-offline';
                 }
-                if (!handleEntry || !handleEntry.handle) return 'no-handle';
-
-                const handle = handleEntry.handle;
-                try {
-                    let perm = await handle.queryPermission({ mode: 'readwrite' });
-                    if (perm !== 'granted') {
-                        perm = await handle.requestPermission({ mode: 'readwrite' });
-                    }
-                    if (perm !== 'granted') return 'permission-denied';
-
-                    const file = await handle.getFile();
-                    const buffer = await file.arrayBuffer();
-                    const wb = XLSX.read(new Uint8Array(buffer), { type: 'array', bookVBA: true, cellStyles: true });
-
-                    const { status } = EXCEL_WRITEBACK.applyRemarkToWorkbook(wb, record, remarkText);
-                    if (status !== 'ok') return status;
-
-                    const bookType = pickBookType(handleEntry.fileName);
-                    const out = XLSX.write(wb, { bookType, bookVBA: true, type: 'array' });
-
-                    const writable = await handle.createWritable();
-                    await writable.write(out);
-                    await writable.close();
-                    return 'synced';
-                } catch (err) {
-                    console.error('EXCEL_WRITEBACK.syncRemarkToExcel failed:', err);
-                    if (err && err.name === 'NoModificationAllowedError') return 'file-locked';
-                    if (err && err.name === 'NotAllowedError') return 'permission-denied';
-                    return 'error';
-                }
-            },
-
-            // Fallback สำหรับ browser ที่ไม่รองรับ File System Access API หรือยังไม่ได้เชื่อมไฟล์ —
-            // สร้างไฟล์ Excel ใหม่ที่มี Resolution Remark ทุกรายการของไฟล์นั้นเป็น comment แล้ว trigger download
-            exportUpdatedWorkbook: async (sourceFileId, allRecords) => {
-                const entry = await STORAGE_ENGINE.getSourceWorkbook(sourceFileId);
-                if (!entry || !entry.blob) return { status: 'error' };
-
-                const buffer = await entry.blob.arrayBuffer();
-                const wb = XLSX.read(new Uint8Array(buffer), { type: 'array', bookVBA: true, cellStyles: true });
-
-                allRecords
-                    .filter(r => r.sourceFileId === sourceFileId && r.remark && r.remark.trim())
-                    .forEach(r => EXCEL_WRITEBACK.applyRemarkToWorkbook(wb, r, r.remark));
-
-                const bookType = pickBookType(entry.fileName);
-                const out = XLSX.write(wb, { bookType, bookVBA: true, type: 'array' });
-                const blob = new Blob([out], { type: 'application/octet-stream' });
-
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = entry.fileName || `updated.${bookType}`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(a.href);
-
-                return { status: 'exported' };
             }
         };

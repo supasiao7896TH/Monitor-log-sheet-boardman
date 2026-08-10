@@ -1,4 +1,4 @@
-import { getTagId, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_IMPORTHISTORY, STORE_COUNTERMEASURES, STORE_SOURCEWORKBOOKS, STORE_FILEHANDLES } from './shared.js';
+import { getTagId, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_IMPORTHISTORY, STORE_COUNTERMEASURES } from './shared.js';
 
 export const STORAGE_ENGINE = {
             db: null,
@@ -16,10 +16,6 @@ export const STORAGE_ENGINE = {
                     if(!db.objectStoreNames.contains(STORE_IMPORTHISTORY)) db.createObjectStore(STORE_IMPORTHISTORY, { keyPath: 'id' });
                     // V29.58 FEAT: คำแนะนำ Auto-Draft ที่ผู้ใช้เพิ่มเอง (นอกเหนือจากคู่มือ MPS ที่ hardcode ไว้)
                     if(!db.objectStoreNames.contains(STORE_COUNTERMEASURES)) db.createObjectStore(STORE_COUNTERMEASURES, { keyPath: 'id' });
-                    // V29.71 FEAT: sync remark กลับไปเป็น Excel cell comment — เก็บไฟล์ดิบ (Blob, ทุก browser)
-                    // และ FileSystemFileHandle (Chrome/Edge เท่านั้น, เขียนกลับไฟล์เดิมบน disk ได้อัตโนมัติ)
-                    if(!db.objectStoreNames.contains(STORE_SOURCEWORKBOOKS)) db.createObjectStore(STORE_SOURCEWORKBOOKS, { keyPath: 'sourceFileId' });
-                    if(!db.objectStoreNames.contains(STORE_FILEHANDLES)) db.createObjectStore(STORE_FILEHANDLES, { keyPath: 'sourceFileId' });
                 };
                 req.onsuccess = (e) => { STORAGE_ENGINE.db = e.target.result; resolve(); };
                 req.onerror = reject;
@@ -136,37 +132,6 @@ export const STORAGE_ENGINE = {
                     const sorted = e.target.result.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
                     resolve(sorted.slice(0, 50));
                 };
-                tx.onerror = () => reject(tx.error);
-            }),
-            // V29.71 FEAT: เก็บไฟล์ Excel ต้นฉบับ (raw bytes) ไว้ใช้ sync remark กลับเป็น cell comment ทีหลัง
-            saveSourceWorkbook: (sourceFileId, fileName, blob) => new Promise((resolve, reject) => {
-                if(!STORAGE_ENGINE.db) return resolve();
-                const tx = STORAGE_ENGINE.db.transaction([STORE_SOURCEWORKBOOKS], 'readwrite');
-                tx.objectStore(STORE_SOURCEWORKBOOKS).put({ sourceFileId, fileName, blob, savedAt: new Date().toISOString() });
-                tx.oncomplete = resolve;
-                tx.onerror = () => reject(tx.error);
-            }),
-            getSourceWorkbook: (sourceFileId) => new Promise((resolve, reject) => {
-                if(!STORAGE_ENGINE.db) return resolve(null);
-                const tx = STORAGE_ENGINE.db.transaction([STORE_SOURCEWORKBOOKS], 'readonly');
-                const req = tx.objectStore(STORE_SOURCEWORKBOOKS).get(sourceFileId);
-                req.onsuccess = (e) => resolve(e.target.result || null);
-                tx.onerror = () => reject(tx.error);
-            }),
-            // V29.71 FEAT: FileSystemFileHandle (Chrome/Edge) — ให้เขียนกลับไฟล์เดิมบน disk ได้โดยอัตโนมัติ
-            // ไม่ต้อง export/download ใหม่ทุกครั้ง
-            saveFileHandle: (sourceFileId, fileName, handle) => new Promise((resolve, reject) => {
-                if(!STORAGE_ENGINE.db) return resolve();
-                const tx = STORAGE_ENGINE.db.transaction([STORE_FILEHANDLES], 'readwrite');
-                tx.objectStore(STORE_FILEHANDLES).put({ sourceFileId, fileName, handle, savedAt: new Date().toISOString() });
-                tx.oncomplete = resolve;
-                tx.onerror = () => reject(tx.error);
-            }),
-            getFileHandle: (sourceFileId) => new Promise((resolve, reject) => {
-                if(!STORAGE_ENGINE.db) return resolve(null);
-                const tx = STORAGE_ENGINE.db.transaction([STORE_FILEHANDLES], 'readonly');
-                const req = tx.objectStore(STORE_FILEHANDLES).get(sourceFileId);
-                req.onsuccess = (e) => resolve(e.target.result || null);
                 tx.onerror = () => reject(tx.error);
             })
         };

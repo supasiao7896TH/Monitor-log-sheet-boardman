@@ -40,12 +40,9 @@ Object.assign(APP, {
                 const aiBadge = document.getElementById('ai-source-badge');
                 if (aiBadge) aiBadge.classList.add('hidden');
 
-                // V29.71 FEAT: เคลียร์สถานะ sync ค้างจาก record ก่อนหน้า + โชว์ปุ่ม Export เฉพาะ record
-                // ที่มีไฟล์ต้นฉบับผูกอยู่ (import ก่อนอัปเดตฟีเจอร์นี้จะไม่มี sourceFileId)
+                // V29.71 FEAT: เคลียร์สถานะ sync ค้างจาก record ก่อนหน้า
                 const syncStatusEl = document.getElementById('excel-sync-status');
                 if (syncStatusEl) syncStatusEl.textContent = '';
-                const exportBtn = document.getElementById('btn-export-updated-excel');
-                if (exportBtn) exportBtn.classList.toggle('hidden', !record.sourceFileId);
 
                 const history = STATE.get('records')
                     .filter(r => r.tagNo === record.tagNo && r.paramType === record.paramType && r.machine === record.machine)
@@ -109,11 +106,12 @@ Object.assign(APP, {
                     return;
                 }
 
-                // V29.71 FEAT: sync Resolution Remark กลับไปเป็น Excel cell comment (native "New Comment")
-                // บนไฟล์ต้นฉบับโดยอัตโนมัติ — ความล้มเหลวตรงนี้ต้องไม่ทำให้การบันทึกใน Web App (ข้างบน,
+                // V29.74 FEAT: sync Resolution Remark กลับไปเป็น Excel cell comment ผ่าน Local Bridge
+                // (bridge/excel-bridge.ps1 สั่ง Excel ตัวจริงที่เปิดไฟล์อยู่ให้เขียนแทน — ดูเหตุผลใน
+                // src/modules/excel-writeback.js) ความล้มเหลวตรงนี้ต้องไม่ทำให้การบันทึกใน Web App (ข้างบน,
                 // สำเร็จไปแล้ว) เสียหายหรือถูกม้วนกลับ จึงแยก try/catch ของตัวเองต่างหาก
                 const record = STATE.get('records').find(r => r.id === id);
-                let syncStatus = 'no-handle';
+                let syncStatus = 'no-source-file';
                 try {
                     if (record) syncStatus = await EXCEL_WRITEBACK.syncRemarkToExcel(record, text);
                 } catch (syncErr) {
@@ -122,44 +120,20 @@ Object.assign(APP, {
                 }
 
                 const SYNC_MESSAGES = {
-                    synced: ['✓ บันทึกลง Excel (New Comment) อัตโนมัติแล้ว', 'success'],
-                    'no-handle': ['ℹ ยังไม่ได้เชื่อมต่อไฟล์ Excel — ใช้ปุ่ม "Export Updated Excel" เพื่อบันทึกลงไฟล์', 'info'],
+                    ok: ['✓ บันทึกลง Excel (New Comment) อัตโนมัติแล้ว', 'success'],
+                    'no-source-file': ['ℹ ไฟล์นี้ import มาก่อนอัปเดตฟีเจอร์นี้ — import ไฟล์ใหม่อีกครั้งเพื่อ sync กลับ Excel ได้', 'info'],
+                    'bridge-offline': ['ℹ ไม่พบ Local Bridge — เปิดโปรแกรม Excel Bridge บนเครื่องนี้ก่อน (ดู bridge/README.md)', 'info'],
+                    'no-file-open': ['ℹ ไม่พบไฟล์นี้เปิดอยู่ใน Excel — เปิดไฟล์ต้นฉบับใน Excel ค้างไว้ก่อนแล้วบันทึกใหม่อีกครั้ง', 'info'],
                     conflict: ['⚠ พบ Comment ที่มีคนพิมพ์ไว้ใน Excel cell นี้แล้ว ระบบไม่เขียนทับให้ กรุณาตรวจสอบเอง', 'warning'],
-                    'permission-denied': ['⚠ ไม่ได้รับสิทธิ์เขียนไฟล์ Excel กรุณาลองใหม่ หรือเชื่อมต่อไฟล์อีกครั้ง', 'warning'],
-                    'file-locked': ['⚠ ไฟล์ Excel ถูกล็อกอยู่ (อาจเปิดค้างไว้ใน Excel) กรุณาปิดไฟล์แล้วลองใหม่', 'warning'],
-                    error: ['⚠ Sync กลับ Excel ไม่สำเร็จ กรุณาลองใหม่ หรือใช้ปุ่ม Export', 'error']
+                    error: ['⚠ Sync กลับ Excel ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 'error']
                 };
                 const [msg, variant] = SYNC_MESSAGES[syncStatus] || SYNC_MESSAGES.error;
                 showTransientMessage('excel-sync-status', msg, variant, 0);
 
-                // สถานะที่ operator ควรเห็นและตัดสินใจเอง (conflict/permission/lock/error) จะไม่ปิด modal
-                // ให้อัตโนมัติ — ปิดเฉพาะกรณีปกติ (sync สำเร็จ หรือยังไม่ได้เชื่อมไฟล์ ซึ่งเป็นสถานะที่คาดไว้)
-                if (syncStatus === 'synced' || syncStatus === 'no-handle') {
+                // สถานะที่ operator ควรเห็นและตัดสินใจเอง (conflict/error) จะไม่ปิด modal ให้อัตโนมัติ —
+                // ปิดเฉพาะกรณีปกติ/คาดไว้ (sync สำเร็จ, ยังไม่ได้เปิด bridge/ไฟล์ ซึ่งไม่ใช่ความผิดพลาด)
+                if (syncStatus === 'ok' || syncStatus === 'no-source-file' || syncStatus === 'bridge-offline' || syncStatus === 'no-file-open') {
                     APP.closeActionModal();
-                }
-            },
-
-
-            // V29.71 FEAT: fallback สำหรับตอนที่ sync อัตโนมัติใช้ไม่ได้ (ไม่ได้เชื่อมไฟล์ / browser ไม่รองรับ /
-            // permission ถูกปฏิเสธ) — สร้างไฟล์ Excel ใหม่ที่มี Resolution Remark ทุกรายการของไฟล์นั้นเป็น
-            // comment ครบแล้ว trigger download แทน
-            exportUpdatedExcelForActiveRecord: async () => {
-                const id = STATE.get('activeRecordId');
-                const record = STATE.get('records').find(r => r.id === id);
-                if (!record || !record.sourceFileId) {
-                    alert('ไม่พบไฟล์ Excel ต้นฉบับสำหรับรายการนี้ (อาจ import มาก่อนที่ฟีเจอร์นี้จะถูกเพิ่ม)');
-                    return;
-                }
-                const btn = document.getElementById('btn-export-updated-excel');
-                if (btn) { btn.disabled = true; btn.classList.add('opacity-50'); }
-                try {
-                    await EXCEL_WRITEBACK.exportUpdatedWorkbook(record.sourceFileId, STATE.get('records'));
-                    showTransientMessage('excel-sync-status', '✓ ดาวน์โหลดไฟล์ Excel ที่มี Remark ล่าสุดแล้ว', 'success');
-                } catch (err) {
-                    console.error('Export Updated Excel failed:', err);
-                    alert('Export ไฟล์ Excel ไม่สำเร็จ: ' + err.message);
-                } finally {
-                    if (btn) { btn.disabled = false; btn.classList.remove('opacity-50'); }
                 }
             },
 
