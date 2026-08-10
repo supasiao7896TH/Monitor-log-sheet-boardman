@@ -229,4 +229,23 @@ describe('EXCEL_WORKER.processData — cellRef/sheetRow/sheetCol (V29.71 FEAT)',
       expect(r.cellRef).toBe('B4');
     });
   });
+
+  // V29.72 FIX: sheet_to_csv(sheet, {raw:true}) with no `range` option only serializes the sheet's
+  // used-range (!ref) — when that range doesn't start at A1 (frozen panes, leading blank rows/cols),
+  // CSV row/col 0 is NOT Excel row 1/col A. app-import.js must compute this offset from !ref and pass
+  // it in, or the write-back feature silently writes the remark comment onto the wrong cell/Tag.
+  it('shifts cellRef by the sheet\'s used-range offset when data does not start at A1', () => {
+    const csv = [
+      'Name,FI-1401',
+      'Tag No,FI-1401',
+      '07:00,50',
+    ].join('\n');
+    return EXCEL_WORKER.processData(csv, 'Unit1', 'test.csv', '08/03/2026', undefined, { rowOffset: 2, colOffset: 2 })
+      .then(({ records }) => {
+        const r = records.find(r => r.tagNo === 'FI-1401');
+        // without offset this would be B3 (CSV line index 2 -> row 3, CSV col index 1 -> col B);
+        // with offset {rowOffset:2, colOffset:2} it must shift to D5
+        expect(r.cellRef).toBe('D5');
+      });
+  });
 });

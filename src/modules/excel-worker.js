@@ -137,7 +137,7 @@ export const EXCEL_WORKER = {
                 return null;
             },
             
-            processData: async (csvContent, sheetName, fileName, sharedDate, logger) => {
+            processData: async (csvContent, sheetName, fileName, sharedDate, logger, cellOffset = { rowOffset: 0, colOffset: 0 }) => {
                 const lines = csvContent.split(/\r\n|\n/);
                 let tagsOut = [], recordsOut = [];
                 let lastRowTime = null, tagCounter = 0;
@@ -333,8 +333,12 @@ export const EXCEL_WORKER = {
                                 // V29.71 FEAT: ตำแหน่ง cell จริงใน Excel ของ record นี้ — i (บรรทัด CSV) ตรงกับ
                                 // Excel row เป๊ะๆ (sheet_to_csv ไม่ตัด blank row ทิ้ง) และ idx (คอลัมน์ CSV) ตรงกับ
                                 // Excel column เป๊ะๆ เช่นกัน ใช้สำหรับ sync remark กลับไปเป็น cell comment ในไฟล์ต้นฉบับ
-                                const sheetRow = i + 1;
-                                const sheetCol = parseInt(idx, 10);
+                                // V29.72 FIX: sheet_to_csv ไม่ระบุ range จะ serialize เฉพาะ used-range ของชีท (!ref)
+                                // ถ้า used-range ไม่ได้เริ่มที่ A1 (เช่น frozen pane, แถว/คอลัมน์ว่างนำหน้า) แถว/คอลัมน์
+                                // แรกของ CSV จะไม่ตรงกับ A1 จริง — cellOffset ชดเชยส่วนต่างนี้ (คำนวณจาก !ref ที่
+                                // app-import.js ก่อนเรียกฟังก์ชันนี้) ไม่งั้น comment จะไปเขียนผิด cell ผิด Tag เงียบๆ
+                                const sheetRow = i + 1 + cellOffset.rowOffset;
+                                const sheetCol = parseInt(idx, 10) + cellOffset.colOffset;
                                 const cellRef = EXCEL_WORKER.colIdxToLetter(sheetCol) + sheetRow;
 
                                 recordsOut.push({

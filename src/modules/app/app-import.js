@@ -103,7 +103,12 @@ Object.assign(APP, {
                         for(let sn of wb.SheetNames) {
                             logEl.appendChild(UI_RENDERER.createEl('div', 'text-slate-300 ml-2', `> Parsing Sheet ${sIdx}/${wb.SheetNames.length}: ${sn}`));
                             const csv = XLSX.utils.sheet_to_csv(wb.Sheets[sn], {raw:true});
-                            const result = await EXCEL_WORKER.processData(csv, sn, f.name, sharedDate, logEl);
+                            // V29.72 FIX: sheet_to_csv serialize เฉพาะ used-range (!ref) ของชีท ถ้า used-range
+                            // ไม่ได้เริ่มที่ A1 (frozen pane/แถว-คอลัมน์ว่างนำหน้า) ต้องส่ง offset นี้ให้ processData
+                            // ชดเชยตอนคำนวณ cellRef ไม่งั้น sync remark กลับ Excel จะเขียนผิด cell ผิด Tag
+                            const ref = wb.Sheets[sn]['!ref'];
+                            const range = ref ? XLSX.utils.decode_range(ref) : { s: { r: 0, c: 0 } };
+                            const result = await EXCEL_WORKER.processData(csv, sn, f.name, sharedDate, logEl, { rowOffset: range.s.r, colOffset: range.s.c });
                             // V29.71 FEAT: ผูก record กลับไปหาไฟล์ต้นฉบับที่เพิ่งเก็บไว้ข้างบน
                             result.records.forEach(r => { r.sourceFileId = fileId; });
                             allTags.push(...result.tags);
