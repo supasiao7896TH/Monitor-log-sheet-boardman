@@ -62,7 +62,27 @@ export function getTagMap() { return new Map(STATE.get('tags').map(t => [t.id, t
 export function showModal(id) { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); }
 export function hideModal(id) { const el = document.getElementById(id); if (el) el.classList.add('hidden'); }
 
+// V29.71 FEAT: ข้อความสถานะชั่วคราว (เช่น "Synced to Excel" / error) — ไม่มี toast library ในแอปนี้
+// เลยใช้ text บน element เป้าหมายแทน ตั้งค่าแล้วหายเองหลัง duration
+const TRANSIENT_MESSAGE_TIMERS = new Map();
+export function showTransientMessage(elId, text, variant = 'info', duration = 4000) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const variantClass = { success: 'text-emerald-600', warning: 'text-amber-600', error: 'text-red-600', info: 'text-slate-500' }[variant] || 'text-slate-500';
+    el.className = el.className.replace(/\btext-(emerald|amber|red|slate)-\d+\b/g, '').trim() + ' ' + variantClass;
+    el.textContent = text;
+
+    if (TRANSIENT_MESSAGE_TIMERS.has(elId)) clearTimeout(TRANSIENT_MESSAGE_TIMERS.get(elId));
+    if (duration > 0) {
+        const timer = setTimeout(() => { el.textContent = ''; TRANSIENT_MESSAGE_TIMERS.delete(elId); }, duration);
+        TRANSIENT_MESSAGE_TIMERS.set(elId, timer);
+    }
+}
+
 export const STORE_TAGS = 'Tags', STORE_RECORDS = 'Records', STORE_MASTERTAGS = 'MasterTags', STORE_IMPORTHISTORY = 'ImportHistory', STORE_COUNTERMEASURES = 'UserCountermeasures';
+// V29.71 FEAT: sync remark กลับไปเป็น Excel cell comment ในไฟล์ต้นฉบับ — เก็บไฟล์ดิบไว้ (ทุก browser)
+// และ FileSystemFileHandle ถ้า browser รองรับ (เขียนกลับไฟล์เดิมบน disk ได้อัตโนมัติ)
+export const STORE_SOURCEWORKBOOKS = 'SourceWorkbooks', STORE_FILEHANDLES = 'FileHandles';
 
 // Zero-shield / abnormal-detection tolerances (V29.40/V29.42-tuned — values frozen, names only)
 export const LIMIT_EPSILON = 0.0001;

@@ -1,6 +1,17 @@
 import { isValidDayMonth, parseNum, excelSerialToDateStr, cleanStr, excelSerialToTime, getTagId, NEIGHBOR_COLUMN_VALIDITY_THRESHOLD } from './shared.js';
 
 export const EXCEL_WORKER = {
+            // V29.71 FEAT: แปลง 0-based column index เป็นตัวอักษรคอลัมน์ Excel (0->A, 25->Z, 26->AA)
+            // ใช้คำนวณ cellRef ของแต่ละ record เพื่อให้ฟีเจอร์ sync remark กลับไฟล์ Excel รู้ตำแหน่ง cell ที่แท้จริง
+            colIdxToLetter: (idx) => {
+                let n = idx, letter = '';
+                while (n >= 0) {
+                    letter = String.fromCharCode((n % 26) + 65) + letter;
+                    n = Math.floor(n / 26) - 1;
+                }
+                return letter;
+            },
+
             parseCSV: (text) => {
                 let ret = [], inQuote = false, value = '';
                 for (let i = 0; i < text.length; i++) {
@@ -319,13 +330,21 @@ export const EXCEL_WORKER = {
                                 const cleanTag = tag.tagNo.replace(/[^a-zA-Z0-9_]/g, '_');
                                 const cleanMachine = sheetName.replace(/[^a-zA-Z0-9_]/g, '_');
 
+                                // V29.71 FEAT: ตำแหน่ง cell จริงใน Excel ของ record นี้ — i (บรรทัด CSV) ตรงกับ
+                                // Excel row เป๊ะๆ (sheet_to_csv ไม่ตัด blank row ทิ้ง) และ idx (คอลัมน์ CSV) ตรงกับ
+                                // Excel column เป๊ะๆ เช่นกัน ใช้สำหรับ sync remark กลับไปเป็น cell comment ในไฟล์ต้นฉบับ
+                                const sheetRow = i + 1;
+                                const sheetCol = parseInt(idx, 10);
+                                const cellRef = EXCEL_WORKER.colIdxToLetter(sheetCol) + sheetRow;
+
                                 recordsOut.push({
                                     id: `rec_${cleanMachine}_${sharedDate}_${timeStr}_${cleanTag}_${tag.paramType}_${idx}`,
                                     machine: sheetName, tagNo: tag.tagNo, paramType: tag.paramType,
                                     dateStr: sharedDate, timeStr: timeStr, timestamp: ts,
                                     value: val,
                                     isAbnormal: 0, sortIndex: tag.sortIndex,
-                                    remark: '', actionStatus: 'new'
+                                    remark: '', actionStatus: 'new',
+                                    sheetRow, sheetCol, cellRef
                                 });
                             }
                         }
