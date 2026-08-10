@@ -50,26 +50,39 @@ Object.assign(APP, {
             },
 
 
-            handleFiles: async (files) => {
+            // V29.71 FEAT: handles (optional) — FileSystemFileHandle ต่อไฟล์ ตำแหน่งตรงกับ files (index-aligned),
+            // มาจาก drag-drop (DataTransferItem.getAsFileSystemHandle) หรือปุ่ม "นำเข้าและเชื่อมต่อไฟล์"
+            // (showOpenFilePicker) — ถ้ามี จะเก็บไว้ใช้ sync remark กลับไฟล์เดิมบน disk โดยอัตโนมัติ
+            handleFiles: async (files, handles = null) => {
                 if(!files.length) return;
-                
+
                 document.getElementById('drop-zone').classList.add('hidden');
                 document.getElementById('processing-status').classList.remove('hidden');
                 const logEl = document.getElementById('process-log');
                 while (logEl.firstChild) logEl.removeChild(logEl.firstChild);
-                
+
                 let allTags = [], allRecords = [];
                 const fileLogEntries = []; // V29.51 FEAT: import audit trail, one entry per file
 
-                for(let f of files) {
+                for(let fIdx = 0; fIdx < files.length; fIdx++) {
+                    const f = files[fIdx];
+                    const fileHandle = handles ? handles[fIdx] : null;
                     document.getElementById('process-filename').textContent = "Analyzing: " + f.name;
                     logEl.appendChild(UI_RENDERER.createEl('div', '', `> Reading file structure: ${f.name}`));
 
                     let fileTagsCount = 0, fileRecordsCount = 0;
+                    // V29.71 FEAT: id เดียวกันใช้ทั้งใน ImportHistory และผูก record ทุกตัวจากไฟล์นี้กลับไปหา
+                    // ไฟล์ Excel ต้นฉบับที่เก็บไว้ (SourceWorkbooks/FileHandles) สำหรับ sync remark กลับเป็น cell comment
+                    const fileId = `${Date.now()}_${f.name}`;
 
                     try {
                         const buffer = await f.arrayBuffer();
                         const wb = XLSX.read(new Uint8Array(buffer), {type: 'array'});
+
+                        // V29.71 FEAT: เก็บไฟล์ดิบไว้เสมอ (ทุก browser) — เป็น fallback สำหรับปุ่ม "Export
+                        // Updated Excel" เมื่อไม่มี FileSystemFileHandle ที่เขียนกลับ disk ได้โดยตรง
+                        await STORAGE_ENGINE.saveSourceWorkbook(fileId, f.name, new Blob([buffer]));
+                        if (fileHandle) await STORAGE_ENGINE.saveFileHandle(fileId, f.name, fileHandle);
 
                         let sharedDate = null;
                         for(let sn of wb.SheetNames) {
@@ -91,6 +104,8 @@ Object.assign(APP, {
                             logEl.appendChild(UI_RENDERER.createEl('div', 'text-slate-300 ml-2', `> Parsing Sheet ${sIdx}/${wb.SheetNames.length}: ${sn}`));
                             const csv = XLSX.utils.sheet_to_csv(wb.Sheets[sn], {raw:true});
                             const result = await EXCEL_WORKER.processData(csv, sn, f.name, sharedDate, logEl);
+                            // V29.71 FEAT: ผูก record กลับไปหาไฟล์ต้นฉบับที่เพิ่งเก็บไว้ข้างบน
+                            result.records.forEach(r => { r.sourceFileId = fileId; });
                             allTags.push(...result.tags);
                             allRecords.push(...result.records);
                             fileTagsCount += result.tags.length;
@@ -104,7 +119,7 @@ Object.assign(APP, {
                         }
 
                         fileLogEntries.push({
-                            id: `${Date.now()}_${f.name}`,
+                            id: fileId,
                             importedAt: new Date().toISOString(),
                             fileName: f.name,
                             fileSizeBytes: f.size,
@@ -116,7 +131,7 @@ Object.assign(APP, {
                         logEl.appendChild(UI_RENDERER.createEl('div', 'text-red-400 font-bold', `❌ Error: ${err.message}`));
                         console.error(err);
                         fileLogEntries.push({
-                            id: `${Date.now()}_${f.name}`,
+                            id: fileId,
                             importedAt: new Date().toISOString(),
                             fileName: f.name,
                             fileSizeBytes: f.size,

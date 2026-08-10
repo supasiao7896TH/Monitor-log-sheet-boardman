@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.70)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.71)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -333,17 +333,25 @@
 
             <div id="view-import" class="view-panel hidden absolute inset-0 overflow-y-auto p-6 flex flex-col items-center justify-center animate-fade-in">
                 <div id="drop-zone" class="glass-card rounded-3xl p-12 max-w-2xl w-full text-center border-2 border-dashed border-slate-300 hover:border-brand-500 hover:bg-brand-50/50 transition-all relative group cursor-pointer shadow-sm">
-                    <input type="file" id="file-input" multiple accept=".xls,.xlsx,.csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                    <input type="file" id="file-input" multiple accept=".xls,.xlsx,.xlsm,.csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
                     <div class="w-20 h-20 bg-white border border-slate-100 text-brand-500 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 group-hover:-translate-y-2 transition-all shadow-md">
                         <i data-lucide="upload-cloud" class="w-10 h-10"></i>
                     </div>
                     <h2 class="text-2xl font-black text-slate-800 mb-2">อัปโหลดไฟล์ Log Sheet (สะสมข้อมูลย้อนหลังได้)</h2>
-                    <p class="text-slate-500 mb-6 font-medium text-sm">รองรับไฟล์ <span class="text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded">.xls</span> <span class="text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded">.xlsx</span> <span class="text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded">.csv</span></p>
+                    <p class="text-slate-500 mb-6 font-medium text-sm">รองรับไฟล์ <span class="text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded">.xls</span> <span class="text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded">.xlsx</span> <span class="text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded">.xlsm</span> <span class="text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded">.csv</span></p>
                     <div class="inline-flex items-center gap-2 text-xs font-bold text-slate-400 bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
                         <i data-lucide="zap" class="w-3.5 h-3.5 text-brand-500"></i>
                         <span>Strict Numeric Mode (No Text Clutter)</span>
                     </div>
                 </div>
+
+                <!-- V29.71 FEAT: เชื่อมต่อไฟล์ผ่าน File System Access API (Chrome/Edge) เพื่อให้ sync
+                     Resolution Remark กลับไปเป็น Excel cell comment บนไฟล์เดิมบน disk ได้อัตโนมัติ —
+                     ซ่อนไว้เป็น default, โชว์เฉพาะ browser ที่รองรับ (toggle ใน APP.init) -->
+                <button id="btn-import-connect" type="button" class="hidden mt-4 inline-flex items-center gap-2 text-xs font-bold text-brand-600 bg-white border border-brand-200 hover:bg-brand-50 px-4 py-2.5 rounded-xl shadow-sm transition-all">
+                    <i data-lucide="link-2" class="w-3.5 h-3.5"></i>
+                    <span>นำเข้าและเชื่อมต่อไฟล์ (Sync Remark กลับ Excel อัตโนมัติ)</span>
+                </button>
 
                 <div id="processing-status" class="hidden mt-8 w-full max-w-2xl glass-card rounded-2xl p-8 shadow-lg border border-brand-100">
                     <div class="flex justify-between mb-3 items-end">
@@ -557,7 +565,7 @@
                     </div>
                     
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.70 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.71 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by Supasit@1981th</p>
                     </div>
                 </div>
@@ -638,6 +646,8 @@
                         <span id="ai-source-badge" class="hidden text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded ml-1">จากคู่มือ</span>
                     </div>
                     <textarea id="action-input" class="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all placeholder:text-slate-300 resize-none overflow-y-auto max-h-[320px]" rows="4" placeholder="ระบุการแก้ไขปัญหา หรือสาเหตุความผิดปกติ..."></textarea>
+                    <!-- V29.71 FEAT: สถานะ sync remark กลับ Excel cell comment (native "New Comment") อัตโนมัติ -->
+                    <p id="excel-sync-status" class="text-[10px] font-bold mt-2 min-h-[14px]"></p>
                 </div>
 
                 <!-- V29.51 FEAT: ประวัติการแก้ไขก่อนหน้าของ Tag นี้ -->
@@ -650,9 +660,16 @@
             </div>
 
             <div class="px-6 py-4 bg-white border-t border-slate-100 flex justify-between items-center">
-                <button id="btn-clear-action" class="text-xs font-bold text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors">
-                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Clear Action
-                </button>
+                <div class="flex items-center gap-3">
+                    <button id="btn-clear-action" class="text-xs font-bold text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Clear Action
+                    </button>
+                    <!-- V29.71 FEAT: fallback สำหรับตอนที่ sync อัตโนมัติใช้ไม่ได้ (ไม่ได้เชื่อมไฟล์ /
+                         browser ไม่รองรับ) — export ไฟล์ Excel ใหม่ที่มี Remark ทุกรายการเป็น comment แล้ว -->
+                    <button id="btn-export-updated-excel" class="hidden text-xs font-bold text-slate-400 hover:text-brand-600 flex items-center gap-1 transition-colors">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i> Export Updated Excel
+                    </button>
+                </div>
                 <div class="flex gap-2">
                     <button id="btn-cancel-action" class="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all">Cancel</button>
                     <button id="btn-save-action" class="px-6 py-2.5 rounded-xl text-xs font-black bg-brand-600 text-white shadow-md shadow-brand-500/20 hover:bg-brand-500 transition-all flex items-center gap-2">

@@ -180,3 +180,53 @@ describe('EXCEL_WORKER.processData — invalid timestamp guard (V29.67 FIX)', ()
     });
   });
 });
+
+describe('EXCEL_WORKER.colIdxToLetter (V29.71 FEAT)', () => {
+  it('converts single-letter columns', () => {
+    expect(EXCEL_WORKER.colIdxToLetter(0)).toBe('A');
+    expect(EXCEL_WORKER.colIdxToLetter(1)).toBe('B');
+    expect(EXCEL_WORKER.colIdxToLetter(25)).toBe('Z');
+  });
+
+  it('converts double-letter columns (base-26 rollover)', () => {
+    expect(EXCEL_WORKER.colIdxToLetter(26)).toBe('AA');
+    expect(EXCEL_WORKER.colIdxToLetter(27)).toBe('AB');
+    expect(EXCEL_WORKER.colIdxToLetter(51)).toBe('AZ');
+    expect(EXCEL_WORKER.colIdxToLetter(52)).toBe('BA');
+  });
+});
+
+describe('EXCEL_WORKER.processData — cellRef/sheetRow/sheetCol (V29.71 FEAT)', () => {
+  it('computes the exact Excel cell address for a reading, matching sheet_to_csv line/column position', () => {
+    const csv = [
+      'Name,FI-1401,FI-1402',
+      'Tag No,FI-1401,FI-1402',
+      '07:00,50,60',
+    ].join('\n');
+    return EXCEL_WORKER.processData(csv, 'Unit1', 'test.csv', '08/03/2026').then(({ records }) => {
+      const r1 = records.find(r => r.tagNo === 'FI-1401');
+      const r2 = records.find(r => r.tagNo === 'FI-1402');
+      // row 3 (1-based) = CSV line index 2 ("07:00,50,60"); column B/C = CSV index 1/2
+      expect(r1.sheetRow).toBe(3);
+      expect(r1.sheetCol).toBe(1);
+      expect(r1.cellRef).toBe('B3');
+      expect(r2.sheetRow).toBe(3);
+      expect(r2.sheetCol).toBe(2);
+      expect(r2.cellRef).toBe('C3');
+    });
+  });
+
+  it('keeps the row count accurate across a blank line, since sheet_to_csv never drops blank rows', () => {
+    const csv = [
+      'Name,FI-1401',
+      'Tag No,FI-1401',
+      '',
+      '07:00,50',
+    ].join('\n');
+    return EXCEL_WORKER.processData(csv, 'Unit1', 'test.csv', '08/03/2026').then(({ records }) => {
+      const r = records.find(r => r.tagNo === 'FI-1401');
+      // data row is CSV line index 3 (0-based) -> Excel row 4
+      expect(r.cellRef).toBe('B4');
+    });
+  });
+});
