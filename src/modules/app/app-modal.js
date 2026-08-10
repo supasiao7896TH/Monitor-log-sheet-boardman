@@ -130,10 +130,16 @@ Object.assign(APP, {
                 const [msg, variant] = SYNC_MESSAGES[syncStatus] || SYNC_MESSAGES.error;
                 showTransientMessage('excel-sync-status', msg, variant, 0);
 
-                // สถานะที่ operator ควรเห็นและตัดสินใจเอง (conflict/error) จะไม่ปิด modal ให้อัตโนมัติ —
-                // ปิดเฉพาะกรณีปกติ/คาดไว้ (sync สำเร็จ, ยังไม่ได้เปิด bridge/ไฟล์ ซึ่งไม่ใช่ความผิดพลาด)
-                if (syncStatus === 'ok' || syncStatus === 'no-source-file' || syncStatus === 'bridge-offline' || syncStatus === 'no-file-open') {
-                    APP.closeActionModal();
+                // V29.74 FIX: ข้อความสถานะ (#excel-sync-status) อยู่ข้างในตัว modal เอง — ถ้าปิด modal
+                // ทันทีข้อความจะถูกซ่อนไปด้วยก่อน operator จะทันอ่าน (พี่ A เจอเคสนี้จริงตอนทดสอบ) ดังนั้น
+                // ปิดอัตโนมัติเฉพาะกรณีสำเร็จแบบไม่มีอะไรต้องอ่านต่อ ('ok') โดยหน่วงเวลาสั้นๆ ให้เห็น
+                // ข้อความติ๊กถูกก่อน — ทุกสถานะอื่น (ต้องเปิด bridge/ไฟล์ Excel, conflict, error) ปล่อยให้
+                // operator อ่านแล้วปิดเองเมื่อพร้อม
+                if (syncStatus === 'ok') {
+                    setTimeout(() => {
+                        // เผื่อ operator ปิด modal เองหรือเปิด record อื่นไปแล้วภายใน 1.2 วินาทีนี้
+                        if (STATE.get('activeRecordId') === id) APP.closeActionModal();
+                    }, 1200);
                 }
             },
 
