@@ -14,8 +14,8 @@ See `context.md` for the domain/business background (who uses this, glossary, an
 
 - `npm install` once, then `npm run dev` for a Vite dev server with hot reload (open the printed `localhost` URL).
 - `npm run build` produces the production bundle in `dist/` (this is what Cloudflare Workers deploys — see `wrangler.jsonc`).
-- `npm test` runs the Vitest suite (`tests/excel-worker.test.js` — regression coverage for the V29.63–V29.70 parsing fixes). `npm run test:watch` for watch mode.
-- Automated tests cover `EXCEL_WORKER` parsing logic only. Still verify UI changes manually: import a sample .xls/.xlsx/.csv log sheet through the "นำเข้าข้อมูล" (Import) tab and exercise the affected flow (import → dashboard flagging → annotate/report → infographic export).
+- `npm test` runs the Vitest suite: `tests/excel-worker.test.js` (regression coverage for the V29.63–V29.70 parsing fixes) and `tests/excel-writeback.test.js` (covers `EXCEL_WRITEBACK.applyRemarkToWorkbook`, V29.71). `npm run test:watch` for watch mode.
+- Automated tests cover `EXCEL_WORKER` parsing and `EXCEL_WRITEBACK`'s pure workbook-mutation logic only. Still verify UI changes manually: import a sample .xls/.xlsx/.csv log sheet through the "นำเข้าข้อมูล" (Import) tab and exercise the affected flow (import → dashboard flagging → annotate/report → infographic export).
 - Data persists client-side in IndexedDB (database `PlantLogAnalyzerEnterpriseDB`) — clearing site data/browser storage resets the app. Schema/store names are unchanged by the multi-file migration.
 - Bump the version string in `index.html`'s `<title>` (and the "Ultimate Edition (VXX.XX)" label near the bottom of the Manual view) when making a notable fix, following the existing `V29.40`-style convention seen in commit history and in-code comments (e.g. `// V29.40 FIX: ...`).
 
