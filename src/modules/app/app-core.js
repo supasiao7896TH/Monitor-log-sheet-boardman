@@ -1,7 +1,7 @@
 import { STATE } from '../state.js';
 import { STORAGE_ENGINE } from '../storage-engine.js';
 import { UI_RENDERER } from '../ui-renderer.js';
-import { EXCEL_AUTOIMPORT } from '../excel-autoimport.js';
+import { EXCEL_AUTOIMPORT, LEGACY_UNKNOWN_FILENAME } from '../excel-autoimport.js';
 import { autoResizeTextarea, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, AUTOIMPORT_POLL_INTERVAL_MS, LS_AUTOIMPORT_LAST_MTIME_KEY, getCanonicalTimesStatus } from '../shared.js';
 import { APP } from './app.js';
 
@@ -86,10 +86,14 @@ Object.assign(APP, {
                     return;
                 }
 
+                // แก้ record เก่าที่เคยติดชื่อไฟล์ผิด (บั๊ก CORS ก่อน fix — ดู LEGACY_UNKNOWN_FILENAME)
+                // ให้กลับมาเป็นชื่อไฟล์จริง ก่อนเช็ค mtime เพื่อให้รันแม้ไฟล์ยังไม่เปลี่ยนจากรอบก่อน
+                await APP.repairAutoImportedFileNames(info.fileName);
+
                 const lastMtime = localStorage.getItem(LS_AUTOIMPORT_LAST_MTIME_KEY);
                 if (lastMtime === info.lastWriteTimeUtc) return; // ไฟล์ไม่เปลี่ยนจากรอบก่อน ไม่ต้องทำอะไรต่อ
 
-                const fetched = await EXCEL_AUTOIMPORT.fetchSourceFile();
+                const fetched = await EXCEL_AUTOIMPORT.fetchSourceFile(info.fileName);
                 if (fetched.status !== 'ok') {
                     console.warn('[auto-import] fetch failed:', fetched.status, fetched.message || '');
                     return; // file-locked/error ตอนดึงไฟล์ — ไม่ update marker รอบถัดไปลองไฟล์เดิมซ้ำ (เผื่อล็อกแค่ชั่วคราว)
@@ -109,6 +113,20 @@ Object.assign(APP, {
                 // เช็คว่าข้อมูลวันล่าสุดครบ 4 เวลา (03:00/09:00/15:00/21:00) แล้วหรือยัง — ถ้าเพิ่งครบรอบนี้
                 // ให้สั่ง Bridge archive ไฟล์ต้นฉบับเก็บ safety copy ให้อัตโนมัติ
                 await APP.checkAndArchiveIfComplete();
+            },
+
+            // แก้ record ที่เคย auto-import เข้ามาตอนยังมีบั๊ก CORS (ก่อน fix นี้) แล้วติดชื่อไฟล์ placeholder
+            // ผิดๆ (LEGACY_UNKNOWN_FILENAME) ค้างอยู่ ให้กลับมาเป็นชื่อไฟล์จริงปัจจุบัน จะได้ sync remark
+            // กลับ Excel ได้ตามปกติ — one-time best-effort: ตั้งอยู่บนสมมติฐานว่ามี log sheet ไฟล์เดียวที่
+            // active อยู่ (ตาม pattern การทำงานจริงของ operator) ไม่ได้ออกแบบมารองรับ record เก่าหลายวันที่
+            // ติดชื่อผิดจากไฟล์คนละไฟล์กัน
+            repairAutoImportedFileNames: async (correctFileName) => {
+                const records = STATE.get('records') || [];
+                const broken = records.filter(r => r.sourceFileName === LEGACY_UNKNOWN_FILENAME);
+                if (broken.length === 0) return;
+
+                broken.forEach(r => { r.sourceFileName = correctFileName; });
+                await STORAGE_ENGINE.updateRecordsBatch(broken);
             },
 
             // V29.78 FEAT: trigger archive อัตโนมัติเมื่อข้อมูลวันล่าสุดครบ 4 เวลา (03:00/09:00/15:00/21:00)

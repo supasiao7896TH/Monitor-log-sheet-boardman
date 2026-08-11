@@ -36,20 +36,15 @@ describe('EXCEL_AUTOIMPORT.fetchSourceFile', () => {
         vi.unstubAllGlobals();
     });
 
-    it('builds a File from the raw binary response, using the filename from Content-Disposition', async () => {
+    it('builds a File from the raw binary response, using the filename passed in by the caller', async () => {
         const bytes = new Uint8Array([1, 2, 3, 4]).buffer;
         fetch.mockResolvedValue({
             ok: true,
-            headers: {
-                get: (name) => ({
-                    'Content-Type': 'application/octet-stream',
-                    'Content-Disposition': 'attachment; filename="P1-F-2002-22 (11-08-26) (Digital).xlsm"'
-                }[name])
-            },
+            headers: { get: (name) => (name === 'Content-Type' ? 'application/octet-stream' : null) },
             arrayBuffer: async () => bytes
         });
 
-        const result = await EXCEL_AUTOIMPORT.fetchSourceFile();
+        const result = await EXCEL_AUTOIMPORT.fetchSourceFile('P1-F-2002-22 (11-08-26) (Digital).xlsm');
         expect(result.status).toBe('ok');
         expect(result.file).toBeInstanceOf(File);
         expect(result.file.name).toBe('P1-F-2002-22 (11-08-26) (Digital).xlsm');
@@ -63,13 +58,13 @@ describe('EXCEL_AUTOIMPORT.fetchSourceFile', () => {
             json: async () => ({ status: 'file-locked', message: 'ไฟล์กำลังถูกเขียนอยู่' })
         });
 
-        const result = await EXCEL_AUTOIMPORT.fetchSourceFile();
+        const result = await EXCEL_AUTOIMPORT.fetchSourceFile('P1-F-2002-22 (11-08-26) (Digital).xlsm');
         expect(result).toEqual({ status: 'file-locked', message: 'ไฟล์กำลังถูกเขียนอยู่' });
     });
 
     it('returns bridge-offline when the bridge is not running (network error)', async () => {
         fetch.mockRejectedValue(new TypeError('Failed to fetch'));
-        expect(await EXCEL_AUTOIMPORT.fetchSourceFile()).toEqual({ status: 'bridge-offline' });
+        expect(await EXCEL_AUTOIMPORT.fetchSourceFile('foo.xlsm')).toEqual({ status: 'bridge-offline' });
     });
 });
 

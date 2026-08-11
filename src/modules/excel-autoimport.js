@@ -7,6 +7,11 @@
 // ห่อ try/catch เอง — เครือข่าย/bridge ปิดอยู่ถือเป็นสถานะปกติที่ต้องรองรับเงียบๆ ไม่ใช่ error รุนแรง
 import { BRIDGE_URL, fetchWithTimeout } from './shared.js';
 
+// ชื่อ placeholder เดิมที่เคยถูก fallback ใช้ผิดๆ ตอน browser ซ่อน header Content-Disposition
+// (CORS ไม่ expose header นี้ให้ JS อ่านเห็น) — เก็บเป็น const ให้ app-core.js เทียบหา record ที่เคย
+// ติดชื่อผิดนี้ไปแก้ไขย้อนหลังได้ ไม่ต้อง hardcode ซ้ำ
+export const LEGACY_UNKNOWN_FILENAME = 'source-file.xlsm';
+
 export const EXCEL_AUTOIMPORT = {
 
     // ข้อมูลไฟล์ปัจจุบัน (ชื่อ/ขนาด/เวลาแก้ไขล่าสุด) — ใช้เทียบว่าไฟล์เปลี่ยนไปจากรอบก่อนหรือยัง
@@ -25,7 +30,14 @@ export const EXCEL_AUTOIMPORT = {
     // เนื้อไฟล์จริง — bridge ตอบ raw binary ตอนสำเร็จ (เบากว่า base64-in-JSON ~33% และสร้าง File ต่อได้
     // ทันทีไม่ต้อง decode) และตอบ JSON envelope ปกติเฉพาะตอน error/not-found/file-locked — เช็ค
     // Content-Type ก่อนตัดสินใจว่าจะ .arrayBuffer() หรือ .json()
-    fetchSourceFile: async () => {
+    //
+    // fileName ต้องมาจาก caller เสมอ (getSourceFileInfo() ที่ต้องเรียกก่อนหน้านี้อยู่แล้วเพื่อเทียบ
+    // mtime) — เดิมโค้ดพยายามอ่านชื่อไฟล์จาก header Content-Disposition ที่ bridge ตอบมาแทน แต่ browser
+    // ซ่อน header นี้จาก JS เสมอเพราะ CORS ไม่ได้ safelist Content-Disposition ไว้ (bridge ไม่ได้ส่ง
+    // Access-Control-Expose-Headers) ทำให้ res.headers.get() คืน null เงียบๆ แล้ว fallback ไปใช้ชื่อ
+    // placeholder ผิดๆ ติดไปกับทุก record ที่ import — ใช้ fileName จาก JSON body ของ /source-file-info
+    // แทนเพราะไม่ติด CORS restriction นี้เลย
+    fetchSourceFile: async (fileName) => {
         try {
             const res = await fetchWithTimeout(`${BRIDGE_URL}/source-file`, { method: 'GET' });
             if (!res.ok) return { status: 'error' };
@@ -34,11 +46,6 @@ export const EXCEL_AUTOIMPORT = {
             if (contentType.includes('application/json')) {
                 return await res.json();
             }
-
-            // ดึงชื่อไฟล์จาก Content-Disposition: attachment; filename="xxx" ที่ bridge ตั้งให้
-            const disposition = res.headers.get('Content-Disposition') || '';
-            const match = disposition.match(/filename="([^"]+)"/);
-            const fileName = match ? match[1] : 'source-file.xlsm';
 
             const buffer = await res.arrayBuffer();
             const file = new File([buffer], fileName, { type: contentType || 'application/octet-stream' });
