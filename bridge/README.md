@@ -74,7 +74,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 `excel-bridge.ps1` มีอีก 2 path คงที่ที่ตั้งไว้ในสคริปต์ (ไม่รับ path จากฝั่งเบราว์เซอร์เลย เพื่อกัน endpoint ถูกใช้อ่าน/เขียนไฟล์นอกเหนือจากที่ตั้งใจไว้):
 
 - **`$WatchFolder`** — โฟลเดอร์ที่เก็บไฟล์ log sheet ต้นฉบับที่ PI Datalink เขียนสดอัตโนมัติ (ค่า default: `D:\PTA COMMONT WORK\Log sheet Digital`) Bridge จะหาไฟล์ที่ไม่มีคำว่า `(master)` ในชื่อเป็นไฟล์เป้าหมายเสมอ — ถ้าเจอมากกว่า 1 ไฟล์ที่ไม่ใช่ master จะไม่เดา และตอบ error กลับแทน (ป้องกันดึง/archive ไฟล์ผิด)
-- **`$ArchiveFolder`** — โฟลเดอร์ที่เก็บสำเนา (safety copy) ของไฟล์ log sheet เมื่อ Web App ตรวจพบว่าข้อมูลวันนั้นครบ 4 รอบเวลาแล้ว (ค่า default: `D:\Monitor log sheet boardman` — โฟลเดอร์ repo นี้เอง)
+- **`$ArchiveFolder`** — โฟลเดอร์ที่เก็บสำเนา (safety copy) ของไฟล์ log sheet เมื่อ Web App ตรวจพบว่าข้อมูลวันนั้นครบ 4 รอบเวลาแล้ว (ค่า default: `D:\Monitor log sheet boardman` — โฟลเดอร์ repo นี้เอง) — ตั้งแต่ V29.80 ไฟล์จะถูกเก็บใต้โฟลเดอร์ย่อยตามเดือน/ปีปัจจุบันของเครื่องเสมอ (รูปแบบ `Mmm yy` แบบอังกฤษ/ค.ศ. เช่น `$ArchiveFolder\Aug 26\`) ไม่ใช่ root ตรงๆ — อิงปฏิทินของเครื่อง ณ วันที่ archive จริง ไม่ใช่วันที่ในชื่อไฟล์ log sheet
 
 แก้ 2 ตัวแปรนี้ในสคริปต์ถ้าย้ายโฟลเดอร์บนเครื่องจริง
 
@@ -99,4 +99,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 | กด Hyperlink ใน Excel แล้วขึ้นเตือนความปลอดภัย | ปกติของการเปิดไฟล์ local (`.bat`) ผ่าน hyperlink — กด Allow/Yes ได้ตามปกติ |
 | `Register-ScheduledTask` ขึ้น `Access is denied` | ปกติถ้าใช้ `-GroupId` (trigger แบบ Any user) กับ account ที่ไม่มีสิทธิ์ local Administrator — Task Scheduler บังคับต้องใช้สิทธิ์ Admin เสมอสำหรับ group principal ใช้ `-UserId` แบบ Specific user แทนถ้าไม่มีสิทธิ์ Admin (ดูหัวข้อด้านบน) |
 | ข้อมูลใน Dashboard ไม่อัปเดตเองอัตโนมัติ | เช็คว่า bridge รันอยู่ไหม (`/ping`) และไฟล์ใน `$WatchFolder` ไม่มีคำว่า `(master)` ในชื่อ + มีแค่ไฟล์เดียวที่ไม่ใช่ master — ถ้ามีมากกว่า 1 ไฟล์ bridge จะปฏิเสธไม่ import เลย (กันดึงไฟล์ผิด) auto-import เช็คทุก 5 นาที ไม่ใช่ทันที |
-| ไม่มีไฟล์ archive โผล่ที่ `$ArchiveFolder` | archive จะเกิดเฉพาะตอนข้อมูลวันนั้นครบ 4 เวลา (03:00/09:00/15:00/21:00) แล้วเท่านั้น — เช็ค chip สถานะข้าง "Time Breakdown" บน Dashboard ว่าขึ้น "✓ ครบ 4 รอบเวลา" หรือยัง |
+| ไม่มีไฟล์ archive โผล่ที่ `$ArchiveFolder` | archive จะเกิดเฉพาะตอนข้อมูลวันนั้นครบ 4 เวลา (03:00/09:00/15:00/21:00) แล้วเท่านั้น — เช็ค chip สถานะข้าง "Time Breakdown" บน Dashboard ว่าขึ้น "✓ ครบ 4 รอบเวลา" หรือยัง และอย่าลืมเช็คใน**โฟลเดอร์ย่อยตามเดือน** (เช่น `$ArchiveFolder\Aug 26\`) ไม่ใช่แค่ root ของ `$ArchiveFolder` เฉยๆ |

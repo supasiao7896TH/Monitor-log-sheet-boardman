@@ -8,3 +8,8 @@ bridge/*.log
 # not source code. Root-anchored so it never ignores a future nested test fixture.
 /*.xlsm
 /*.xls
+
+# V29.80 FEAT: auto-archive now files these one level down, into a monthly subfolder (e.g. "Aug 26")
+# instead of directly at repo root — same data-files-not-source-code reasoning as above.
+/*/*.xlsm
+/*/*.xls

@@ -117,7 +117,18 @@ function Handle-ArchiveSourceFile {
     if (-not (Test-Path -LiteralPath $ArchiveFolder -PathType Container)) {
         return @{ status = 'error'; message = "ไม่พบโฟลเดอร์ archive: $ArchiveFolder" }
     }
-    $destPath = Join-Path $ArchiveFolder $resolved.file.Name
+
+    # V29.80 FEAT: เก็บ archive แยกเป็นโฟลเดอร์ย่อยรายเดือน (เช่น "Aug 26") แทนที่จะกองรวมไว้ที่ root
+    # ของ $ArchiveFolder เฉยๆ — ใช้ InvariantCulture (ปฏิทินเกรกอเรียน/ชื่อเดือนอังกฤษ) เสมอ ไม่ใช้ locale
+    # ของเครื่อง เพราะเครื่องนี้ตั้ง Windows locale เป็นไทย ซึ่งจะ format 'yy' เป็นปี พ.ศ. 2 หลัก (เช่น 69
+    # แทนที่จะเป็น 26) และชื่อเดือนเป็นภาษาไทย (ส.ค. แทนที่จะเป็น Aug) ถ้าไม่ระบุ culture ตรงๆ
+    $monthFolderName = (Get-Date).ToString('MMM yy', [System.Globalization.CultureInfo]::InvariantCulture)
+    $monthFolder = Join-Path $ArchiveFolder $monthFolderName
+    if (-not (Test-Path -LiteralPath $monthFolder -PathType Container)) {
+        New-Item -ItemType Directory -Path $monthFolder -Force | Out-Null
+    }
+
+    $destPath = Join-Path $monthFolder $resolved.file.Name
     try {
         # Copy-Item เปิดไฟล์ต้นทางอ่านเองภายใน จึงชน sharing violation ได้แบบเดียวกับ Read-FileBytesShared
         Copy-Item -LiteralPath $resolved.file.FullName -Destination $destPath -Force
