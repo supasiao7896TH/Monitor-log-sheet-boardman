@@ -64,11 +64,17 @@ function Send-BinaryResponse($response, $statusCode, $bytes, $fileName) {
 # template ไว้อ้างอิง ไม่ใช่ไฟล์ข้อมูลจริง) ตาม routine จริงของ operator จะมีไฟล์ที่ไม่ใช่ master อยู่แค่
 # ไฟล์เดียวเสมอ (operator เปลี่ยนวันที่ในชื่อไฟล์เดิมเอง ไม่ได้สร้างไฟล์ใหม่ทุกวัน) — ถ้าเจอมากกว่า 1 ไฟล์
 # ไม่เดาว่าไฟล์ไหนถูก คืน error ทันที กัน auto-import/archive ดึงไฟล์ผิด
+#
+# V29.81 FIX: ก็ต้องข้ามไฟล์ที่ขึ้นต้นด้วย "~$" ด้วย — Excel สร้างไฟล์ lock ชื่อนี้เอง (เช่น
+# "~$P1-F-2002-22 ... .xlsm") ทุกครั้งที่มีคนเปิดไฟล์ .xlsx/.xlsm ค้างไว้ ซึ่งตาม workflow ของฟีเจอร์นี้
+# operator ต้องเปิดไฟล์ log sheet ค้างไว้ใน Excel ตลอดกะอยู่แล้ว (เพื่อให้ sync remark กลับ Excel ทำงานได้)
+# — ถ้าไม่ข้ามไฟล์ lock นี้ Resolve-SourceFile จะเห็นเป็น "มากกว่า 1 ไฟล์" แล้ว error ทุกครั้งที่ไฟล์เปิดอยู่
+# จริง ทำให้ auto-import/auto-archive ใช้งานไม่ได้เกือบตลอดเวลาที่ใช้งานจริง (พบจากการทดสอบจำลอง lock-file)
 function Resolve-SourceFile {
     if (-not (Test-Path -LiteralPath $WatchFolder -PathType Container)) {
         return @{ status = 'error'; message = "ไม่พบโฟลเดอร์ $WatchFolder" }
     }
-    $candidates = @(Get-ChildItem -LiteralPath $WatchFolder -File | Where-Object { $_.Name -notmatch '\(master\)' })
+    $candidates = @(Get-ChildItem -LiteralPath $WatchFolder -File | Where-Object { $_.Name -notmatch '\(master\)' -and $_.Name -notlike '~$*' })
     if ($candidates.Count -eq 0) {
         return @{ status = 'not-found'; message = 'ไม่พบไฟล์ log sheet ในโฟลเดอร์ (ไม่นับไฟล์ master)' }
     }
