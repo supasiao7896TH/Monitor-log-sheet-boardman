@@ -39,14 +39,31 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 **เครื่อง shared ที่ operator หลายคน login คนละ account** (เช่น PC หน้างานที่ผลัดกันใช้):
 
 - **ห้ามเก็บ repo ไว้ใต้ profile ส่วนตัว** (`C:\Users\<username>\...`) เพราะ account อื่นจะอ่าน/รันไฟล์ไม่ได้ตามสิทธิ์ NTFS ปกติ — ต้องย้ายทั้ง repo ไปไว้ที่ drive/โฟลเดอร์กลางที่ไม่ผูกกับ user คนใดคนหนึ่ง (เช่น `D:\Monitor log sheet boardman` ถ้ามี local fixed drive แยกที่ไม่ใช่ profile drive) แล้วให้สิทธิ์ `BUILTIN\Users` อ่าน+รันได้ เช่น `icacls "D:\path" /grant "Users:(OI)(CI)RX" /T` (หลีกเลี่ยง network/mapped drive เพราะ drive letter มักผูกกับ login script ของแต่ละ account เหมือนปัญหาเดิม)
-- ตั้ง Trigger ให้เป็น **"At log on"** แบบ **Any user** (ไม่ใช่ "Specific user") — ให้ task ทำงานทุกครั้งที่มีใคร login เข้าเครื่องนี้ก็ตาม ยังคงเลือก "Run only when user is logged on" เหมือนเดิม (ต้องรันในเซสชันของ user ที่ login จริง ถึงจะคุม Excel ผ่าน COM ของ user คนนั้นได้)
-- ตั้งผ่าน PowerShell ได้เร็วกว่าคลิก GUI ทีละ operator:
-  ```powershell
-  $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "D:\path\to\bridge\excel-bridge.ps1"'
-  $trigger = New-ScheduledTaskTrigger -AtLogOn
-  $principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Limited
-  Register-ScheduledTask -TaskName "Plant Log Analyzer - Excel Bridge" -Action $action -Trigger $trigger -Principal $principal
-  ```
+- **Trigger แบบ "At log on" → Any user (group principal) ต้องใช้สิทธิ์ local Administrator เสมอ** — ถ้า account ที่ตั้งค่าไม่มีสิทธิ์ Admin (`Register-ScheduledTask` กับ `-GroupId "BUILTIN\Users"` จะขึ้น `Access is denied` ทันที) ให้ใช้แนวทางผสมแทน:
+  1. ตั้ง Task Scheduler แบบ **"Specific user"** ให้เฉพาะ account ของตัวเอง (ไม่ต้องใช้สิทธิ์ Admin เพราะเป็นการตั้งให้ตัวเองคนเดียว):
+     ```powershell
+     $me = "$env:USERDOMAIN\$env:USERNAME"
+     $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "D:\path\to\bridge\excel-bridge.ps1"'
+     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $me
+     $principal = New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Limited
+     Register-ScheduledTask -TaskName "Plant Log Analyzer - Excel Bridge" -Action $action -Trigger $trigger -Principal $principal
+     ```
+  2. Operator คนอื่นที่ไม่มี task auto-start ให้เปิด bridge เองผ่านปุ่ม **Hyperlink ใน Excel** แทน (ดูหัวข้อถัดไป) — ง่ายกว่าเปิด PowerShell พิมพ์คำสั่งเอง
+  - ถ้ามีสิทธิ์ Admin จริง (หรือขอ IT ช่วยรันให้) ก็ยังใช้ group-principal แบบ Any user ได้ตามปกติ ใช้คำสั่งเดิม (`-GroupId "BUILTIN\Users"`) — ครอบคลุมทุก operator โดยไม่ต้องตั้งทีละคน
+
+## ปุ่มเปิด Bridge จาก Excel (สำหรับ operator ที่ไม่ได้ตั้ง Task Scheduler)
+
+สำหรับ operator ที่ไม่มี Task Scheduler auto-start (เช่นไม่ใช่ account ที่ตั้งไว้ในเครื่อง shared) มีไฟล์ `bridge/start-bridge.bat` เป็นตัวกลางเรียก `excel-bridge.ps1` ให้ — ต่างจาก `.ps1` ตรงที่ Windows เปิด `.bat` ผ่าน HYPERLINK/double-click แล้ว **รันทันที** ได้เลย (ไม่ต้องเปิด PowerShell เอง)
+
+แปะสูตรนี้ในเซลล์ของไฟล์ log sheet ที่ operator เปิดใช้งานประจำ (แก้ path ให้ตรงกับตำแหน่งจริงบนเครื่อง):
+
+```excel
+=HYPERLINK("D:\Monitor log sheet boardman\bridge\start-bridge.bat", "▶ เปิด Excel Bridge (กดตอนเริ่มกะ)")
+```
+
+กดครั้งเดียวตอนเริ่มกะ จะเห็นหน้าต่างดำขึ้นข้อความ `Excel Bridge กำลังทำงานที่ http://localhost:5175/` เหมือนรันผ่าน PowerShell ตรงๆ — ปล่อยหน้าต่างนี้ค้างไว้ตลอดกะ
+
+**หมายเหตุ:** ครั้งแรกที่กด Excel อาจขึ้น dialog เตือนความปลอดภัยเรื่องเปิดไฟล์ในเครื่อง (ปกติของ HYPERLINK ไปยังไฟล์ local) กด Allow/Yes ได้ตามปกติ
 
 ## ตั้งค่า $AllowedOrigins
 
@@ -60,3 +77,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 | Web App ขึ้น "ไม่พบไฟล์นี้เปิดอยู่ใน Excel" | ยังไม่ได้เปิดไฟล์ log sheet ต้นฉบับใน Excel ค้างไว้ หรือชื่อไฟล์ไม่ตรงกับที่ import เข้า Web App |
 | ขึ้น "พบ Comment ที่มีคนพิมพ์ไว้แล้ว" | มีคนเคยพิมพ์ comment เองตรงๆ ใน Excel cell นั้น ระบบไม่เขียนทับให้อัตโนมัติ ต้องแก้ในไฟล์เอง |
 | หน้าต่าง bridge ปิดตัวทันทีตอนเปิด | เปิด PowerShell รันแบบ manual (ดูข้างบน) เพื่อดู error message ที่แท้จริง — สาเหตุที่พบบ่อยคือ port 5175 ถูกโปรแกรมอื่นใช้อยู่แล้ว |
+| กด Hyperlink ใน Excel แล้วขึ้นเตือนความปลอดภัย | ปกติของการเปิดไฟล์ local (`.bat`) ผ่าน hyperlink — กด Allow/Yes ได้ตามปกติ |
+| `Register-ScheduledTask` ขึ้น `Access is denied` | ปกติถ้าใช้ `-GroupId` (trigger แบบ Any user) กับ account ที่ไม่มีสิทธิ์ local Administrator — Task Scheduler บังคับต้องใช้สิทธิ์ Admin เสมอสำหรับ group principal ใช้ `-UserId` แบบ Specific user แทนถ้าไม่มีสิทธิ์ Admin (ดูหัวข้อด้านบน) |

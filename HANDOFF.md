@@ -22,9 +22,23 @@ Branch: `main` | Commit ล่าสุด: `27d4c37` (ตรงกับ `origi
 1. ย้ายทั้งโฟลเดอร์ (`.git` ติดไปด้วย ไม่ต้อง clone ใหม่) จาก `C:\Users\26007294\Monitor log sheet boardman` → `D:\Monitor log sheet boardman` — ยืนยันแล้วว่า `git log`/`git status` ที่ตำแหน่งใหม่ตรงกับก่อนย้ายทุกอย่าง
    - **หมายเหตุ:** เหลือโฟลเดอร์ `.git` ว่างเปล่าค้างอยู่ที่ `C:\Users\26007294\Monitor log sheet boardman\.git` (ลบไม่สำเร็จตอนย้ายเพราะติด process lock ชั่วคราว, ไม่มีข้อมูลอยู่ข้างในแล้ว) — **ต้องลบโฟลเดอร์นี้ทิ้งเองผ่าน File Explorer** ทีหลัง (ไม่กระทบการใช้งานอะไร แค่เป็นเศษที่ค้าง)
 2. ตั้ง NTFS permission ให้ `BUILTIN\Users` (ครอบคลุมทุก local account) อ่าน+รันได้บนโฟลเดอร์ใหม่: `icacls "D:\Monitor log sheet boardman" /grant "Users:(OI)(CI)RX" /T` — สำเร็จ (พบว่า drive `D:` root มี `BUILTIN\Users:(I)(OI)(CI)(F)` inherited อยู่แล้วด้วย ยิ่งมั่นใจว่าทุก account เข้าถึงได้)
-3. อัปเดต `bridge/README.md` หัวข้อ Task Scheduler — เพิ่มคำแนะนำแยกกรณี "เครื่อง single-user" (เดิม) กับ "เครื่อง shared หลาย operator login" (ใหม่ — ต้อง trigger "At log on" แบบ **Any user** ไม่ใช่ specific user, พร้อมคำสั่ง `Register-ScheduledTask` ผ่าน PowerShell)
-4. ยืนยันแล้วว่า `bridge/excel-bridge.ps1` **ไม่มี hardcoded path เลย** — ย้ายที่เก็บได้โดยไม่ต้องแก้โค้ดสคริปต์นี้แม้แต่บรรทัดเดียว
-5. **ทดสอบ end-to-end จากตำแหน่งใหม่ (`D:\`) สำเร็จแล้ว** — เปิดไฟล์ log sheet ค้างไว้ใน Excel → รัน `bridge\excel-bridge.ps1` จาก `D:\Monitor log sheet boardman` (`/ping` ตอบ `{"status":"ok"}` ปกติ) → เข้าเว็บ production → import ไฟล์เดียวกัน → Save Remark → **พี่ A ยืนยันว่าทำงานถูกต้องครบถ้วน** comment ขึ้นใน Excel จริง
+3. ยืนยันแล้วว่า `bridge/excel-bridge.ps1` **ไม่มี hardcoded path เลย** — ย้ายที่เก็บได้โดยไม่ต้องแก้โค้ดสคริปต์นี้แม้แต่บรรทัดเดียว
+4. **ทดสอบ end-to-end จากตำแหน่งใหม่ (`D:\`) สำเร็จแล้ว** — เปิดไฟล์ log sheet ค้างไว้ใน Excel → รัน `bridge\excel-bridge.ps1` จาก `D:\Monitor log sheet boardman` (`/ping` ตอบ `{"status":"ok"}` ปกติ) → เข้าเว็บ production → import ไฟล์เดียวกัน → Save Remark → **พี่ A ยืนยันว่าทำงานถูกต้องครบถ้วน** comment ขึ้นใน Excel จริง
+5. Commit doc changes (`bridge/README.md`, `HANDOFF.md`) แล้ว — commit `1e99d15`
+
+**เรื่องที่ 3 — Task Scheduler + ปุ่ม Hyperlink สำหรับ operator คนอื่น:**
+
+ลองสร้าง Task Scheduler แบบ "Any user" (`-GroupId "BUILTIN\Users"`) แล้วโดน Windows ปฏิเสธ **`Access is denied`** — ยืนยันแล้วว่า account `pttgc\26007294` **ไม่มีสิทธิ์ local Administrator** (`whoami /groups` ไม่มี Admin group เลย) และ Task Scheduler บังคับต้องใช้สิทธิ์ Admin เสมอสำหรับ trigger ที่ผูกกับ group principal ไม่ว่าใครรันก็ตาม
+
+**แนวทางที่ทำแทน (พี่ A เลือกเอง):**
+1. **✅ สร้าง Task Scheduler แบบ "Specific user" สำเร็จแล้ว** — ผูกกับ account พี่ A (`PTTGC\26007294`) เท่านั้น ไม่ต้องใช้สิทธิ์ Admin (ยืนยัน `State: Ready`, trigger `UserId: PTTGC\26007294`, principal `LogonType: Interactive, RunLevel: Limited`) — bridge จะ auto-start เองเฉพาะตอนพี่ A login เท่านั้น ยังไม่ครอบคลุม operator คนอื่น
+2. **✅ สร้าง `bridge/start-bridge.bat`** — ตัวกลางเรียก `excel-bridge.ps1` (ใช้ `%~dp0` หา path ตัวเองเสมอ) เพื่อให้ operator คนอื่นเปิด bridge ได้ง่ายโดยไม่ต้องพิมพ์คำสั่ง PowerShell เอง — double-click ได้ตรงๆ หรือเปิดผ่าน Hyperlink ใน Excel
+3. **✅ อัปเดต `bridge/README.md`** — แก้หัวข้อ Task Scheduler ให้ตรงกับสถานการณ์จริง (Any-user ต้องใช้ Admin, ถ้าไม่มีให้ใช้ Specific-user + ปุ่ม Hyperlink แทน) เพิ่มหัวข้อใหม่ "ปุ่มเปิด Bridge จาก Excel" พร้อม Troubleshooting เพิ่ม 2 แถว
+4. **สูตร Hyperlink ที่พี่ A ต้องนำไปแปะเองในไฟล์ log sheet จริง** (ยังไม่ได้แปะ — พี่ A ทำเอง):
+   ```excel
+   =HYPERLINK("D:\Monitor log sheet boardman\bridge\start-bridge.bat", "▶ เปิด Excel Bridge (กดตอนเริ่มกะ)")
+   ```
+   ครั้งแรกที่กดอาจขึ้น dialog เตือนความปลอดภัยของ Excel (ปกติ กด Allow/Yes ได้)
 
 ---
 
@@ -54,21 +68,23 @@ Branch: `main` | Commit ล่าสุด: `27d4c37` (ตรงกับ `origi
 
 ## 🚧 ค้างอยู่ตรงไหน
 
-1. **Task Scheduler ที่เครื่อง Office ยังไม่ได้สร้าง** — พยายามสร้างผ่าน Claude Code แล้วแต่ถูก auto-mode permission classifier บล็อก (เป็น action ระดับระบบ) ได้ส่งคำสั่ง `Register-ScheduledTask` (มี `-Principal -GroupId "BUILTIN\Users"` + trigger "At log on" แบบ Any user) ให้พี่ A ไว้แล้ว รอพี่ A รันเองหรือ authorize ให้ Claude รันอีกครั้ง — bridge ตอนนี้ยังเป็น manual (เปิดเองผ่าน PowerShell) ที่เครื่อง Office
-2. เศษโฟลเดอร์ `.git` ว่างเปล่าค้างที่ `C:\Users\26007294\Monitor log sheet boardman\.git` — ต้องลบเองผ่าน File Explorer (ไม่กระทบอะไร)
-3. **bridge บนเครื่องบ้าน (4000D) ยังรันแบบ manual อยู่** เหมือนเดิม (ยังไม่ได้ตั้ง Task Scheduler ที่นั่น)
-4. เครื่อง Office ยังไม่มี Node.js/npm (รอ IT ติดตั้ง) — ไม่กระทบงาน bridge เพราะทดสอบผ่าน production URL ได้เลย แต่ยังกระทบถ้าจะแก้โค้ดที่เครื่องนี้โดยตรง
-5. **doc changes (`bridge/README.md`, `HANDOFF.md`) ยังไม่ได้ commit** — รอพี่ A สั่ง
+1. **สูตร Hyperlink ยังไม่ได้แปะในไฟล์ log sheet จริง** — พี่ A ต้องนำสูตรที่ให้ไว้ (ดูเรื่องที่ 3 ด้านบน) ไปแปะเองในเซลล์ที่ operator เห็นง่าย
+2. **ยังไม่ได้ทดสอบ Task Scheduler จริงด้วยการ log off/log on ใหม่** — สร้าง task แล้ว (`State: Ready`) แต่ยังไม่ได้ยืนยันว่า auto-start จริงตอน login
+3. **ยังไม่ได้ทดสอบปุ่ม `start-bridge.bat`/Hyperlink จริง** — สร้างไฟล์แล้วแต่ยังไม่ได้ double-click ทดสอบ (มี bridge instance เดิมรันจากคำสั่ง PowerShell ค้างอยู่แล้ว ครองพอร์ต 5175 อยู่ — ต้องปิดตัวเดิมก่อนถึงจะทดสอบตัวใหม่ได้)
+4. เศษโฟลเดอร์ `.git` ว่างเปล่าค้างที่ `C:\Users\26007294\Monitor log sheet boardman\.git` — ต้องลบเองผ่าน File Explorer (ไม่กระทบอะไร)
+5. **bridge บนเครื่องบ้าน (4000D) ยังรันแบบ manual อยู่** เหมือนเดิม (ยังไม่ได้ตั้ง Task Scheduler ที่นั่น)
+6. เครื่อง Office ยังไม่มี Node.js/npm (รอ IT ติดตั้ง) — ไม่กระทบงาน bridge เพราะทดสอบผ่าน production URL ได้เลย แต่ยังกระทบถ้าจะแก้โค้ดที่เครื่องนี้โดยตรง
+7. **doc changes ของเรื่องที่ 3 (`bridge/README.md`, `HANDOFF.md`, `bridge/start-bridge.bat`) ยังไม่ได้ commit** — รอพี่ A สั่ง (แยกจาก commit `1e99d15` ที่ทำไปแล้วของเรื่องที่ 2)
 
 ---
 
 ## 🎯 ขั้นตอนถัดไปที่ตั้งใจจะทำ (ที่เครื่อง Office)
 
-1. รัน `Register-ScheduledTask` ตามคำสั่งที่เตรียมไว้ (ดูข้อ "ค้างอยู่ตรงไหน" ข้อ 1) เพื่อสร้าง Task Scheduler task ชื่อ `Plant Log Analyzer - Excel Bridge`
-2. หลังสร้างแล้ว ทดสอบ Task Scheduler จริงด้วยการ log off/log on ใหม่ (หรือ log on ด้วย account operator คนอื่นถ้าทำได้หน้างาน) ว่า bridge auto-start เองโดยไม่ต้องเปิดมือ
+1. แปะสูตร Hyperlink ในไฟล์ log sheet จริง แล้วทดสอบกดจาก Excel ว่าเปิด bridge ได้จริง
+2. ทดสอบ Task Scheduler จริงด้วยการ log off/log on ใหม่ ว่า bridge auto-start เองโดยไม่ต้องเปิดมือ (เฉพาะ account พี่ A)
 3. ลบเศษโฟลเดอร์ `.git` ว่างที่ `C:\Users\26007294\Monitor log sheet boardman\` ทิ้ง
-4. Commit doc changes (`bridge/README.md`, `HANDOFF.md`) เมื่อพร้อม
-5. ทำ Task Scheduler ให้เครื่องบ้าน (PC 4000D) ด้วยเหมือนกัน (ยังเป็น manual อยู่)
+4. Commit ไฟล์/เอกสารของเรื่องที่ 3 (`bridge/README.md`, `HANDOFF.md`, `bridge/start-bridge.bat`) เมื่อพร้อม
+5. ทำ Task Scheduler ให้เครื่องบ้าน (PC 4000D) ด้วยเหมือนกัน (ยังเป็น manual อยู่ — เครื่องบ้านเป็น single-user ใช้ Any-user หรือ Specific-user ก็ได้ตามสะดวก)
 
 ---
 
