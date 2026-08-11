@@ -119,7 +119,15 @@ export const CANONICAL_TIMES = ['03:00', '09:00', '15:00', '21:00']; // รอ�
 
 // V29.78 FEAT: เช็คว่าวันล่าสุดที่มีข้อมูล (dateStr) มีครบทั้ง 4 รอบเวลาหรือยัง — แทนที่ operator ต้องเปิด
 // ไฟล์ Excel เช็คด้วยตาเอง ใช้ทั้งแสดงผล (chip ใน Dashboard) และตัดสินใจ trigger archive อัตโนมัติ
-export function getCanonicalTimesStatus(records) {
+// V29.82 FIX: เดิม record ที่มี timeStr ตรงกับ CANONICAL_TIMES ถูกนับว่า "มีจริง" ทันทีที่เจอ แม้เวลานั้นยัง
+// ไม่มาถึงจริงตามนาฬิกา — เพราะ excel-worker.js สร้าง timeStr จาก label โครงสร้างของแถว (regex ล้วนๆ) แยก
+// อิสระจากค่า value ในเซลล์ ถ้าเซลล์ของรอบ 21:00 ดันมีค่า (เช่น 0 เปล่าๆ หรือค่าเก่าค้างจาก PI Datalink ที่ยัง
+// ไม่ได้คำนวณใหม่) ก็จะได้ record ของ 21:00 ทั้งที่ยังไม่ถึง 21:00 จริง ทำให้ chip ขึ้นเขียว "ครบ 4 รอบ" ก่อนเวลา
+// และลาม trigger auto-archive ก่อนที่ข้อมูลวันนั้นจะเสร็จจริง — แก้โดยเพิ่มเงื่อนไข "เวลานั้นต้องผ่านไปแล้วจริง"
+// สำหรับวันที่ล่าสุด = วันนี้ (เทียบตามนาฬิกาเครื่อง); ถ้าวันที่ล่าสุด "อยู่ในอนาคต" เทียบกับนาฬิกา (date ผิด/
+// นาฬิกาเครื่องคลาดเคลื่อน) ให้ถือว่ายังไม่มีรอบไหนจริงเลยแม้ record จะมี timeStr ตรงกันก็ตาม; วันที่ที่ผ่านไป
+// แล้ว (ก่อนวันนี้) ไม่ต้อง gate ด้วยเวลา — ถ้ามี record ครบ 4 เวลาก็ถือว่าครบเสมอ ไม่ขึ้นกับ now
+export function getCanonicalTimesStatus(records, now = new Date()) {
     if (!records || records.length === 0) return { dateStr: null, missingTimes: [...CANONICAL_TIMES], isComplete: false };
 
     // หา dateStr ล่าสุด (รูปแบบ DD/MM/YYYY) — เทียบแบบ reverse เป็น YYYYMMDD ให้ sort ตามเวลาจริงถูกต้อง
@@ -132,7 +140,18 @@ export function getCanonicalTimesStatus(records) {
     if (!latestDateStr) return { dateStr: null, missingTimes: [...CANONICAL_TIMES], isComplete: false };
 
     const timesPresent = new Set(records.filter(r => r.dateStr === latestDateStr).map(r => r.timeStr));
-    const missingTimes = CANONICAL_TIMES.filter(t => !timesPresent.has(t));
+
+    const todayKey = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const nowHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    let missingTimes;
+    if (latestKey > todayKey) {
+        missingTimes = [...CANONICAL_TIMES]; // วันที่ล่าสุดยังไม่มาถึงจริงตามนาฬิกา — ไม่นับว่ามีรอบไหนจริงเลย
+    } else if (latestKey === todayKey) {
+        missingTimes = CANONICAL_TIMES.filter(t => !timesPresent.has(t) || nowHHMM < t);
+    } else {
+        missingTimes = CANONICAL_TIMES.filter(t => !timesPresent.has(t)); // วันที่ผ่านไปแล้ว ไม่ gate ด้วยเวลา
+    }
     return { dateStr: latestDateStr, missingTimes, isComplete: missingTimes.length === 0 };
 }
 
