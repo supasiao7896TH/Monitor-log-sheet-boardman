@@ -2,9 +2,25 @@
 
 ## 📅 อัปเดตล่าสุด
 2026-08-11 — เครื่อง: PC `26007294` (ที่ทำงาน / Office)
-Branch: `main` | Commit ล่าสุด: `27d4c37` (ตรงกับ `origin/main`)
+Branch: `main` | Commit ล่าสุดที่ push แล้ว: `22416d8` (ตรงกับ `origin/main` ณ ตอนนั้น) — **มีการแก้ไขเพิ่มหลังจากนั้นที่ยังไม่ commit** ดูเรื่องที่ 4 ด้านล่าง
 **Repo ย้ายที่เก็บแล้ว: `D:\Monitor log sheet boardman`** (จากเดิม `C:\Users\26007294\Monitor log sheet boardman`) — ดูเหตุผลด้านล่าง
-สถานะ repo: ตรงกับ `origin/main` เป๊ะ, ไฟล์ข้อมูลหน้างานจริงที่ตั้งใจไม่ commit ยังอยู่ครบ (`Log sheet 08-3-26.xls` ลบไว้, `*.xlsm` untracked)
+สถานะ repo: มีไฟล์แก้ไขค้าง (V29.75 bug fix, ดูเรื่องที่ 4), ไฟล์ข้อมูลหน้างานจริงที่ตั้งใจไม่ commit ยังอยู่ครบ (`Log sheet 08-3-26.xls` ลบไว้, `*.xlsm` untracked)
+
+---
+
+## ✅ เรื่องที่ 4 — Bug fix: Sync Excel ล้มเหลวเงียบๆ เมื่อเซลล์มี Threaded Comment ค้างอยู่ (V29.75)
+
+**อาการ:** Tag `LI-2601` (PD-601 Level) กด Save Remark แล้ว sync กลับ Excel ไม่สำเร็จ ขึ้น error ทั่วไป ส่วน Tag อื่นจาก sheet อื่นสำเร็จปกติ
+
+**Root cause (ยืนยันแล้วจาก DevTools Network response):** `bridge/excel-bridge.ps1` เช็ค comment เดิมผ่าน legacy `.Comment` property (Notes แบบเก่า) เท่านั้น — ถ้าเซลล์มี **Threaded Comment** (ระบบ default ของปุ่ม "New Comment" ใน Excel 2019+/365) ค้างอยู่จากที่ operator เคยพิมพ์เองตรงๆ ใน Excel มาก่อน ฟีเจอร์นี้จะมองไม่เห็น (คิดว่าเซลล์ว่าง) แล้วพยายาม `AddComment()` (สร้าง legacy Note) ทับ ทำให้ Excel COM throw `Exception from HRESULT: 0x800A03EC` (error message ทั่วไปมาก ไม่บอกสาเหตุ)
+
+**วิธี debug:** เพิ่ม try/catch แยกแต่ละขั้นตอนใน `Handle-WriteRemark` ก่อน (Range access / Comment read / Delete / AddComment / Save) เพื่อระบุว่าพังตรงจุดไหน — ยืนยันว่าพังตรง `AddComment()` เป๊ะ
+
+**Fix จริง:** เพิ่มเช็ค `$range.CommentThreaded` คู่กับ `.Comment` เดิม — ถ้ามี Threaded Comment อยู่แล้ว (ไม่ว่าใครพิมพ์ เพราะแอปเองไม่เคยสร้าง Threaded Comment เลย เขียนแต่ legacy Note เสมอ) ให้ถือเป็น `conflict` เหมือน legacy comment เดิม (ไม่เขียนทับ แจ้ง operator ให้ตรวจสอบเอง) แทนที่จะปล่อยให้ Excel COM throw exception ทั่วไป
+
+**ไฟล์ที่แก้:** `bridge/excel-bridge.ps1` เท่านั้น, bump เป็น **V29.75** (`index.html` title + System Version label, `CLAUDE.md`/`AGENTS.md`)
+
+**สถานะ:** แก้โค้ดแล้ว รอพี่ A ทดสอบซ้ำที่เครื่อง Office (restart bridge ก่อนถึงจะได้โค้ดใหม่) ยังไม่ได้ยืนยันว่า fix ผ่านจริง และ **ยังไม่ได้ commit**
 
 ---
 

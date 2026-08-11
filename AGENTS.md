@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents (Claude Code, Codex, Cursor, and
 
 ## What this is
 
-"Plant Log Analyzer" (currently V29.74), a Thai-language browser tool for plant/machine monitoring engineers. Operators import Excel/CSV log sheets exported from plant SCADA/monitoring systems, and the tool auto-detects tag headers, normal-range limits, and per-row readings, flags out-of-range values, lets operators annotate abnormal readings, and exports a shift-summary "Infographic Report" as a JPG.
+"Plant Log Analyzer" (currently V29.75), a Thai-language browser tool for plant/machine monitoring engineers. Operators import Excel/CSV log sheets exported from plant SCADA/monitoring systems, and the tool auto-detects tag headers, normal-range limits, and per-row readings, flags out-of-range values, lets operators annotate abnormal readings, and exports a shift-summary "Infographic Report" as a JPG.
 
 See `context.md` for the domain/business background (who uses this, glossary, and the rationale behind recent feature decisions) — this file covers the "how the code works" side.
 

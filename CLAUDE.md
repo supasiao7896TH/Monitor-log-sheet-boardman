@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-"Plant Log Analyzer" (currently V29.74), a Thai-language browser tool for plant/machine monitoring engineers. Operators import Excel/CSV log sheets exported from plant SCADA/monitoring systems, and the tool auto-detects tag headers, normal-range limits, and per-row readings, flags out-of-range values, lets operators annotate abnormal readings, and exports a shift-summary "Infographic Report" as a JPG.
+"Plant Log Analyzer" (currently V29.75), a Thai-language browser tool for plant/machine monitoring engineers. Operators import Excel/CSV log sheets exported from plant SCADA/monitoring systems, and the tool auto-detects tag headers, normal-range limits, and per-row readings, flags out-of-range values, lets operators annotate abnormal readings, and exports a shift-summary "Infographic Report" as a JPG.
 
 See `context.md` for the domain/business background (who uses this, glossary, and the rationale behind recent feature decisions) — this file (`CLAUDE.md`) covers the "how the code works" side. The same guidance is mirrored in `AGENTS.md` for tools that look for that file instead of `CLAUDE.md`; keep the two in sync when editing.
 

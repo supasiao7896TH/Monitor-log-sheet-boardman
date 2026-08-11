@@ -78,17 +78,55 @@ function Handle-WriteRemark($payload) {
         return @{ status = 'error'; message = "ไม่พบ sheet '$($payload.machine)' ในไฟล์" }
     }
 
-    $range = $sheet.Range($payload.cellRef)
-    $existingComment = $range.Comment
+    # V29.75 DEBUG: ห่อแต่ละขั้นตอนเสี่ยงด้วย try/catch แยกกัน — เดิม exception ตรงไหนก็ตามจะโดน catch
+    # รวมที่ loop หลักแล้วคืนแค่ "Exception from HRESULT: 0x..." เฉยๆ (COM error ทั่วไปของ Excel ไม่บอก
+    # สาเหตุจริง) ทำให้ debug ไม่ได้ว่าพังตรงไหนจาก 4 จุดที่เป็นไปได้ (Range/Comment/AddComment/Save) —
+    # ระบุจุดที่พังในข้อความ error ให้ชัดเจนขึ้นแทน ไม่เปลี่ยนพฤติกรรม happy-path
+    try {
+        $range = $sheet.Range($payload.cellRef)
+    } catch {
+        return @{ status = 'error'; message = "เปิด range '$($payload.cellRef)' ไม่ได้ (cellRef อาจไม่ถูกต้อง): $($_.Exception.Message)" }
+    }
+
+    try {
+        $existingComment = $range.Comment
+    } catch {
+        return @{ status = 'error'; message = "อ่าน comment เดิมของ range '$($payload.cellRef)' ไม่ได้: $($_.Exception.Message)" }
+    }
+
+    # V29.75 FIX: Excel รุ่นใหม่มี comment 2 ระบบคือ legacy Note (เข้าถึงผ่าน .Comment ด้านบน) กับ
+    # Threaded Comment (ระบบ default ของปุ่ม "New Comment" ใน Excel 2019+/365) — .Comment มองไม่เห็น
+    # Threaded Comment เลย (คืน $null ทั้งที่จริงมี Threaded Comment อยู่) เดิมโค้ดจึงคิดว่าเซลล์ว่าง แล้วไป
+    # เรียก AddComment() (สร้าง legacy Note) ทับเซลล์ที่มี Threaded Comment อยู่แล้ว ทำให้ Excel COM throw
+    # "Exception from HRESULT: 0x800A03EC" (เจอจริงกับ Tag LI-2601 ที่ operator เคยพิมพ์ comment เองใน
+    # Excel ไว้ก่อนหน้าฟีเจอร์นี้) — เช็ค .CommentThreaded เพิ่ม แล้วถือเป็น conflict เหมือน legacy comment
+    # (แอปเองไม่เคยสร้าง Threaded Comment เลย เขียนแต่ legacy Note เสมอ ดังนั้น Threaded Comment ที่เจอ
+    # ต้องเป็นของคนอื่นพิมพ์เองเสมอ ไม่มีทางเป็นของแอป — ไม่ต้องเช็ค Author เหมือนฝั่ง legacy)
+    try {
+        $existingThreadedComment = $range.CommentThreaded
+    } catch {
+        # Excel รุ่นเก่าก่อน 2019 ไม่มี property นี้เลย — ถือว่าไม่มี Threaded Comment ให้ชนกัน
+        $existingThreadedComment = $null
+    }
+
     $remarkText = [string]$payload.remarkText
 
     if ($existingComment -and $existingComment.Author -ne $AppCommentAuthor) {
         return @{ status = 'conflict'; message = 'มี Comment ที่คนอื่นพิมพ์ไว้ในช่องนี้แล้ว ระบบไม่เขียนทับให้' }
     }
+    if ($existingThreadedComment) {
+        return @{ status = 'conflict'; message = 'มี Comment แบบ Threaded (Excel รุ่นใหม่) ที่คนอื่นพิมพ์ไว้ในช่องนี้แล้ว ระบบไม่เขียนทับให้ กรุณาลบ/ตรวจสอบเองใน Excel ก่อน' }
+    }
 
     # ลบของเดิม (ถ้าเป็นของแอปเอง) แล้วค่อยสร้างใหม่เสมอ — ง่ายและชัดเจนกว่าการพยายาม
     # overwrite ข้อความเดิมผ่าน Comment.Text() ซึ่ง Start/Overwrite parameter งงและเสี่ยงพลาด
-    if ($existingComment) { $existingComment.Delete() }
+    if ($existingComment) {
+        try {
+            $existingComment.Delete()
+        } catch {
+            return @{ status = 'error'; message = "ลบ comment เดิมไม่ได้: $($_.Exception.Message)" }
+        }
+    }
 
     if (-not [string]::IsNullOrWhiteSpace($remarkText)) {
         # Comment.Author เป็น read-only, กำหนดได้ทางเดียวคือตั้ง Application.UserName ก่อนสร้าง comment
@@ -97,12 +135,18 @@ function Handle-WriteRemark($payload) {
         try {
             $excel.UserName = $AppCommentAuthor
             $range.AddComment($remarkText) | Out-Null
+        } catch {
+            return @{ status = 'error'; message = "เพิ่ม comment ใหม่ไม่ได้ (อาจมี Threaded Comment ของ Excel รุ่นใหม่ค้างอยู่ในเซลล์นี้แล้ว): $($_.Exception.Message)" }
         } finally {
             $excel.UserName = $originalUserName
         }
     }
 
-    $wb.Save()
+    try {
+        $wb.Save()
+    } catch {
+        return @{ status = 'error'; message = "บันทึกไฟล์ไม่ได้: $($_.Exception.Message)" }
+    }
     return @{ status = 'ok' }
 }
 
