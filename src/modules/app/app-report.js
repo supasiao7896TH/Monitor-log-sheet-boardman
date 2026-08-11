@@ -4,72 +4,41 @@ import { escapeHtml, getTagId, resolveEffectiveLimits, getMasterMap, getTagMap, 
 import { APP } from './app.js';
 /* global lucide, html2canvas, jspdf */
 
+// V29.76 FEAT: toggle ระหว่าง Card (เดิม, เน้นภาพสำหรับแชร์ผู้บริหาร) กับ Table (ใหม่, เน้นความหนาแน่น
+// ของข้อมูลเวลามี Tag ผิดปกติเยอะ) — เก็บนอก STATE เพราะเป็นแค่ preference ของ modal นี้ตอนเปิดอยู่
+// ไม่ต้อง persist ข้าม session และไม่ต้องผ่าน STATE.set/_deriveAbnormal ที่หนักเกินจำเป็น
+let reportLayoutMode = 'card';
+
 Object.assign(APP, {
 
-            updateInfographicLive: () => {
-                const rs = document.getElementById('report-shift');
-                const rr = document.getElementById('report-reporter');
-                const rh = document.getElementById('report-handover');
-                
-                const shift = rs ? rs.value : '';
-                const reporter = rr ? rr.value || '-' : '-';
-                const handover = rh ? rh.value || '-' : '-';
-                
-                const iShift = document.getElementById('info-shift-text');
-                const iOp = document.getElementById('info-operator');
-                const iHand = document.getElementById('info-handover');
-                
-                if (iShift) iShift.textContent = shift;
-                if (iOp) iOp.textContent = reporter;
-                if (iHand) iHand.textContent = handover;
-            },
-
-
-            openReportModal: () => {
+            // ดึงชุดข้อมูลเดียวกับที่ openReportModal ใช้ — แยกออกมาให้ toggle layout เรียกซ้ำได้โดยไม่ปิด/เปิด modal ใหม่
+            getReportData: () => {
                 const selectedIds = STATE.get('selectedForReport');
                 const records = STATE.get('records');
                 const mTagsMap = getMasterMap();
-                const tagMap = getTagMap(); // V29.52 PERF: build once instead of tags.find per selected record
-                const container = document.getElementById('infographic-cards-container');
-                if (!container) return;
-
-                while (container.firstChild) container.removeChild(container.firstChild);
-
+                const tagMap = getTagMap();
                 const selectedRecords = records.filter(r => selectedIds.includes(r.id));
-                
-                const idate = document.getElementById('info-date');
-                if (idate) {
-                    if (selectedRecords.length > 0) {
-                        idate.textContent = selectedRecords[0].dateStr;
-                    } else {
-                        idate.textContent = new Date().toLocaleDateString('en-GB');
-                    }
-                }
-                
-                const icnt = document.getElementById('info-abn-count');
-                if (icnt) icnt.textContent = selectedRecords.length;
+                return { selectedRecords, tagMap, mTagsMap };
+            },
 
-                selectedRecords.forEach(r => {
-                    const tId = getTagId(r);
-                    const tagDef = tagMap.get(tId) || {};
-                    const master = mTagsMap.get(tId);
 
-                    const { eMin, eMax, eExact } = resolveEffectiveLimits(tagDef, master);
-                    const eDesc = (master && master.description) ? master.description : (tagDef.description || '-');
-                    
-                    let normText = "";
-                    if (eMin !== null && eMax !== null) normText = `${eMin} - ${eMax}`;
-                    else if (eMin !== null) normText = `> ${eMin}`;
-                    else if (eMax !== null) normText = `< ${eMax}`;
-                    else if (eExact !== null) normText = `${eExact}`;
-                    else normText = 'N/A';
+            buildInfographicCardHTML: (r, tagDef, master) => {
+                const { eMin, eMax, eExact } = resolveEffectiveLimits(tagDef, master);
+                const eDesc = (master && master.description) ? master.description : (tagDef.description || '-');
 
-                    const isAbnormal = r.isAbnormal;
-                    const valColor = isAbnormal ? 'text-red-600' : 'text-emerald-600';
-                    const iconColor = isAbnormal ? 'text-red-500' : 'text-emerald-500';
-                    const iconName = isAbnormal ? 'alert-triangle' : 'check-circle-2';
+                let normText = "";
+                if (eMin !== null && eMax !== null) normText = `${eMin} - ${eMax}`;
+                else if (eMin !== null) normText = `> ${eMin}`;
+                else if (eMax !== null) normText = `< ${eMax}`;
+                else if (eExact !== null) normText = `${eExact}`;
+                else normText = 'N/A';
 
-                    let cardHTML = `
+                const isAbnormal = r.isAbnormal;
+                const valColor = isAbnormal ? 'text-red-600' : 'text-emerald-600';
+                const iconColor = isAbnormal ? 'text-red-500' : 'text-emerald-500';
+                const iconName = isAbnormal ? 'alert-triangle' : 'check-circle-2';
+
+                return `
                         <div class="info-card p-5 rounded-2xl flex flex-col relative overflow-hidden group">
                             <div class="absolute left-0 top-0 bottom-0 w-1.5 ${isAbnormal ? 'bg-red-500' : 'bg-emerald-500'}"></div>
 
@@ -108,10 +77,148 @@ Object.assign(APP, {
                             `}
                         </div>
                     `;
-                    container.insertAdjacentHTML('beforeend', cardHTML);
-                });
+            },
+
+
+            buildInfographicTableRowHTML: (r, tagDef, master) => {
+                const { eMin, eMax, eExact } = resolveEffectiveLimits(tagDef, master);
+                const eDesc = (master && master.description) ? master.description : (tagDef.description || '-');
+
+                let normText = "";
+                if (eMin !== null && eMax !== null) normText = `${eMin} - ${eMax}`;
+                else if (eMin !== null) normText = `> ${eMin}`;
+                else if (eMax !== null) normText = `< ${eMax}`;
+                else if (eExact !== null) normText = `${eExact}`;
+                else normText = 'N/A';
+
+                const isAbnormal = r.isAbnormal;
+                const valColor = isAbnormal ? 'text-red-600' : 'text-emerald-600';
+                const rowBg = isAbnormal ? 'bg-red-50/60' : '';
+
+                return `
+                        <tr class="${rowBg} border-b border-slate-200 last:border-b-0">
+                            <td class="py-2.5 px-3 align-top whitespace-nowrap">
+                                <div class="font-black text-slate-800 text-sm">${escapeHtml(r.tagNo)}</div>
+                                <span class="bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[8px] uppercase">${escapeHtml(r.paramType)}</span>
+                            </td>
+                            <td class="py-2.5 px-3 align-top text-xs text-slate-600">${escapeHtml(eDesc)}</td>
+                            <td class="py-2.5 px-3 align-top text-[10px] text-slate-500 font-bold whitespace-nowrap">${escapeHtml(normText)}</td>
+                            <td class="py-2.5 px-3 align-top font-black ${valColor} text-base whitespace-nowrap">${escapeHtml(String(r.value))}</td>
+                            <td class="py-2.5 px-3 align-top text-xs font-bold text-slate-600 whitespace-nowrap">${escapeHtml(r.timeStr)}</td>
+                            <td class="py-2.5 px-3 align-top text-xs text-slate-600">${r.remark ? escapeHtml(r.remark) : '<span class="text-slate-400 italic">No action recorded.</span>'}</td>
+                        </tr>
+                    `;
+            },
+
+
+            updateLayoutToggleButtons: () => {
+                const btnCard = document.getElementById('btn-layout-card');
+                const btnTable = document.getElementById('btn-layout-table');
+                const activeCls = ['bg-white', 'shadow-sm', 'text-brand-600'];
+                const inactiveCls = ['text-slate-500'];
+                if (btnCard) {
+                    btnCard.classList.remove(...activeCls, ...inactiveCls);
+                    btnCard.classList.add(...(reportLayoutMode === 'card' ? activeCls : inactiveCls));
+                }
+                if (btnTable) {
+                    btnTable.classList.remove(...activeCls, ...inactiveCls);
+                    btnTable.classList.add(...(reportLayoutMode === 'table' ? activeCls : inactiveCls));
+                }
+            },
+
+
+            // สลับ Layout ของ Live Preview ระหว่าง Card/Table โดยไม่ปิด modal — re-render แค่ส่วน records,
+            // ไม่แตะ header/date/count ที่ตั้งไว้แล้วตอนเปิด modal
+            setInfographicLayout: (mode) => {
+                if (mode !== 'card' && mode !== 'table') return;
+                reportLayoutMode = mode;
+                APP.updateLayoutToggleButtons();
+
+                const { selectedRecords, tagMap, mTagsMap } = APP.getReportData();
+                APP.renderInfographicRecords(selectedRecords, tagMap, mTagsMap);
+            },
+
+
+            renderInfographicRecords: (selectedRecords, tagMap, mTagsMap) => {
+                const container = document.getElementById('infographic-cards-container');
+                if (!container) return;
+                while (container.firstChild) container.removeChild(container.firstChild);
+
+                if (reportLayoutMode === 'table') {
+                    container.className = 'mb-6';
+                    const rowsHTML = selectedRecords.map(r => {
+                        const tId = getTagId(r);
+                        const tagDef = tagMap.get(tId) || {};
+                        const master = mTagsMap.get(tId);
+                        return APP.buildInfographicTableRowHTML(r, tagDef, master);
+                    }).join('');
+
+                    const tableHTML = `
+                        <table class="w-full border-collapse">
+                            <thead>
+                                <tr class="bg-slate-800 text-white">
+                                    <th class="py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest">Tag</th>
+                                    <th class="py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest">Description</th>
+                                    <th class="py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest">Norm</th>
+                                    <th class="py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest">Value</th>
+                                    <th class="py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest">Time</th>
+                                    <th class="py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest">Action Remark</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white">${rowsHTML}</tbody>
+                        </table>
+                    `;
+                    container.insertAdjacentHTML('beforeend', tableHTML);
+                } else {
+                    container.className = 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6';
+                    selectedRecords.forEach(r => {
+                        const tId = getTagId(r);
+                        const tagDef = tagMap.get(tId) || {};
+                        const master = mTagsMap.get(tId);
+                        container.insertAdjacentHTML('beforeend', APP.buildInfographicCardHTML(r, tagDef, master));
+                    });
+                }
 
                 UI_RENDERER.initIcons();
+            },
+
+
+            updateInfographicLive: () => {
+                const rs = document.getElementById('report-shift');
+                const rr = document.getElementById('report-reporter');
+                const rh = document.getElementById('report-handover');
+                
+                const shift = rs ? rs.value : '';
+                const reporter = rr ? rr.value || '-' : '-';
+                const handover = rh ? rh.value || '-' : '-';
+                
+                const iShift = document.getElementById('info-shift-text');
+                const iOp = document.getElementById('info-operator');
+                const iHand = document.getElementById('info-handover');
+                
+                if (iShift) iShift.textContent = shift;
+                if (iOp) iOp.textContent = reporter;
+                if (iHand) iHand.textContent = handover;
+            },
+
+
+            openReportModal: () => {
+                const { selectedRecords, tagMap, mTagsMap } = APP.getReportData();
+
+                const idate = document.getElementById('info-date');
+                if (idate) {
+                    if (selectedRecords.length > 0) {
+                        idate.textContent = selectedRecords[0].dateStr;
+                    } else {
+                        idate.textContent = new Date().toLocaleDateString('en-GB');
+                    }
+                }
+
+                const icnt = document.getElementById('info-abn-count');
+                if (icnt) icnt.textContent = selectedRecords.length;
+
+                APP.updateLayoutToggleButtons();
+                APP.renderInfographicRecords(selectedRecords, tagMap, mTagsMap);
                 APP.updateInfographicLive();
                 showModal('report-modal');
             },

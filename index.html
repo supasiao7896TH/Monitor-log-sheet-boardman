@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.75)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.76)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -557,7 +557,7 @@
                     </div>
                     
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.75 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.76 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by Supasit@1981th</p>
                     </div>
                 </div>
@@ -703,7 +703,17 @@
                     <h4 class="text-sm font-black text-slate-700 uppercase tracking-wide flex items-center gap-2">
                         <i data-lucide="eye" class="w-4 h-4 text-brand-500"></i> Live Preview (ตัวอย่างภาพก่อนบันทึก)
                     </h4>
-                    <p class="text-[10px] text-slate-400 font-bold">Light Mode Design</p>
+                    <div class="flex items-center gap-3">
+                        <div class="flex bg-slate-200/70 rounded-lg p-1 gap-1">
+                            <button id="btn-layout-card" data-layout="card" class="px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wide transition-colors flex items-center gap-1">
+                                <i data-lucide="layout-grid" class="w-3 h-3"></i> Card
+                            </button>
+                            <button id="btn-layout-table" data-layout="table" class="px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wide transition-colors flex items-center gap-1">
+                                <i data-lucide="table" class="w-3 h-3"></i> Table
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-slate-400 font-bold">Light Mode Design</p>
+                    </div>
                 </div>
 
                 <div id="infographic-container" class="info-export-bg rounded-2xl p-8 shadow-2xl relative overflow-hidden border border-slate-200">
@@ -743,7 +753,7 @@
                         </div>
                     </div>
 
-                    <div id="infographic-cards-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div id="infographic-cards-container" class="mb-6">
                         </div>
 
                     <div class="mt-8 flex justify-between items-center opacity-50">

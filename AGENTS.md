@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents (Claude Code, Codex, Cursor, and
 
 ## What this is
 
-"Plant Log Analyzer" (currently V29.75), a Thai-language browser tool for plant/machine monitoring engineers. Operators import Excel/CSV log sheets exported from plant SCADA/monitoring systems, and the tool auto-detects tag headers, normal-range limits, and per-row readings, flags out-of-range values, lets operators annotate abnormal readings, and exports a shift-summary "Infographic Report" as a JPG.
+"Plant Log Analyzer" (currently V29.76), a Thai-language browser tool for plant/machine monitoring engineers. Operators import Excel/CSV log sheets exported from plant SCADA/monitoring systems, and the tool auto-detects tag headers, normal-range limits, and per-row readings, flags out-of-range values, lets operators annotate abnormal readings, and exports a shift-summary "Infographic Report" as a JPG.
 
 See `context.md` for the domain/business background (who uses this, glossary, and the rationale behind recent feature decisions) — this file covers the "how the code works" side.
 
@@ -43,7 +43,7 @@ See `context.md` for the domain/business background (who uses this, glossary, an
   - `app-countermeasure.js` — user-added Countermeasure entries table and edit modal (`view-countermeasure`).
   - `app-modal.js` — the abnormal-record annotation modal (`openActionModal`/`saveAction`/`triggerSmartAssist`).
   - `app-chart.js` — the Chart.js trend chart (`renderChart`) shown inside the annotation modal.
-  - `app-report.js` — the shift Infographic Report (`openReportModal` → `updateInfographicLive` → `exportInfographicImage`, which rasterizes `#infographic-container` via `html2canvas` and triggers a JPG download).
+  - `app-report.js` — the shift Infographic Report (`openReportModal` → `updateInfographicLive` → `exportInfographicImage`, which rasterizes `#infographic-container` via `html2canvas` and triggers a JPG download). Since V29.76, `renderInfographicRecords` renders the selected records as either a card grid or a `<table>` depending on `setInfographicLayout('card'|'table')` (toggle buttons in the modal) — both branches build off the same per-record data via `buildInfographicCardHTML`/`buildInfographicTableRowHTML`, and whichever layout is active at export time is what `html2canvas` rasterizes.
 - **`src/main.js`** — imports `app.js` plus every `app-*.js` file (for their `Object.assign` side effects), then calls `APP.init()` on `DOMContentLoaded`. There are no inline `onclick`/`onchange` HTML attributes anywhere in this codebase — all event wiring goes through `bindEvents()`/`addEventListener` or JS `.onclick =` property assignment inside `APP` methods, so nothing needs `window.*` exposure.
 
 ### Data model essentials

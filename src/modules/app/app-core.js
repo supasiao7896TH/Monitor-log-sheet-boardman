@@ -212,6 +212,9 @@ Object.assign(APP, {
                 assignEvent('btn-open-report', APP.openReportModal);
                 assignEvent('btn-close-report', APP.closeReportModal);
 
+                assignEvent('btn-layout-card', () => APP.setInfographicLayout('card'));
+                assignEvent('btn-layout-table', () => APP.setInfographicLayout('table'));
+
                 assignEvent('btn-export-image', APP.exportInfographicImage);
                 assignEvent('btn-export-pdf', APP.exportInfographicPDF);
 
