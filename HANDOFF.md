@@ -1,13 +1,34 @@
 # HANDOFF — Plant Log Analyzer
 
 ## 📅 อัปเดตล่าสุด
-2026-08-10 (ดึกๆ) — เครื่อง: PC `4000D` (บ้าน / Home)
-Branch: `main` | Commit ล่าสุดบน `origin/main`: `6a7b628` (`Fix Excel-sync status message getting hidden by immediate modal auto-close`)
-สถานะ repo: **local ตรงกับ origin/main เป๊ะ ทุกอย่าง commit + push แล้ว** ไม่มีอะไรค้าง (เหลือแค่ `index.html.bak` untracked ที่ตั้งใจเก็บไว้อยู่แล้ว)
+2026-08-11 — เครื่อง: PC `26007294` (ที่ทำงาน / Office)
+Branch: `main` | Commit ล่าสุด: `27d4c37` (ตรงกับ `origin/main`)
+**Repo ย้ายที่เก็บแล้ว: `D:\Monitor log sheet boardman`** (จากเดิม `C:\Users\26007294\Monitor log sheet boardman`) — ดูเหตุผลด้านล่าง
+สถานะ repo: ตรงกับ `origin/main` เป๊ะ, ไฟล์ข้อมูลหน้างานจริงที่ตั้งใจไม่ commit ยังอยู่ครบ (`Log sheet 08-3-26.xls` ลบไว้, `*.xlsm` untracked)
 
 ---
 
-## ✅ ทำอะไรเสร็จไปแล้วบ้าง (session นี้) — **สำเร็จและยืนยันด้วยการใช้งานจริงแล้ว**
+## ✅ ทำอะไรเสร็จไปแล้วบ้าง (session นี้ — เครื่อง Office)
+
+**เรื่องที่ 1 — Sync โค้ดล่าสุด:** `git pull` จาก `34a719e` → `27d4c37` (fast-forward, ไม่มี conflict) ได้โฟลเดอร์ `bridge/` (V29.74 Local Excel Bridge ที่ทำเสร็จที่บ้านเมื่อคืน) เข้ามาที่เครื่องนี้แล้ว
+
+**เรื่องที่ 2 — ย้าย repo จาก `C:\Users\26007294\...` ไป `D:\Monitor log sheet boardman`:**
+
+**สาเหตุ:** เครื่อง Office นี้ operator แต่ละคน login คนละ Windows username จริง (ไม่ใช่ account เดียวใช้ร่วมกัน) — ถ้าเก็บ repo ไว้ใต้ profile ส่วนตัว (`C:\Users\26007294\...`) จะมี 2 ปัญหา: (1) NTFS permission ไม่ให้ account อื่นอ่าน/รันไฟล์ในนั้น (2) Task Scheduler trigger "At log on" แบบเดิมผูกกับ account เดียว operator คนอื่น login แล้ว bridge จะไม่ auto-start ให้
+
+**ที่ตั้งใหม่ที่เลือก:** `D:\` — ตรวจแล้วเป็น **Local Fixed drive จริง** (ไม่ใช่ profile, ไม่ใช่ network) เหลือพื้นที่ 106 GB ส่วน `J:`/`K:`/`L:` ที่มีในเครื่องเป็น **Network (mapped) drive** ไม่เลือกเพราะผูกกับ login script ของแต่ละ account เหมือนปัญหาเดิม
+
+**ขั้นตอนที่ทำไปแล้ว:**
+1. ย้ายทั้งโฟลเดอร์ (`.git` ติดไปด้วย ไม่ต้อง clone ใหม่) จาก `C:\Users\26007294\Monitor log sheet boardman` → `D:\Monitor log sheet boardman` — ยืนยันแล้วว่า `git log`/`git status` ที่ตำแหน่งใหม่ตรงกับก่อนย้ายทุกอย่าง
+   - **หมายเหตุ:** เหลือโฟลเดอร์ `.git` ว่างเปล่าค้างอยู่ที่ `C:\Users\26007294\Monitor log sheet boardman\.git` (ลบไม่สำเร็จตอนย้ายเพราะติด process lock ชั่วคราว, ไม่มีข้อมูลอยู่ข้างในแล้ว) — **ต้องลบโฟลเดอร์นี้ทิ้งเองผ่าน File Explorer** ทีหลัง (ไม่กระทบการใช้งานอะไร แค่เป็นเศษที่ค้าง)
+2. ตั้ง NTFS permission ให้ `BUILTIN\Users` (ครอบคลุมทุก local account) อ่าน+รันได้บนโฟลเดอร์ใหม่: `icacls "D:\Monitor log sheet boardman" /grant "Users:(OI)(CI)RX" /T` — สำเร็จ (พบว่า drive `D:` root มี `BUILTIN\Users:(I)(OI)(CI)(F)` inherited อยู่แล้วด้วย ยิ่งมั่นใจว่าทุก account เข้าถึงได้)
+3. อัปเดต `bridge/README.md` หัวข้อ Task Scheduler — เพิ่มคำแนะนำแยกกรณี "เครื่อง single-user" (เดิม) กับ "เครื่อง shared หลาย operator login" (ใหม่ — ต้อง trigger "At log on" แบบ **Any user** ไม่ใช่ specific user, พร้อมคำสั่ง `Register-ScheduledTask` ผ่าน PowerShell)
+4. ยืนยันแล้วว่า `bridge/excel-bridge.ps1` **ไม่มี hardcoded path เลย** — ย้ายที่เก็บได้โดยไม่ต้องแก้โค้ดสคริปต์นี้แม้แต่บรรทัดเดียว
+5. **ทดสอบ end-to-end จากตำแหน่งใหม่ (`D:\`) สำเร็จแล้ว** — เปิดไฟล์ log sheet ค้างไว้ใน Excel → รัน `bridge\excel-bridge.ps1` จาก `D:\Monitor log sheet boardman` (`/ping` ตอบ `{"status":"ok"}` ปกติ) → เข้าเว็บ production → import ไฟล์เดียวกัน → Save Remark → **พี่ A ยืนยันว่าทำงานถูกต้องครบถ้วน** comment ขึ้นใน Excel จริง
+
+---
+
+## ✅ ทำอะไรเสร็จไปแล้วบ้าง (session ก่อนหน้า — เครื่องบ้าน, สำเร็จและยืนยันด้วยการใช้งานจริงแล้ว)
 
 **ปัญหาต้นเรื่อง:** ฟีเจอร์ sync Resolution Remark กลับเป็น Excel comment ทำให้ไฟล์ export ไม่เหมือนต้นฉบับ
 
@@ -33,20 +54,21 @@ Branch: `main` | Commit ล่าสุดบน `origin/main`: `6a7b628` (`Fix 
 
 ## 🚧 ค้างอยู่ตรงไหน
 
-1. **bridge บนเครื่องนี้ (บ้าน) รันแบบ manual อยู่** (เปิดผ่าน PowerShell เอง ยังไม่ได้ตั้ง Task Scheduler ให้ auto-start) — ใช้งานได้ปกติ แค่ต้องเปิดเองทุกครั้งที่จะใช้
-2. **เครื่องที่ทำงาน (Office, PC `26007294`) ยังไม่ได้ตั้งอะไรเลย** — พี่ A จะไปตั้งค่าต่อพรุ่งนี้เช้า (ทั้ง pull โค้ดล่าสุดและตั้ง bridge)
+1. **Task Scheduler ที่เครื่อง Office ยังไม่ได้สร้าง** — พยายามสร้างผ่าน Claude Code แล้วแต่ถูก auto-mode permission classifier บล็อก (เป็น action ระดับระบบ) ได้ส่งคำสั่ง `Register-ScheduledTask` (มี `-Principal -GroupId "BUILTIN\Users"` + trigger "At log on" แบบ Any user) ให้พี่ A ไว้แล้ว รอพี่ A รันเองหรือ authorize ให้ Claude รันอีกครั้ง — bridge ตอนนี้ยังเป็น manual (เปิดเองผ่าน PowerShell) ที่เครื่อง Office
+2. เศษโฟลเดอร์ `.git` ว่างเปล่าค้างที่ `C:\Users\26007294\Monitor log sheet boardman\.git` — ต้องลบเองผ่าน File Explorer (ไม่กระทบอะไร)
+3. **bridge บนเครื่องบ้าน (4000D) ยังรันแบบ manual อยู่** เหมือนเดิม (ยังไม่ได้ตั้ง Task Scheduler ที่นั่น)
+4. เครื่อง Office ยังไม่มี Node.js/npm (รอ IT ติดตั้ง) — ไม่กระทบงาน bridge เพราะทดสอบผ่าน production URL ได้เลย แต่ยังกระทบถ้าจะแก้โค้ดที่เครื่องนี้โดยตรง
+5. **doc changes (`bridge/README.md`, `HANDOFF.md`) ยังไม่ได้ commit** — รอพี่ A สั่ง
 
 ---
 
-## 🎯 ขั้นตอนถัดไปที่ตั้งใจจะทำ (พรุ่งนี้เช้า ที่เครื่อง Office)
+## 🎯 ขั้นตอนถัดไปที่ตั้งใจจะทำ (ที่เครื่อง Office)
 
-1. `git pull` ที่เครื่อง Office ให้ได้ commit `6a7b628` ล่าสุด
-2. เอาโฟลเดอร์ `bridge/` ไปวางที่เครื่อง Office (มากับ `git pull` อยู่แล้วถ้า clone repo ทั้งชุด)
-3. ทดสอบรัน bridge แบบ manual ก่อน (`powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"`) ให้แน่ใจว่าทำงานได้แบบเดียวกับที่เครื่องบ้าน
-4. **ตั้ง Task Scheduler ให้ bridge auto-start ตอน login** — ขั้นตอนละเอียดอยู่ใน `bridge/README.md` หัวข้อ "ตั้งให้รันอัตโนมัติทุกครั้งที่ล็อกอินเข้าเครื่อง" (Create Task → Trigger "At log on" → Action รัน `powershell.exe` พร้อม argument ชี้ไปที่ path จริงบนเครื่อง Office)
-5. ทดสอบ end-to-end ที่เครื่อง Office เหมือนที่ทำสำเร็จที่บ้าน (เปิดไฟล์ log sheet ใน Excel ค้างไว้ → เข้าเว็บ production → import ไฟล์เดียวกัน → Save Remark → เช็คว่า comment ขึ้นใน Excel จริง)
-6. ถ้าเจอ "ไม่พบไฟล์นี้เปิดอยู่ใน Excel" ทั้งที่เปิดถูกต้องแล้ว ให้เช็คก่อนว่ามี Excel process ซ้อนกันไหม (ดูรายละเอียดในหัวข้อบั๊กที่เจอด้านบน)
-7. ทำ Task Scheduler ให้เครื่องบ้าน (PC 4000D) ด้วยเหมือนกัน (ตอนนี้ยังเป็น manual อยู่ ตามข้อ "ค้างอยู่ตรงไหน" ข้อ 1) — จะได้ไม่ต้องเปิด bridge มือทุกครั้ง
+1. รัน `Register-ScheduledTask` ตามคำสั่งที่เตรียมไว้ (ดูข้อ "ค้างอยู่ตรงไหน" ข้อ 1) เพื่อสร้าง Task Scheduler task ชื่อ `Plant Log Analyzer - Excel Bridge`
+2. หลังสร้างแล้ว ทดสอบ Task Scheduler จริงด้วยการ log off/log on ใหม่ (หรือ log on ด้วย account operator คนอื่นถ้าทำได้หน้างาน) ว่า bridge auto-start เองโดยไม่ต้องเปิดมือ
+3. ลบเศษโฟลเดอร์ `.git` ว่างที่ `C:\Users\26007294\Monitor log sheet boardman\` ทิ้ง
+4. Commit doc changes (`bridge/README.md`, `HANDOFF.md`) เมื่อพร้อม
+5. ทำ Task Scheduler ให้เครื่องบ้าน (PC 4000D) ด้วยเหมือนกัน (ยังเป็น manual อยู่)
 
 ---
 
@@ -63,9 +85,9 @@ Branch: `main` | Commit ล่าสุดบน `origin/main`: `6a7b628` (`Fix 
 ## 🔧 คำสั่งที่ต้องรันก่อนทำงานต่อ
 
 ```bash
-cd "C:\Users\26007294\Monitor log sheet boardman"   # path เครื่อง Office — แก้ตามจริง
+cd "D:\Monitor log sheet boardman"   # ที่ตั้งใหม่ที่เครื่อง Office (ย้ายจาก C:\Users\26007294\... แล้ว)
 git pull
-npm install   # ถ้ายังไม่เคยลงที่เครื่องนี้
+npm install   # ถ้ายังไม่เคยลงที่เครื่องนี้ (เครื่อง Office ยังไม่มี Node.js ณ ตอนนี้)
 npm test      # ควรผ่าน 35/35
 ```
 

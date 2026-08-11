@@ -26,13 +26,27 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 
 ## ตั้งให้รันอัตโนมัติทุกครั้งที่ล็อกอินเข้าเครื่อง (แนะนำ)
 
-ใช้ Windows Task Scheduler ให้รันสคริปต์นี้ตอน login โดยไม่ต้อง double-click เอง:
+ใช้ Windows Task Scheduler ให้รันสคริปต์นี้ตอน login โดยไม่ต้อง double-click เอง วิธีตั้งต่างกันเล็กน้อยตามลักษณะเครื่อง:
+
+**เครื่อง single-user** (มีคนเดียวใช้ login account เดียวตลอด เช่น PC บ้าน):
 
 1. เปิด **Task Scheduler** → Create Task
 2. **General**: ตั้งชื่อ เช่น `Plant Log Analyzer - Excel Bridge`, เลือก "Run only when user is logged on"
 3. **Triggers** → New → "At log on" (เลือกเฉพาะ user account ของตัวเอง)
 4. **Actions** → New → Program/script: `powershell.exe`, Add arguments: `-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\path\to\bridge\excel-bridge.ps1"` (แก้ path ให้ตรงกับตำแหน่งจริงบนเครื่อง)
 5. บันทึก แล้วทดสอบด้วยการ log off/log on ใหม่ หรือคลิกขวา task ที่สร้าง → Run
+
+**เครื่อง shared ที่ operator หลายคน login คนละ account** (เช่น PC หน้างานที่ผลัดกันใช้):
+
+- **ห้ามเก็บ repo ไว้ใต้ profile ส่วนตัว** (`C:\Users\<username>\...`) เพราะ account อื่นจะอ่าน/รันไฟล์ไม่ได้ตามสิทธิ์ NTFS ปกติ — ต้องย้ายทั้ง repo ไปไว้ที่ drive/โฟลเดอร์กลางที่ไม่ผูกกับ user คนใดคนหนึ่ง (เช่น `D:\Monitor log sheet boardman` ถ้ามี local fixed drive แยกที่ไม่ใช่ profile drive) แล้วให้สิทธิ์ `BUILTIN\Users` อ่าน+รันได้ เช่น `icacls "D:\path" /grant "Users:(OI)(CI)RX" /T` (หลีกเลี่ยง network/mapped drive เพราะ drive letter มักผูกกับ login script ของแต่ละ account เหมือนปัญหาเดิม)
+- ตั้ง Trigger ให้เป็น **"At log on"** แบบ **Any user** (ไม่ใช่ "Specific user") — ให้ task ทำงานทุกครั้งที่มีใคร login เข้าเครื่องนี้ก็ตาม ยังคงเลือก "Run only when user is logged on" เหมือนเดิม (ต้องรันในเซสชันของ user ที่ login จริง ถึงจะคุม Excel ผ่าน COM ของ user คนนั้นได้)
+- ตั้งผ่าน PowerShell ได้เร็วกว่าคลิก GUI ทีละ operator:
+  ```powershell
+  $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "D:\path\to\bridge\excel-bridge.ps1"'
+  $trigger = New-ScheduledTaskTrigger -AtLogOn
+  $principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Limited
+  Register-ScheduledTask -TaskName "Plant Log Analyzer - Excel Bridge" -Action $action -Trigger $trigger -Principal $principal
+  ```
 
 ## ตั้งค่า $AllowedOrigins
 
