@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.76)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.77)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -511,8 +511,9 @@
                             <i data-lucide="settings-2" class="w-5 h-5 text-indigo-500"></i> การตั้งค่าเกณฑ์ควบคุม & จัดการ Standby
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
-                            <li><strong>เมนู Tag Master:</strong> หากไฟล์ Excel ระบุค่า Min/Max ผิด สามารถกดปุ่ม "Edit Overrides" เพื่อบังคับใช้ค่าควบคุมใหม่ได้</li>
-                            <li><strong>ระบบ Absolute Zero Shield:</strong> <span class="text-red-500 font-bold">บอกลาปัญหา 0.00 กวนใจ!</span> ไม่ว่าลิมิตของเครื่องจักรจะเป็นอย่างไร หากอ่านค่าได้ `0` หรือใกล้เคียงศูนย์ ระบบจะเพิกถอนสถานะสีแดง และเปลี่ยนเป็น <strong>STANDBY (เครื่องปิด/การ์ดสีเทา)</strong> อัตโนมัติ</li>
+                            <li><strong>เมนู Tag Master:</strong> หากไฟล์ Excel ระบุค่า Min/Max ผิด สามารถกดปุ่ม "Edit Overrides" เพื่อบังคับใช้ค่าควบคุมใหม่ได้ — ค่าที่ตั้งไว้จะ<strong>อยู่ถาวร</strong> ไม่ถูกลบเมื่อ import ไฟล์ใหม่ หรือกดปุ่ม "ล้างฐานข้อมูล" (ปุ่มนั้นล้างเฉพาะ Records เท่านั้น)</li>
+                            <li><strong>ระบบ Absolute Zero Shield:</strong> <span class="text-red-500 font-bold">บอกลาปัญหา 0.00 กวนใจ!</span> ไม่ว่าลิมิตของเครื่องจักรจะเป็นอย่างไร หากอ่านค่าได้ `0` หรือใกล้เคียงศูนย์ ระบบจะเพิกถอนสถานะสีแดง และเปลี่ยนเป็น <strong>STANDBY (เครื่องปิด/การ์ดสีเทา)</strong> อัตโนมัติ — ปิดการทำงานนี้เฉพาะ Tag ได้ด้วยติ๊ก "ปิดการตรวจจับ Standby อัตโนมัติ" ในหน้า Edit Overrides</li>
+                            <li><strong>Force Standby:</strong> สำหรับเครื่องที่ค่าปกติตอนหยุดทำงานไม่ใกล้ศูนย์ (เช่น sensor สั่นสะเทือนที่อ่านค่า ~13 ตอนเครื่องจอด) ให้ติ๊ก "เครื่องอยู่ในสถานะ Standby ตอนนี้" เพื่อบังคับให้ Tag นั้นเป็น Standby เสมอโดยไม่สนค่าที่อ่านได้</li>
                         </ul>
                     </div>
 
@@ -539,6 +540,7 @@
                             <li>ใช้ <strong>"เมนูคัดเลือกอัตโนมัติ ⚡"</strong> เพื่อเลือกจำนวนพารามิเตอร์เข้าสู่รายงาน (Top 3, Top 5, Top 10)</li>
                             <li>ระบบจะคำนวณเปอร์เซ็นต์ความหลุดขอบ และคัด <strong>พารามิเตอร์ที่ไม่ซ้ำกัน</strong> ที่อาการหนักที่สุดให้แบบอัตโนมัติ (ข้ามค่า Standby เด็ดขาด)</li>
                             <li>หากต้องการเริ่มเลือกใหม่ สามารถกดปุ่ม <strong>"✕ ล้างการเลือก"</strong> เพื่อเคลียร์เครื่องหมายถูกออกทั้งหมด</li>
+                            <li>ต้องการรวมทุกพารามิเตอร์ที่มองเห็นในตารางตอนนี้เข้ารายงาน ไม่ว่าจะปกติหรือผิดปกติ ให้กดปุ่ม <strong>"เลือกทั้งหมด"</strong> แทนการเลือกทีละแถว</li>
                         </ul>
                     </div>
 
@@ -552,12 +554,54 @@
                             <li>เมื่อเลือกพารามิเตอร์แล้ว กดปุ่ม <strong>"สรุปเป็นรูปภาพ (Smart)"</strong> ที่แถบด้านล่าง</li>
                             <li>กรอกข้อมูลกะการทำงาน ข้อมูลบนภาพ Live Preview จะอัปเดตตามทันที</li>
                             <li><strong>Offline Smart Agent:</strong> ระบบจะเขียน "สรุปภาพรวมกะ (Executive Summary)" ไว้ด้านล่างสุดของรูปภาพให้แบบอัตโนมัติ</li>
+                            <li><strong>สลับรูปแบบรายงาน Card ⇄ Table:</strong> ที่มุมขวาบนของ Live Preview เลือกได้ว่าจะให้รูปที่ export ออกมาแสดงเป็นการ์ดแยกรายตัว หรือเป็นตารางรวมทุกพารามิเตอร์ในหน้าเดียว</li>
                             <li>กด <strong>"Save as Image (JPG)"</strong> เพื่อบันทึกรูปและแชร์เข้า LINE กลุ่มผู้บริหารได้เลย!</li>
                         </ul>
                     </div>
-                    
+
+                    <!-- Step 6 -->
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-teal-300 transition-colors">
+                        <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
+                            <span class="bg-teal-100 text-teal-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">6</span>
+                            <i data-lucide="lightbulb" class="w-5 h-5 text-teal-500"></i> ระบบแนะนำการแก้ไข (Countermeasure)
+                        </h3>
+                        <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
+                            <li>ในหน้าต่างบันทึกปัญหา กดปุ่ม <strong>"Auto-Draft"</strong> เพื่อให้ระบบดึงคำแนะนำที่ผูกกับ Tag No และทิศทาง (สูง/ต่ำ) มาเติมในช่อง Resolution Remark ให้อัตโนมัติ</li>
+                            <li>หากคำแนะนำมาจากฐานข้อมูลที่ทีมวิศวกรรมคิวเรทไว้ล่วงหน้า จะมี Badge <strong>"จากคู่มือ"</strong> กำกับไว้ — คำแนะนำกลุ่มนี้มีความสำคัญเหนือกว่าเสมอ</li>
+                            <li>เมนู <strong>"Countermeasure"</strong> ที่แถบซ้าย เป็นตารางให้เพิ่ม/แก้ไข/ลบคำแนะนำของตัวเองสำหรับ Tag ที่ยังไม่มีในคู่มือ — <strong>ข้อควรระวัง:</strong> ถ้า Tag+ทิศทางนั้นมีคำแนะนำจากคู่มืออยู่แล้ว ข้อมูลที่เพิ่มเองจะยังไม่ถูกใช้งาน จนกว่าคำแนะนำจากคู่มือจะถูกลบออกก่อน</li>
+                        </ul>
+                    </div>
+
+                    <!-- Step 7 -->
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-violet-300 transition-colors">
+                        <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
+                            <span class="bg-violet-100 text-violet-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">7</span>
+                            <i data-lucide="refresh-cw" class="w-5 h-5 text-violet-500"></i> ซิงก์ข้อมูลกลับ Excel อัตโนมัติ (Excel Bridge)
+                        </h3>
+                        <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
+                            <li>เมื่อกด <strong>"Save Remark"</strong> ระบบจะพยายามเขียน Resolution Remark กลับไปเป็น Comment บน cell ต้นฉบับใน Excel ให้อัตโนมัติ (ไม่ต้องพิมพ์ซ้ำในไฟล์ Excel เอง)</li>
+                            <li><strong>ข้อกำหนดก่อนใช้งาน:</strong> ต้องรันโปรแกรม <strong>Local Bridge</strong> (<code class="bg-slate-100 px-1.5 py-0.5 rounded text-violet-600">bridge/excel-bridge.ps1</code>) ค้างไว้บนเครื่อง และต้องเปิดไฟล์ Excel ต้นฉบับค้างไว้ระหว่างซิงก์ (ดูวิธีติดตั้ง/ตั้ง autostart ใน <code class="bg-slate-100 px-1.5 py-0.5 rounded text-violet-600">bridge/README.md</code>)</li>
+                            <li>ข้อความสถานะที่ขึ้นใต้ช่อง Resolution Remark บอกผลลัพธ์ 6 แบบ: บันทึกสำเร็จ / ไฟล์เก่าที่ import มาก่อนฟีเจอร์นี้ (ต้อง import ใหม่) / ไม่พบ Local Bridge เปิดอยู่ / ไม่พบไฟล์นี้เปิดอยู่ใน Excel / มีคนพิมพ์คอมเมนต์ไว้ในเซลล์แล้ว (ระบบจะไม่เขียนทับให้) / และ error ทั่วไป</li>
+                            <li>สำหรับเครื่องที่ใช้ร่วมกันหลายคน (Shared PC) มีไฟล์ launcher ผ่าน Excel Hyperlink ให้เปิด Bridge ได้ง่ายโดยไม่ต้องเข้า PowerShell เอง</li>
+                        </ul>
+                    </div>
+
+                    <!-- Step 8 -->
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-rose-300 transition-colors">
+                        <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
+                            <span class="bg-rose-100 text-rose-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">8</span>
+                            <i data-lucide="database-backup" class="w-5 h-5 text-rose-500"></i> สำรอง/กู้คืนข้อมูล & ประวัติการนำเข้า
+                        </h3>
+                        <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
+                            <li>แถบซ้ายล่างมีปุ่ม <strong>"สำรองข้อมูล"</strong> (ดาวน์โหลดไฟล์สำรอง) และ <strong>"กู้คืนข้อมูล"</strong> (นำไฟล์สำรองกลับเข้าระบบ) — แนะนำให้สำรองก่อนเปลี่ยนเครื่องหรือล้าง browser data</li>
+                            <li>ปุ่ม <strong>"ล้างฐานข้อมูล"</strong> ลบเฉพาะ Records (ข้อมูล reading ที่ import มา) เท่านั้น — Tag Database และ Master Tag overrides จะไม่ถูกลบ ไม่ต้องตั้งค่าลิมิตใหม่ทุกกะ</li>
+                            <li>หากไม่ได้สำรองข้อมูลมานาน จะมีแบนเนอร์แจ้งเตือนสีเหลืองขึ้นที่ด้านบนของ Dashboard ให้กดสำรองได้ทันที</li>
+                            <li>หน้า "นำเข้าข้อมูล" มีพาแนล <strong>"ประวัติการนำเข้าไฟล์ (Import History)"</strong> ไว้ตรวจสอบย้อนหลังว่าเคย import ไฟล์ไหนไปแล้วบ้าง</li>
+                        </ul>
+                    </div>
+
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.76 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.77 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by Supasit@1981th</p>
                     </div>
                 </div>
