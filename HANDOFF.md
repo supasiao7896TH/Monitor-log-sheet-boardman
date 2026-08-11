@@ -1,126 +1,97 @@
 # HANDOFF — Plant Log Analyzer
 
 ## 📅 อัปเดตล่าสุด
-2026-08-11 — เครื่อง: PC `26007294` (ที่ทำงาน / Office)
-Branch: `main` | Commit ล่าสุดที่ push แล้ว: `22416d8` (ตรงกับ `origin/main` ณ ตอนนั้น) — **มีการแก้ไขเพิ่มหลังจากนั้นที่ยังไม่ commit** ดูเรื่องที่ 4 ด้านล่าง
-**Repo ย้ายที่เก็บแล้ว: `D:\Monitor log sheet boardman`** (จากเดิม `C:\Users\26007294\Monitor log sheet boardman`) — ดูเหตุผลด้านล่าง
-สถานะ repo: มีไฟล์แก้ไขค้าง (V29.75 bug fix, ดูเรื่องที่ 4), ไฟล์ข้อมูลหน้างานจริงที่ตั้งใจไม่ commit ยังอยู่ครบ (`Log sheet 08-3-26.xls` ลบไว้, `*.xlsm` untracked)
+2026-08-11 — เครื่อง: PC `4000D` (บ้าน / Home)
+Branch: `main` | Commit ล่าสุด: `2b81b3b` — **ตรงกับ `origin/main` แล้ว, working tree clean สนิท** (`git status --short` ไม่มี output)
+เวอร์ชันแอปปัจจุบัน: **V29.81**
+
+> ⚠️ HANDOFF.md ฉบับก่อนหน้า (เขียนที่เครื่อง Office `26007294`) ค้างข้อมูลไว้ที่ commit `22416d8` และบอกว่า "เรื่องที่ 4" (Threaded Comment fix) ยังไม่ commit — ความจริงตอนเริ่ม session นี้ที่เครื่องบ้าน `origin/main` ไปไกลกว่านั้นแล้ว 10 commits (รวม "เรื่องที่ 4" ที่ commit ไปแล้วเป็น `952d8f5`) เนื้อหาเก่าด้านล่างเก็บไว้เป็นบันทึกประวัติ แต่**ให้ยึดหัวข้อนี้กับ session log ด้านล่างเป็นสถานะจริงล่าสุด**
 
 ---
 
-## ✅ เรื่องที่ 4 — Bug fix: Sync Excel ล้มเหลวเงียบๆ เมื่อเซลล์มี Threaded Comment ค้างอยู่ (V29.75)
+## ✅ เรื่องที่ 5 — Bug fix: Auto-import/auto-archive มองไฟล์ lock ของ Excel เป็นไฟล์ที่ 2 (V29.81) — เครื่องบ้าน
 
-**อาการ:** Tag `LI-2601` (PD-601 Level) กด Save Remark แล้ว sync กลับ Excel ไม่สำเร็จ ขึ้น error ทั่วไป ส่วน Tag อื่นจาก sheet อื่นสำเร็จปกติ
+**บริบท:** `git pull` เข้ามา 10 commits ที่ยังไม่เคยบันทึกใน HANDOFF.md เลย ก่อนเริ่มแก้บั๊กนี้ (ดูรายละเอียดครบใน "เรื่องที่ 6" ด้านล่าง) — สรุปสั้นๆ คือมี V29.75–V29.80 เข้ามาแล้ว รวมถึงฟีเจอร์ auto-import/auto-archive (V29.78) ที่โพลไฟล์ล่าสุดจาก watch folder แล้ว archive สำเนาไว้กันข้อมูลหาย
 
-**Root cause (ยืนยันแล้วจาก DevTools Network response):** `bridge/excel-bridge.ps1` เช็ค comment เดิมผ่าน legacy `.Comment` property (Notes แบบเก่า) เท่านั้น — ถ้าเซลล์มี **Threaded Comment** (ระบบ default ของปุ่ม "New Comment" ใน Excel 2019+/365) ค้างอยู่จากที่ operator เคยพิมพ์เองตรงๆ ใน Excel มาก่อน ฟีเจอร์นี้จะมองไม่เห็น (คิดว่าเซลล์ว่าง) แล้วพยายาม `AddComment()` (สร้าง legacy Note) ทับ ทำให้ Excel COM throw `Exception from HRESULT: 0x800A03EC` (error message ทั่วไปมาก ไม่บอกสาเหตุ)
+**สิ่งที่ทำ:** ตามคำขอพี่ A ให้ทดสอบฟีเจอร์ auto-import/auto-archive (V29.78/V29.80) แบบ end-to-end จริงจัง — copy `bridge/excel-bridge.ps1` ไปไว้ที่ scratchpad ชั่วคราว override ค่าคงที่ `$WatchFolder`/`$ArchiveFolder` ให้ชี้ไปโฟลเดอร์ทดสอบ (**ไม่ได้แตะ path จริงที่ hardcode ไว้ในสคริปต์** `D:\PTA COMMONT WORK\Log sheet Digital` / `D:\Monitor log sheet boardman` — สองที่นี้ไม่มีอยู่จริงบนเครื่องบ้านด้วยซ้ำ) รันเป็น background HTTP listener จริงที่ port 5175 แล้วยิง request จริงเข้า `/ping`, `/source-file-info`, `/source-file`, `/archive-source-file` ครอบคลุมกรณี: เลือกไฟล์ถูกต้องโดย ignore ไฟล์ `(master)`, โอนไฟล์แบบ byte-for-byte เป๊ะ, error กรณีไฟล์ผู้สมัครหลายไฟล์กำกวม, ไม่พบไฟล์เลย, CORS origin ที่ไม่อนุญาต (403), sharing-violation จริง (เปิดไฟล์ทดสอบด้วย `FileShare.None` จากอีก handle จำลอง PI Datalink กำลังเขียน → ได้ `file-locked` ถูกต้อง), archive ซ้ำแบบ idempotent, และพิสูจน์ตรงๆ ว่า V29.80 (InvariantCulture) ทำงานถูก — เทียบ `(Get-Date).ToString('MMM yy')` ภายใต้ thread culture `th-TH` จำลอง (ได้ `"ส.ค. 69"` ผิด — พ.ศ. 2 หลัก + เดือนไทย) กับโค้ดจริงที่ใช้ `InvariantCulture` (ได้ `"Aug 26"` ถูกต้องไม่ว่า locale เครื่องจะเป็นอะไร)
 
-**วิธี debug:** เพิ่ม try/catch แยกแต่ละขั้นตอนใน `Handle-WriteRemark` ก่อน (Range access / Comment read / Delete / AddComment / Save) เพื่อระบุว่าพังตรงจุดไหน — ยืนยันว่าพังตรง `AddComment()` เป๊ะ
+**บั๊กที่เจอ (ของจริง ไม่เคยมีใครรู้มาก่อน):** `Resolve-SourceFile` ใน `bridge/excel-bridge.ps1` (ใช้ร่วมกันทั้ง auto-import และ auto-archive) กรองเฉพาะชื่อไฟล์ที่มี `"(master)"` ออกจาก candidate list เท่านั้น — **ไม่ได้กรองไฟล์ lock ของ Excel เอง** (`~$<filename>` เช่น `~$P1-F-2002-22 (11-08-26) (Digital).xlsm`) ซึ่ง Windows/Excel สร้างขึ้นอัตโนมัติในโฟลเดอร์เดียวกันทุกครั้งที่ไฟล์ต้นฉบับเปิดอยู่ — และฟีเจอร์ write-back ทั้งหมด **บังคับให้ operator เปิดไฟล์ค้างไว้ใน Excel ตลอดกะ** อยู่แล้ว แปลว่าไฟล์ lock นี้จะอยู่แทบตลอดเวลาขณะใช้งานจริง → `Resolve-SourceFile` จะเจอ "2 ไฟล์ผู้สมัคร" แล้วคืน error กำกวมแทบตลอด ทำให้ auto-import/auto-archive พังเงียบๆ ในสภาวะใช้งานปกติทั่วไป — ยืนยัน reproduce ได้จริง (สร้างไฟล์ `~$...xlsm` จริงคู่กับไฟล์ทดสอบ ยืนยัน `/source-file-info` error "พบไฟล์มากกว่า 1 ไฟล์" ผิดพลาดจริง)
 
-**Fix จริง:** เพิ่มเช็ค `$range.CommentThreaded` คู่กับ `.Comment` เดิม — ถ้ามี Threaded Comment อยู่แล้ว (ไม่ว่าใครพิมพ์ เพราะแอปเองไม่เคยสร้าง Threaded Comment เลย เขียนแต่ legacy Note เสมอ) ให้ถือเป็น `conflict` เหมือน legacy comment เดิม (ไม่เขียนทับ แจ้ง operator ให้ตรวจสอบเอง) แทนที่จะปล่อยให้ Excel COM throw exception ทั่วไป
+**Fix:** เพิ่มเงื่อนไข `-and $_.Name -notlike '~$*'` ใน `Where-Object` filter ของ `Resolve-SourceFile` (`bridge/excel-bridge.ps1` ราวบรรทัด 67) พร้อมคอมเมนต์ `V29.81 FIX` (สไตล์เดียวกับคอมเมนต์ `V29.75 FIX` เดิมในไฟล์เดียวกัน) — รัน reproduction test ชุดเดิมซ้ำกับสคริปต์ที่แก้แล้ว ยืนยันว่าเลือกไฟล์จริงถูกต้อง ไม่สนใจไฟล์ `~$...` แล้ว
 
-**ไฟล์ที่แก้:** `bridge/excel-bridge.ps1` เท่านั้น, bump เป็น **V29.75** (`index.html` title + System Version label, `CLAUDE.md`/`AGENTS.md`)
+**ไฟล์ที่แก้:** `bridge/excel-bridge.ps1`, `index.html` (title บรรทัด 6 + label "System Version" บรรทัด 664) — bump เป็น **V29.81**
 
-**สถานะ:** แก้โค้ดแล้ว รอพี่ A ทดสอบซ้ำที่เครื่อง Office (restart bridge ก่อนถึงจะได้โค้ดใหม่) ยังไม่ได้ยืนยันว่า fix ผ่านจริง และ **ยังไม่ได้ commit**
+**การยืนยัน:** `npm test` ผ่าน 49/49 ทั้งก่อนและหลังแก้ (ไม่มี automated coverage สำหรับ logic PowerShell นี้เลย — บั๊กนี้เจอและยืนยัน fix ทั้งหมดผ่านการทดสอบ HTTP-level ด้วยมือกับ instance จริงที่รันอยู่ใน session นี้ ไม่ใช่ vitest)
 
----
+**Commit:** `2b81b3b` "Fix auto-import/archive seeing Excel's own lock file as a second file (V29.81)" — 2 ไฟล์ (`bridge/excel-bridge.ps1`, `index.html`) — **push ขึ้น `origin/main` แล้ว** (`8537334..2b81b3b`)
 
-## ✅ ทำอะไรเสร็จไปแล้วบ้าง (session นี้ — เครื่อง Office)
-
-**เรื่องที่ 1 — Sync โค้ดล่าสุด:** `git pull` จาก `34a719e` → `27d4c37` (fast-forward, ไม่มี conflict) ได้โฟลเดอร์ `bridge/` (V29.74 Local Excel Bridge ที่ทำเสร็จที่บ้านเมื่อคืน) เข้ามาที่เครื่องนี้แล้ว
-
-**เรื่องที่ 2 — ย้าย repo จาก `C:\Users\26007294\...` ไป `D:\Monitor log sheet boardman`:**
-
-**สาเหตุ:** เครื่อง Office นี้ operator แต่ละคน login คนละ Windows username จริง (ไม่ใช่ account เดียวใช้ร่วมกัน) — ถ้าเก็บ repo ไว้ใต้ profile ส่วนตัว (`C:\Users\26007294\...`) จะมี 2 ปัญหา: (1) NTFS permission ไม่ให้ account อื่นอ่าน/รันไฟล์ในนั้น (2) Task Scheduler trigger "At log on" แบบเดิมผูกกับ account เดียว operator คนอื่น login แล้ว bridge จะไม่ auto-start ให้
-
-**ที่ตั้งใหม่ที่เลือก:** `D:\` — ตรวจแล้วเป็น **Local Fixed drive จริง** (ไม่ใช่ profile, ไม่ใช่ network) เหลือพื้นที่ 106 GB ส่วน `J:`/`K:`/`L:` ที่มีในเครื่องเป็น **Network (mapped) drive** ไม่เลือกเพราะผูกกับ login script ของแต่ละ account เหมือนปัญหาเดิม
-
-**ขั้นตอนที่ทำไปแล้ว:**
-1. ย้ายทั้งโฟลเดอร์ (`.git` ติดไปด้วย ไม่ต้อง clone ใหม่) จาก `C:\Users\26007294\Monitor log sheet boardman` → `D:\Monitor log sheet boardman` — ยืนยันแล้วว่า `git log`/`git status` ที่ตำแหน่งใหม่ตรงกับก่อนย้ายทุกอย่าง
-   - **หมายเหตุ:** เหลือโฟลเดอร์ `.git` ว่างเปล่าค้างอยู่ที่ `C:\Users\26007294\Monitor log sheet boardman\.git` (ลบไม่สำเร็จตอนย้ายเพราะติด process lock ชั่วคราว, ไม่มีข้อมูลอยู่ข้างในแล้ว) — **ต้องลบโฟลเดอร์นี้ทิ้งเองผ่าน File Explorer** ทีหลัง (ไม่กระทบการใช้งานอะไร แค่เป็นเศษที่ค้าง)
-2. ตั้ง NTFS permission ให้ `BUILTIN\Users` (ครอบคลุมทุก local account) อ่าน+รันได้บนโฟลเดอร์ใหม่: `icacls "D:\Monitor log sheet boardman" /grant "Users:(OI)(CI)RX" /T` — สำเร็จ (พบว่า drive `D:` root มี `BUILTIN\Users:(I)(OI)(CI)(F)` inherited อยู่แล้วด้วย ยิ่งมั่นใจว่าทุก account เข้าถึงได้)
-3. ยืนยันแล้วว่า `bridge/excel-bridge.ps1` **ไม่มี hardcoded path เลย** — ย้ายที่เก็บได้โดยไม่ต้องแก้โค้ดสคริปต์นี้แม้แต่บรรทัดเดียว
-4. **ทดสอบ end-to-end จากตำแหน่งใหม่ (`D:\`) สำเร็จแล้ว** — เปิดไฟล์ log sheet ค้างไว้ใน Excel → รัน `bridge\excel-bridge.ps1` จาก `D:\Monitor log sheet boardman` (`/ping` ตอบ `{"status":"ok"}` ปกติ) → เข้าเว็บ production → import ไฟล์เดียวกัน → Save Remark → **พี่ A ยืนยันว่าทำงานถูกต้องครบถ้วน** comment ขึ้นใน Excel จริง
-5. Commit doc changes (`bridge/README.md`, `HANDOFF.md`) แล้ว — commit `1e99d15`
-
-**เรื่องที่ 3 — Task Scheduler + ปุ่ม Hyperlink สำหรับ operator คนอื่น:**
-
-ลองสร้าง Task Scheduler แบบ "Any user" (`-GroupId "BUILTIN\Users"`) แล้วโดน Windows ปฏิเสธ **`Access is denied`** — ยืนยันแล้วว่า account `pttgc\26007294` **ไม่มีสิทธิ์ local Administrator** (`whoami /groups` ไม่มี Admin group เลย) และ Task Scheduler บังคับต้องใช้สิทธิ์ Admin เสมอสำหรับ trigger ที่ผูกกับ group principal ไม่ว่าใครรันก็ตาม
-
-**แนวทางที่ทำแทน (พี่ A เลือกเอง):**
-1. **✅ สร้าง Task Scheduler แบบ "Specific user" สำเร็จแล้ว** — ผูกกับ account พี่ A (`PTTGC\26007294`) เท่านั้น ไม่ต้องใช้สิทธิ์ Admin (ยืนยัน `State: Ready`, trigger `UserId: PTTGC\26007294`, principal `LogonType: Interactive, RunLevel: Limited`) — bridge จะ auto-start เองเฉพาะตอนพี่ A login เท่านั้น ยังไม่ครอบคลุม operator คนอื่น
-2. **✅ สร้าง `bridge/start-bridge.bat`** — ตัวกลางเรียก `excel-bridge.ps1` (ใช้ `%~dp0` หา path ตัวเองเสมอ) เพื่อให้ operator คนอื่นเปิด bridge ได้ง่ายโดยไม่ต้องพิมพ์คำสั่ง PowerShell เอง — double-click ได้ตรงๆ หรือเปิดผ่าน Hyperlink ใน Excel
-3. **✅ อัปเดต `bridge/README.md`** — แก้หัวข้อ Task Scheduler ให้ตรงกับสถานการณ์จริง (Any-user ต้องใช้ Admin, ถ้าไม่มีให้ใช้ Specific-user + ปุ่ม Hyperlink แทน) เพิ่มหัวข้อใหม่ "ปุ่มเปิด Bridge จาก Excel" พร้อม Troubleshooting เพิ่ม 2 แถว
-4. **สูตร Hyperlink ที่พี่ A ต้องนำไปแปะเองในไฟล์ log sheet จริง** (ยังไม่ได้แปะ — พี่ A ทำเอง):
-   ```excel
-   =HYPERLINK("D:\Monitor log sheet boardman\bridge\start-bridge.bat", "▶ เปิด Excel Bridge (กดตอนเริ่มกะ)")
-   ```
-   ครั้งแรกที่กดอาจขึ้น dialog เตือนความปลอดภัยของ Excel (ปกติ กด Allow/Yes ได้)
+**สถานะ:** แก้เสร็จ + commit + push แล้ว **แต่ยังไม่มีใครยืนยันบน production/สภาพแวดล้อมจริง** — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 1
 
 ---
 
-## ✅ ทำอะไรเสร็จไปแล้วบ้าง (session ก่อนหน้า — เครื่องบ้าน, สำเร็จและยืนยันด้วยการใช้งานจริงแล้ว)
+## ✅ เรื่องที่ 6 — Sync สถานะจาก `origin/main` (10 commits ที่ HANDOFF.md ฉบับเก่าไม่เคยบันทึก) — เครื่องบ้าน
 
-**ปัญหาต้นเรื่อง:** ฟีเจอร์ sync Resolution Remark กลับเป็น Excel comment ทำให้ไฟล์ export ไม่เหมือนต้นฉบับ
+`git pull` ตอนต้น session นี้: fast-forward `27d4c37` → `8537334` (10 commits ไม่มี conflict, ไม่มีงานค้างที่เครื่องบ้านหาย — tree สะอาดอยู่แล้ว มีแค่ `index.html.bak` เป็น untracked ที่ไม่เกี่ยวข้อง ลบทิ้งแล้วตามคำขอพี่ A) commits ที่เข้ามา (เรียงเก่า→ใหม่):
 
-**สืบสวนพบว่า** ไม่มีไลบรารี JS ฟรีตัวไหน (SheetJS, exceljs) เขียนไฟล์ log sheet จริงกลับได้ปลอดภัย (ไฟล์มีสูตรเชื่อม PI Datalink แบบ live — เขียนผ่าน JS แล้ว Excel จะกลายเป็น `#NAME?` ทุกช่อง หรือ SheetJS เขียน `.xls` แล้ว Excel เปิดไม่ได้เลย) → เปลี่ยนสถาปัตยกรรมทั้งหมดให้ **Excel ตัวจริงเป็นคนเขียนเอง** ผ่าน:
+| Commit | เรื่อง |
+|---|---|
+| `1e99d15` | Document Excel Bridge multi-user setup for shared Office PC |
+| `22416d8` | Add Excel-hyperlink launcher for Bridge on shared multi-user PCs |
+| `952d8f5` | **V29.75** — Fix silent Excel-sync failure when a cell already has a Threaded Comment (นี่คือ "เรื่องที่ 4" ที่ HANDOFF.md ฉบับเก่าบอกว่ายังไม่ commit — จริงๆ commit ไปแล้ว) |
+| `a293f27` | Record V29.75 fix and multi-user bridge deployment pattern in context.md |
+| `834d92e` | **V29.76** — Add Card/Table layout toggle to the Infographic Report |
+| `05b6a98` | **V29.77** — Expand in-app user manual to cover recent features |
+| `64fae6a` | Replace personal branding "Supasit.A" → **"A(i)CODER"** |
+| `78ccb1a` | **V29.78** — Add auto-import/auto-archive Excel Bridge (โพล watch folder หาไฟล์ log sheet ล่าสุดแล้ว import อัตโนมัติ + archive สำเนาไว้กันข้อมูลหาย), fix dashboard perf, harden storage |
+| `db0aac6` | **V29.79** — Fix auto-imported records getting wrong `sourceFileName` |
+| `8537334` | **V29.80** — Archive auto-saved log sheets into a monthly subfolder (เช่น "Aug 26") ใช้ `InvariantCulture` กันปัญหา locale |
 
-**`bridge/excel-bridge.ps1`** — PowerShell script รันบนเครื่อง operator เอง เปิด HTTP listener ที่ `localhost:5175`, หา workbook ที่เปิดอยู่ใน Excel จากชื่อไฟล์ แล้วสั่งเขียน/ลบ comment ผ่าน COM automation จริง
-
-**สถานะ: ทดสอบ end-to-end ผ่านจริงครบวงจรแล้ว** (พี่ A ทดสอบเองที่เครื่องนี้ 2026-08-10 ดึก) — เปิดไฟล์ log sheet ใน Excel ค้างไว้ → รัน bridge ผ่าน PowerShell → เข้าเว็บ production (`https://monitor-log-sheet-boardman.supasiao.workers.dev`) → import ไฟล์เดียวกัน → กด Save Remark → **comment ขึ้นใน Excel จริงสำเร็จ**
-
-**บั๊กที่เจอระหว่างทดสอบและแก้ไปแล้วทั้งหมด:**
-1. Modal ปิดตัวเองเร็วเกินไปจนอ่านข้อความสถานะไม่ทัน → แก้แล้ว (commit `6a7b628`) ตอนนี้ปิดอัตโนมัติเฉพาะกรณีสำเร็จ (`ok`) แบบหน่วง 1.2 วิ ส่วนกรณีอื่น (bridge ปิดอยู่/ไม่เจอไฟล์เปิด/conflict) จะค้างให้อ่านจนกว่าจะปิดเอง
-2. เจอ Excel process ค้าง (orphan จากการทดสอบของหนูเอง) ไปแย่งตำแหน่งที่ bridge มองหา ทำให้หาไฟล์ไม่เจอทั้งที่เปิดอยู่จริง — แก้โดย kill process ที่ค้าง (เป็นปัญหาเฉพาะหน้าจากการทดสอบ ไม่ใช่บั๊กถาวรในโค้ด — **ถ้าเจอ "ไม่พบไฟล์นี้เปิดอยู่ใน Excel" ทั้งที่เปิดไฟล์ถูกต้องแล้ว ให้เช็ค Task Manager ว่ามี `EXCEL.EXE` มากกว่า 1 instance ไหม ถ้ามีให้ปิดตัวที่ไม่มีหน้าต่าง (ไม่มี MainWindowTitle) ทิ้ง**)
-
-**อื่นๆ ที่ทำในโค้ด:**
-- `src/modules/excel-writeback.js` — rewrite ใหม่ทั้งหมด (fetch คุยกับ bridge)
-- ลบ `FileSystemFileHandle`/ปุ่ม "นำเข้าและเชื่อมต่อไฟล์"/ปุ่ม "Export Updated Excel" ที่ไม่จำเป็นแล้ว
-- `record.sourceFileId` → `record.sourceFileName` ตรงๆ
-- อัปเดต `CLAUDE.md`/`AGENTS.md`/`context.md`/`bridge/README.md` ครบ, bump เป็น **V29.74**
-- `npm test` ผ่าน 35/35
-- Deploy ขึ้น production ผ่าน GitHub Actions สำเร็จแล้ว (auto-deploy ทุก push เข้า `main`)
+รัน `npm test` (49/49 ผ่าน) และ `npm run dev` เปิดแอปผ่าน browser (claude-in-chrome) เช็คว่า dashboard render ปกติ (301 tags, 1200 data points, 47 abnormalities จาก IndexedDB เดิม) — เป็นแค่ smoke check ทั่วไป ไม่เกี่ยวกับบั๊กที่แก้ทีหลัง
 
 ---
 
 ## 🚧 ค้างอยู่ตรงไหน
 
-1. **สูตร Hyperlink ยังไม่ได้แปะในไฟล์ log sheet จริง** — พี่ A ต้องนำสูตรที่ให้ไว้ (ดูเรื่องที่ 3 ด้านบน) ไปแปะเองในเซลล์ที่ operator เห็นง่าย
-2. **ยังไม่ได้ทดสอบ Task Scheduler จริงด้วยการ log off/log on ใหม่** — สร้าง task แล้ว (`State: Ready`) แต่ยังไม่ได้ยืนยันว่า auto-start จริงตอน login
-3. **ยังไม่ได้ทดสอบปุ่ม `start-bridge.bat`/Hyperlink จริง** — สร้างไฟล์แล้วแต่ยังไม่ได้ double-click ทดสอบ (มี bridge instance เดิมรันจากคำสั่ง PowerShell ค้างอยู่แล้ว ครองพอร์ต 5175 อยู่ — ต้องปิดตัวเดิมก่อนถึงจะทดสอบตัวใหม่ได้)
-4. เศษโฟลเดอร์ `.git` ว่างเปล่าค้างที่ `C:\Users\26007294\Monitor log sheet boardman\.git` — ต้องลบเองผ่าน File Explorer (ไม่กระทบอะไร)
-5. **bridge บนเครื่องบ้าน (4000D) ยังรันแบบ manual อยู่** เหมือนเดิม (ยังไม่ได้ตั้ง Task Scheduler ที่นั่น)
-6. เครื่อง Office ยังไม่มี Node.js/npm (รอ IT ติดตั้ง) — ไม่กระทบงาน bridge เพราะทดสอบผ่าน production URL ได้เลย แต่ยังกระทบถ้าจะแก้โค้ดที่เครื่องนี้โดยตรง
-7. **doc changes ของเรื่องที่ 3 (`bridge/README.md`, `HANDOFF.md`, `bridge/start-bridge.bat`) ยังไม่ได้ commit** — รอพี่ A สั่ง (แยกจาก commit `1e99d15` ที่ทำไปแล้วของเรื่องที่ 2)
+1. **V29.81 fix (เรื่องที่ 5) ยังไม่ได้ยืนยันในสภาพแวดล้อมจริง** — ทดสอบแค่กับ temp folder จำลองที่เครื่องบ้าน ยังไม่เคยทดสอบกับ watch folder จริง (`D:\PTA COMMONT WORK\Log sheet Digital`) บนเครื่องที่มีจริง และยังไม่เคยทดสอบกับ Excel ตัวจริงที่เปิดไฟล์ค้างไว้จริงๆ (จำลองด้วย `FileShare.None` เท่านั้น) — แนะนำให้ยืนยันที่เครื่อง Office (หรือเครื่องไหนก็ตามที่มี watch folder จริง) ว่า auto-import/auto-archive ยังทำงานต่อได้ปกติขณะ log sheet เปิดค้างอยู่ใน Excel เพราะนั่นคือเงื่อนไขที่พังมาก่อน
+2. **ยังไม่ได้เช็ค GitHub Actions deploy status ของ commit `2b81b3b`** — เช็คได้ที่ https://github.com/supasiao7896TH/Monitor-log-sheet-boardman/actions ก่อนสรุปว่า production ขึ้น V29.81 แล้วจริง
+3. **บั๊กเล็กๆ ที่เจอแต่ยังไม่ได้แก้ (cosmetic, ไม่เร่งด่วน):** `index.html` บรรทัดราว 274 มี badge UI hardcode ข้อความ "V29.52 Strict Numeric Core" ที่ไม่เคยอัปเดตมาตั้งแต่ V29.52 (ผ่านมาแล้ว 29 เวอร์ชัน ปัจจุบัน V29.81 ก็ยังขึ้น V29.52 อยู่)
+4. **รายการค้างเก่าจาก session ที่เครื่อง Office (22416d8 เป็นต้นไป) — ยังไม่ได้ตรวจสอบซ้ำใน session นี้ ให้ถือว่ายังค้างอยู่จนกว่าจะมีหลักฐานใหม่:**
+   - สูตร Hyperlink (`=HYPERLINK("D:\Monitor log sheet boardman\bridge\start-bridge.bat", ...)`) ยังไม่ได้แปะในไฟล์ log sheet จริง
+   - Task Scheduler (Specific-user, ผูก `PTTGC\26007294`) ยังไม่ได้ยืนยันด้วยการ log off/log on จริงว่า auto-start ทำงาน
+   - เศษโฟลเดอร์ `.git` ว่างเปล่าค้างที่ `C:\Users\26007294\Monitor log sheet boardman\.git` ยังไม่ได้ลบ
+   - **หมายเหตุสำคัญ:** commit `1e99d15` ("Document Excel Bridge multi-user setup") ที่อยู่ใน 10 commits ที่ pull เข้ามา *อาจจะ* เป็น doc commit ที่ HANDOFF.md ฉบับเก่าพูดถึงว่า "รอ commit อยู่" (เรื่องที่ 3) ไปแล้วก็ได้ — **ยังไม่ได้ตรวจสอบยืนยัน** ให้คนที่รับงานต่อลอง `git show 1e99d15 --stat` เทียบเนื้อหาเองก่อนสรุปว่าตรงกัน อย่าเดาเอาว่าตรงแน่นอน
+5. **bridge บนเครื่องบ้าน (4000D) ยังรันแบบ manual** เหมือนเดิม (ยังไม่ได้ตั้ง Task Scheduler ที่นี่)
 
 ---
 
-## 🎯 ขั้นตอนถัดไปที่ตั้งใจจะทำ (ที่เครื่อง Office)
+## 🎯 ขั้นตอนถัดไปที่ตั้งใจจะทำ
 
-1. แปะสูตร Hyperlink ในไฟล์ log sheet จริง แล้วทดสอบกดจาก Excel ว่าเปิด bridge ได้จริง
-2. ทดสอบ Task Scheduler จริงด้วยการ log off/log on ใหม่ ว่า bridge auto-start เองโดยไม่ต้องเปิดมือ (เฉพาะ account พี่ A)
-3. ลบเศษโฟลเดอร์ `.git` ว่างที่ `C:\Users\26007294\Monitor log sheet boardman\` ทิ้ง
-4. Commit ไฟล์/เอกสารของเรื่องที่ 3 (`bridge/README.md`, `HANDOFF.md`, `bridge/start-bridge.bat`) เมื่อพร้อม
-5. ทำ Task Scheduler ให้เครื่องบ้าน (PC 4000D) ด้วยเหมือนกัน (ยังเป็น manual อยู่ — เครื่องบ้านเป็น single-user ใช้ Any-user หรือ Specific-user ก็ได้ตามสะดวก)
+1. ยืนยัน V29.81 fix กับ watch folder จริง + Excel ตัวจริงเปิดไฟล์ค้างไว้ (ที่เครื่อง Office หรือเครื่องที่มี path จริง)
+2. เช็คสถานะ GitHub Actions ของ commit `2b81b3b`
+3. `git show 1e99d15 --stat` เช็คว่า "เรื่องที่ 3" เดิม (doc changes ของ Hyperlink/multi-user setup) commit ไปแล้วจริงหรือยัง
+4. ถ้ายังไม่ได้ทำ: แปะสูตร Hyperlink ในไฟล์ log sheet จริง, ทดสอบ Task Scheduler ด้วย log off/log on จริง, ลบเศษ `.git` ค้างที่เครื่อง Office
+5. (ไม่เร่งด่วน) แก้ badge "V29.52" ที่ค้างใน `index.html` บรรทัดราว 274 ให้ตรงเวอร์ชันปัจจุบัน
 
 ---
 
 ## ⚠️ ข้อควรระวัง / สิ่งที่ต้องไม่ลืม
 
 - ฟีเจอร์ sync remark กลับ Excel **ใช้ไม่ได้เลยถ้า `bridge/excel-bridge.ps1` ไม่ได้รันอยู่** — Web App จะแจ้งสถานะ "ไม่พบ Local Bridge" ให้ operator ทราบ ไม่ fail เงียบๆ (ข้อมูลใน Web App เองไม่หาย แค่ไม่ sync กลับ Excel)
-- **ต้องเปิดไฟล์ log sheet ต้นฉบับค้างไว้ใน Excel ก่อน** ถึงจะ sync ได้ — bridge หา workbook จาก "ชื่อไฟล์ที่เปิดอยู่ใน Excel" ไม่ใช่ path บนดิสก์ (browser ให้ path จริงไม่ได้)
+- **ต้องเปิดไฟล์ log sheet ต้นฉบับค้างไว้ใน Excel ก่อน** ถึงจะ sync/auto-import/auto-archive ได้ — bridge หา workbook จาก "ชื่อไฟล์ที่เปิดอยู่ใน Excel" ไม่ใช่ path บนดิสก์ (browser ให้ path จริงไม่ได้)
+- **หลัง V29.81:** `Resolve-SourceFile` กรองทั้งไฟล์ `(master)` และไฟล์ lock ของ Excel (`~$*`) แล้ว — ถ้าเจอ error "พบไฟล์มากกว่า 1 ไฟล์" อีก ให้เช็คว่ามีไฟล์ผู้สมัครจริงมากกว่า 1 ไฟล์ในโฟลเดอร์ (ไม่ใช่แค่ lock file) ก่อน
 - ถ้าเจอ "ไม่พบไฟล์นี้เปิดอยู่ใน Excel" ทั้งที่เปิดไฟล์ถูกต้องแล้วจริงๆ **เช็ค Task Manager ก่อนว่ามี `EXCEL.EXE` มากกว่า 1 ตัวไหม** (อาจมีตัวที่ไม่มีหน้าต่างค้างอยู่จากการเปิด/ปิดไฟล์ก่อนหน้า) ปิดตัวที่ไม่มีหน้าต่างทิ้งแล้วลองใหม่
 - อย่า commit ไฟล์ข้อมูลหน้างานจริง (`.xls`/`.xlsm`/PDF) ปนไปกับ commit โค้ด — gitignore ดักไว้อยู่แล้ว เช็ค `git status` ก่อน commit ทุกครั้ง
 - `wrangler.jsonc`'s `name` (`monitor-log-sheet-boardman`) ห้ามเปลี่ยน — URL ฝังอยู่ใน Excel log sheet จริงผ่าน HYPERLINK formula
+- แบรนด์เปลี่ยนจาก "Supasit.A" → **"A(i)CODER"** แล้วตั้งแต่ commit `64fae6a` — ถ้าจะเพิ่ม branding ใหม่ที่ไหน ให้ใช้ชื่อใหม่
 
 ---
 
 ## 🔧 คำสั่งที่ต้องรันก่อนทำงานต่อ
 
 ```bash
-cd "D:\Monitor log sheet boardman"   # ที่ตั้งใหม่ที่เครื่อง Office (ย้ายจาก C:\Users\26007294\... แล้ว)
 git pull
-npm install   # ถ้ายังไม่เคยลงที่เครื่องนี้ (เครื่อง Office ยังไม่มี Node.js ณ ตอนนี้)
-npm test      # ควรผ่าน 35/35
+npm install   # ถ้ายังไม่เคยลงที่เครื่องนี้ หรือ package.json เปลี่ยน
+npm test      # ควรผ่าน 49/49
 ```
 
 รัน bridge (manual, ทดสอบก่อนตั้ง Task Scheduler):
@@ -129,3 +100,29 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 ```
 
 เช็คสถานะ deploy: https://github.com/supasiao7896TH/Monitor-log-sheet-boardman/actions
+
+---
+
+## 🗂️ ประวัติ session ก่อนหน้า (เก็บไว้อ้างอิง — อาจมีบางส่วนซ้ำ/ล้าสมัยกับหัวข้อด้านบน)
+
+<details>
+<summary>คลิกเพื่อดู — session เครื่อง Office (22416d8 และก่อนหน้า) และเครื่องบ้าน (V29.74 Local Excel Bridge)</summary>
+
+### เครื่อง Office — เรื่องที่ 1-3 (ย้าย repo, Task Scheduler, Hyperlink)
+
+**เรื่องที่ 1 — Sync โค้ดล่าสุด:** `git pull` จาก `34a719e` → `27d4c37` ได้โฟลเดอร์ `bridge/` (V29.74) เข้ามา
+
+**เรื่องที่ 2 — ย้าย repo จาก `C:\Users\26007294\...` ไป `D:\Monitor log sheet boardman`:** เพราะเครื่อง Office แต่ละ operator login คนละ Windows username จริง เก็บใต้ profile ส่วนตัวจะมีปัญหา NTFS permission + Task Scheduler ผูก account เดียว ย้ายไป `D:\` (local fixed drive, ไม่ใช่ network) ตั้ง NTFS permission ให้ `BUILTIN\Users` อ่าน+รันได้ ทดสอบ end-to-end จากที่ตั้งใหม่สำเร็จ (พี่ A ยืนยัน comment ขึ้นใน Excel จริง) — commit `1e99d15`
+
+**เรื่องที่ 3 — Task Scheduler + Hyperlink สำหรับ operator คนอื่น:** Task Scheduler แบบ "Any user" โดนปฏิเสธ (account `pttgc\26007294` ไม่มีสิทธิ์ Admin) → ใช้ "Specific user" แทน (สำเร็จ, ผูกกับ `PTTGC\26007294`) + สร้าง `bridge/start-bridge.bat` ให้ double-click ได้ + อัปเดต `bridge/README.md` — สูตร Hyperlink ที่ต้องแปะเองในไฟล์ log sheet จริง:
+```excel
+=HYPERLINK("D:\Monitor log sheet boardman\bridge\start-bridge.bat", "▶ เปิด Excel Bridge (กดตอนเริ่มกะ)")
+```
+
+### เครื่องบ้าน — V29.74 Local Excel Bridge (สำเร็จและยืนยันด้วยการใช้งานจริงแล้ว)
+
+**ปัญหาต้นเรื่อง:** ฟีเจอร์ sync Resolution Remark กลับเป็น Excel comment ทำให้ไฟล์ export ไม่เหมือนต้นฉบับ — ไม่มีไลบรารี JS ฟรีตัวไหน (SheetJS, exceljs) เขียนไฟล์ log sheet จริงกลับได้ปลอดภัย (สูตร PI Datalink แบบ live พังหมด) → เปลี่ยนสถาปัตยกรรมให้ Excel ตัวจริงเขียนเองผ่าน `bridge/excel-bridge.ps1` (PowerShell + COM automation, listener ที่ `localhost:5175`)
+
+**สถานะ:** ทดสอบ end-to-end ผ่านจริงครบวงจร (2026-08-10 ดึก) — comment ขึ้นใน Excel จริงสำเร็จ, `npm test` ผ่าน 35/35 (ตอนนั้น), deploy ขึ้น production ผ่าน GitHub Actions
+
+</details>
