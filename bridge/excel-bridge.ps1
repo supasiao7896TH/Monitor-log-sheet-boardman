@@ -11,6 +11,11 @@
 # วิธีใช้: เปิดไฟล์ log sheet ต้นฉบับใน Excel ค้างไว้ก่อน แล้วรันสคริปต์นี้ (ดู README.md ในโฟลเดอร์นี้
 # สำหรับวิธีตั้งให้รันอัตโนมัติทุกครั้งที่ล็อกอินเข้าเครื่อง) ปล่อยหน้าต่างนี้รันค้างไว้ระหว่างใช้งาน
 # Web App — ปิดหน้าต่างนี้ (Ctrl+C) เมื่อเลิกใช้งาน
+#
+# V29.78 FEAT: เพิ่ม route สำหรับ auto-import/auto-archive — Web App เรียก /source-file-info + /source-file
+# เป็นระยะเพื่อดึงไฟล์ log sheet ล่าสุดจาก $WatchFolder มา import เองอัตโนมัติ (ไม่ต้อง COM/Excel เปิดไฟล์
+# เลย แค่อ่านไฟล์ดิบจาก disk) และเรียก /archive-source-file เพื่อคัดลอกไฟล์ต้นฉบับไปเก็บ safety copy ที่
+# $ArchiveFolder เมื่อ Web App เช็คแล้วว่าข้อมูลครบ 4 เวลา (03:00/09:00/15:00/21:00) ของวันนั้น
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -19,6 +24,12 @@ $AllowedOrigins = @(
     'https://monitor-log-sheet-boardman.supasiao.workers.dev'
 )
 $AppCommentAuthor = 'Plant Log Analyzer (Web App)'
+
+# V29.78 FEAT: ตั้งค่า path ทั้งสองนี้ให้ตรงกับเครื่องจริงถ้าย้ายโฟลเดอร์ — ทั้งคู่เป็น path คงที่ที่กำหนด
+# ไว้ในสคริปต์นี้เท่านั้น (ไม่รับ path จากฝั่งเบราว์เซอร์เด็ดขาด กัน endpoint ถูกใช้อ่าน/เขียนไฟล์นอกเหนือ
+# จากที่ตั้งใจไว้)
+$WatchFolder = "D:\PTA COMMONT WORK\Log sheet Digital"
+$ArchiveFolder = "D:\Monitor log sheet boardman"
 
 function Write-CorsHeaders($response, $origin) {
     if ($origin -and ($AllowedOrigins -contains $origin)) {
@@ -38,6 +49,85 @@ function Send-JsonResponse($response, $statusCode, $body) {
     $response.ContentLength64 = $bytes.Length
     $response.OutputStream.Write($bytes, 0, $bytes.Length)
     $response.OutputStream.Close()
+}
+
+function Send-BinaryResponse($response, $statusCode, $bytes, $fileName) {
+    $response.StatusCode = $statusCode
+    $response.ContentType = 'application/octet-stream'
+    $response.Headers.Add('Content-Disposition', "attachment; filename=`"$fileName`"")
+    $response.ContentLength64 = $bytes.Length
+    $response.OutputStream.Write($bytes, 0, $bytes.Length)
+    $response.OutputStream.Close()
+}
+
+# V29.78 FEAT: หาไฟล์ log sheet "วันนี้" ใน $WatchFolder — ไม่นับไฟล์ที่ชื่อมีคำว่า "(master)" (เป็น
+# template ไว้อ้างอิง ไม่ใช่ไฟล์ข้อมูลจริง) ตาม routine จริงของ operator จะมีไฟล์ที่ไม่ใช่ master อยู่แค่
+# ไฟล์เดียวเสมอ (operator เปลี่ยนวันที่ในชื่อไฟล์เดิมเอง ไม่ได้สร้างไฟล์ใหม่ทุกวัน) — ถ้าเจอมากกว่า 1 ไฟล์
+# ไม่เดาว่าไฟล์ไหนถูก คืน error ทันที กัน auto-import/archive ดึงไฟล์ผิด
+function Resolve-SourceFile {
+    if (-not (Test-Path -LiteralPath $WatchFolder -PathType Container)) {
+        return @{ status = 'error'; message = "ไม่พบโฟลเดอร์ $WatchFolder" }
+    }
+    $candidates = @(Get-ChildItem -LiteralPath $WatchFolder -File | Where-Object { $_.Name -notmatch '\(master\)' })
+    if ($candidates.Count -eq 0) {
+        return @{ status = 'not-found'; message = 'ไม่พบไฟล์ log sheet ในโฟลเดอร์ (ไม่นับไฟล์ master)' }
+    }
+    if ($candidates.Count -gt 1) {
+        return @{ status = 'error'; message = 'พบไฟล์มากกว่า 1 ไฟล์ในโฟลเดอร์ (ไม่นับไฟล์ master) — ระบบรองรับเฉพาะกรณีมีไฟล์เดียว กรุณาตรวจสอบโฟลเดอร์' }
+    }
+    return @{ status = 'ok'; file = $candidates[0] }
+}
+
+# V29.78 FEAT: เปิดไฟล์แบบ FileShare.ReadWrite (แทน Get-Content/ReadAllBytes ที่เลือก sharing mode เองไม่
+# ได้) ให้ยังอ่านได้แม้ Excel เปิดไฟล์ค้างอยู่พร้อมกัน — จุดเสี่ยงจริงคือช่วงสั้นๆ ที่ PI Datalink รีเฟรช
+# แล้ว Excel กำลัง save (03:00/09:00/15:00/21:00) ซึ่งอาจชน sharing violation ได้ ให้ throw ต่อแล้วให้
+# caller ดักด้วย Test-IsSharingViolation แทนที่จะจับ exception ในนี้เลย
+function Read-FileBytesShared($path) {
+    $fs = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    try {
+        $ms = New-Object System.IO.MemoryStream
+        $fs.CopyTo($ms)
+        return $ms.ToArray()
+    } finally {
+        $fs.Close()
+    }
+}
+
+# ERROR_SHARING_VIOLATION (0x80070020) เดินไล่ InnerException ด้วยเผื่อ .NET/PowerShell ห่อ exception
+# ซ้อนชั้นมา (มี case ที่ static method call ผ่าน [Type]::Method() ได้ TargetInvocationException ห่ออีกที)
+function Test-IsSharingViolation($exception) {
+    $e = $exception
+    while ($e) {
+        if ($e.HResult -eq -2147024864) { return $true }
+        $e = $e.InnerException
+    }
+    return $false
+}
+
+function Handle-SourceFileInfo {
+    $resolved = Resolve-SourceFile
+    if ($resolved.status -ne 'ok') { return $resolved }
+    $f = $resolved.file
+    return @{ status = 'ok'; fileName = $f.Name; sizeBytes = $f.Length; lastWriteTimeUtc = $f.LastWriteTimeUtc.ToString('o') }
+}
+
+function Handle-ArchiveSourceFile {
+    $resolved = Resolve-SourceFile
+    if ($resolved.status -ne 'ok') { return $resolved }
+    if (-not (Test-Path -LiteralPath $ArchiveFolder -PathType Container)) {
+        return @{ status = 'error'; message = "ไม่พบโฟลเดอร์ archive: $ArchiveFolder" }
+    }
+    $destPath = Join-Path $ArchiveFolder $resolved.file.Name
+    try {
+        # Copy-Item เปิดไฟล์ต้นทางอ่านเองภายใน จึงชน sharing violation ได้แบบเดียวกับ Read-FileBytesShared
+        Copy-Item -LiteralPath $resolved.file.FullName -Destination $destPath -Force
+        return @{ status = 'ok'; fileName = $resolved.file.Name; archivedPath = $destPath }
+    } catch {
+        if (Test-IsSharingViolation $_.Exception) {
+            return @{ status = 'file-locked'; message = 'ไฟล์กำลังถูกเขียนอยู่ (Excel/PI กำลังรีเฟรชข้อมูล) กรุณาลองใหม่ในรอบถัดไป' }
+        }
+        return @{ status = 'error'; message = $_.Exception.Message }
+    }
 }
 
 function Find-OpenWorkbook($fileName) {
@@ -188,6 +278,42 @@ try {
                 $payload = $bodyText | ConvertFrom-Json
                 $result = Handle-WriteRemark $payload
                 Send-JsonResponse $response 200 $result
+                continue
+            }
+
+            # V29.78 FEAT: ข้อมูลไฟล์ log sheet ปัจจุบัน (ชื่อ/ขนาด/เวลาแก้ไขล่าสุด) — Web App ใช้เทียบว่า
+            # ไฟล์เปลี่ยนไปจากรอบก่อนหรือยังก่อนจะ fetch เนื้อไฟล์จริง
+            if ($request.Url.AbsolutePath -eq '/source-file-info' -and $request.HttpMethod -eq 'GET') {
+                Send-JsonResponse $response 200 (Handle-SourceFileInfo)
+                continue
+            }
+
+            # V29.78 FEAT: เนื้อไฟล์ดิบ — ตอบ raw binary ตอนสำเร็จ (JS ฝั่ง client เอาไปสร้าง File ต่อได้
+            # ทันทีผ่าน arrayBuffer() ไม่ต้อง decode base64) ตอบ JSON envelope ปกติเฉพาะตอน error/not-found/
+            # file-locked เท่านั้น — client ต้องเช็ค Content-Type ก่อนตัดสินใจว่าจะ .json() หรือ .arrayBuffer()
+            if ($request.Url.AbsolutePath -eq '/source-file' -and $request.HttpMethod -eq 'GET') {
+                $resolved = Resolve-SourceFile
+                if ($resolved.status -ne 'ok') {
+                    Send-JsonResponse $response 200 $resolved
+                    continue
+                }
+                try {
+                    $bytes = Read-FileBytesShared $resolved.file.FullName
+                    Send-BinaryResponse $response 200 $bytes $resolved.file.Name
+                } catch {
+                    if (Test-IsSharingViolation $_.Exception) {
+                        Send-JsonResponse $response 200 @{ status = 'file-locked'; message = 'ไฟล์กำลังถูกเขียนอยู่ (Excel/PI กำลังรีเฟรชข้อมูล) กรุณาลองใหม่ในรอบถัดไป' }
+                    } else {
+                        Send-JsonResponse $response 200 @{ status = 'error'; message = $_.Exception.Message }
+                    }
+                }
+                continue
+            }
+
+            # V29.78 FEAT: คัดลอกไฟล์ต้นฉบับไปเก็บ safety copy ที่ $ArchiveFolder — เรียกตอน Web App เช็ค
+            # แล้วว่าข้อมูลครบ 4 เวลาของวันนั้น (คู่ขนานกับที่ operator อัปโหลด SharePoint เองด้วยมือตามปกติ)
+            if ($request.Url.AbsolutePath -eq '/archive-source-file' -and $request.HttpMethod -eq 'POST') {
+                Send-JsonResponse $response 200 (Handle-ArchiveSourceFile)
                 continue
             }
 

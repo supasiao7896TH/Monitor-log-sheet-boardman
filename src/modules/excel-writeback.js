@@ -9,19 +9,9 @@
 // การทดสอบและหลักฐานอยู่ใน context.md) จึงเปลี่ยนมาให้ Excel ตัวจริงเป็นคนเขียนแทน ผ่าน Local Bridge
 // (bridge/excel-bridge.ps1, PowerShell + Excel COM automation) ที่รันบนเครื่อง operator เอง — โมดูลนี้
 // เหลือแค่ fetch คุยกับ bridge ผ่าน HTTP บนเครื่องเดียวกันเท่านั้น ไม่แตะไฟล์ Excel โดยตรงอีกต่อไป
-const APP_COMMENT_AUTHOR = 'Plant Log Analyzer (Web App)';
-const BRIDGE_URL = 'http://localhost:5175';
-const FETCH_TIMEOUT_MS = 4000;
+import { BRIDGE_URL, fetchWithTimeout } from './shared.js';
 
-async function fetchWithTimeout(url, options) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    try {
-        return await fetch(url, { ...options, signal: controller.signal });
-    } finally {
-        clearTimeout(timer);
-    }
-}
+const APP_COMMENT_AUTHOR = 'Plant Log Analyzer (Web App)';
 
 export const EXCEL_WRITEBACK = {
 

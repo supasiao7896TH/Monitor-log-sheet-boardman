@@ -69,6 +69,25 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 
 `excel-bridge.ps1` เช็ค request's `Origin` header กับ allow-list ก่อนประมวลผลทุกครั้ง (กันเว็บอื่นแอบยิง request มาที่ bridge) — ตอนนี้ครอบคลุมทั้ง dev (`http://localhost:5173`) และ production (`https://monitor-log-sheet-boardman.supasiao.workers.dev`) แล้ว ถ้าเปลี่ยนโดเมน deploy ในอนาคต ต้องมาแก้ `$AllowedOrigins` ในสคริปต์นี้ให้ตรงด้วย ไม่งั้น bridge จะปฏิเสธ request จากเว็บที่ deploy จริง
 
+## ตั้งค่า $WatchFolder / $ArchiveFolder (V29.78 — Auto-Import/Auto-Archive)
+
+`excel-bridge.ps1` มีอีก 2 path คงที่ที่ตั้งไว้ในสคริปต์ (ไม่รับ path จากฝั่งเบราว์เซอร์เลย เพื่อกัน endpoint ถูกใช้อ่าน/เขียนไฟล์นอกเหนือจากที่ตั้งใจไว้):
+
+- **`$WatchFolder`** — โฟลเดอร์ที่เก็บไฟล์ log sheet ต้นฉบับที่ PI Datalink เขียนสดอัตโนมัติ (ค่า default: `D:\PTA COMMONT WORK\Log sheet Digital`) Bridge จะหาไฟล์ที่ไม่มีคำว่า `(master)` ในชื่อเป็นไฟล์เป้าหมายเสมอ — ถ้าเจอมากกว่า 1 ไฟล์ที่ไม่ใช่ master จะไม่เดา และตอบ error กลับแทน (ป้องกันดึง/archive ไฟล์ผิด)
+- **`$ArchiveFolder`** — โฟลเดอร์ที่เก็บสำเนา (safety copy) ของไฟล์ log sheet เมื่อ Web App ตรวจพบว่าข้อมูลวันนั้นครบ 4 รอบเวลาแล้ว (ค่า default: `D:\Monitor log sheet boardman` — โฟลเดอร์ repo นี้เอง)
+
+แก้ 2 ตัวแปรนี้ในสคริปต์ถ้าย้ายโฟลเดอร์บนเครื่องจริง
+
+### Route ใหม่ (auto-import/auto-archive)
+
+| Route | Method | ใช้ทำอะไร |
+|---|---|---|
+| `/source-file-info` | GET | คืนชื่อ/ขนาด/เวลาแก้ไขล่าสุดของไฟล์ log sheet ปัจจุบันใน `$WatchFolder` — Web App poll route นี้ทุก 5 นาทีเพื่อเช็คว่าไฟล์เปลี่ยนไปหรือยัง |
+| `/source-file` | GET | คืนเนื้อไฟล์ดิบ (raw binary ตอนสำเร็จ, JSON envelope ตอน error/file-locked) — Web App เอาไป import เหมือนลาก-วางไฟล์เอง |
+| `/archive-source-file` | POST | คัดลอกไฟล์ต้นฉบับไปเก็บที่ `$ArchiveFolder` — Web App เรียกอัตโนมัติเมื่อเช็คแล้วว่าข้อมูลวันนั้นครบ 4 เวลา (03:00/09:00/15:00/21:00) |
+
+ทั้งสาม route ไม่ต้องเปิด Excel ไฟล์ต้นฉบับไว้ก็ทำงานได้ (อ่านไฟล์ดิบจาก disk ตรงๆ ไม่ผ่าน COM) — ถ้า Excel/PI Datalink กำลังเขียนไฟล์อยู่พอดี (ช่วงสั้นๆ ตอน refresh 4 รอบ/วัน) จะตอบ `{status:'file-locked'}` แทนที่จะ error รอบ poll ถัดไปจะลองใหม่เองอัตโนมัติ ไม่ต้องทำอะไรเพิ่ม
+
 ## Troubleshooting
 
 | อาการ | สาเหตุที่เป็นไปได้ |
@@ -79,3 +98,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 | หน้าต่าง bridge ปิดตัวทันทีตอนเปิด | เปิด PowerShell รันแบบ manual (ดูข้างบน) เพื่อดู error message ที่แท้จริง — สาเหตุที่พบบ่อยคือ port 5175 ถูกโปรแกรมอื่นใช้อยู่แล้ว |
 | กด Hyperlink ใน Excel แล้วขึ้นเตือนความปลอดภัย | ปกติของการเปิดไฟล์ local (`.bat`) ผ่าน hyperlink — กด Allow/Yes ได้ตามปกติ |
 | `Register-ScheduledTask` ขึ้น `Access is denied` | ปกติถ้าใช้ `-GroupId` (trigger แบบ Any user) กับ account ที่ไม่มีสิทธิ์ local Administrator — Task Scheduler บังคับต้องใช้สิทธิ์ Admin เสมอสำหรับ group principal ใช้ `-UserId` แบบ Specific user แทนถ้าไม่มีสิทธิ์ Admin (ดูหัวข้อด้านบน) |
+| ข้อมูลใน Dashboard ไม่อัปเดตเองอัตโนมัติ | เช็คว่า bridge รันอยู่ไหม (`/ping`) และไฟล์ใน `$WatchFolder` ไม่มีคำว่า `(master)` ในชื่อ + มีแค่ไฟล์เดียวที่ไม่ใช่ master — ถ้ามีมากกว่า 1 ไฟล์ bridge จะปฏิเสธไม่ import เลย (กันดึงไฟล์ผิด) auto-import เช็คทุก 5 นาที ไม่ใช่ทันที |
+| ไม่มีไฟล์ archive โผล่ที่ `$ArchiveFolder` | archive จะเกิดเฉพาะตอนข้อมูลวันนั้นครบ 4 เวลา (03:00/09:00/15:00/21:00) แล้วเท่านั้น — เช็ค chip สถานะข้าง "Time Breakdown" บน Dashboard ว่าขึ้น "✓ ครบ 4 รอบเวลา" หรือยัง |

@@ -16,14 +16,24 @@ export const STATE = {
             },
             listeners: [],
             get: (key) => STATE.data[key],
+            // V29.78 PERF: _deriveAbnormal used to always do BOTH the expensive per-record
+            // isAbnormal/isStandby recompute AND the filter+sort in one pass, so clicking a time-slot
+            // or view-filter button (which changes nothing about which records are abnormal — only
+            // which subset is *displayed*) still re-ran the full recompute over every record ever
+            // imported. Split so the expensive part only reruns when the data or limits actually
+            // changed ('records'/'masterTags'), while filter/sort (cheap) reruns on every trigger key,
+            // reusing the flags from the last recompute.
             set: (key, value) => {
                 STATE.data[key] = value;
+                if (['records', 'masterTags'].includes(key)) {
+                    STATE._recomputeFlags();
+                }
                 if (['records', 'timeFilter', 'masterTags', 'viewFilter'].includes(key)) {
-                    STATE._deriveAbnormal();
+                    STATE._applyFilterSort();
                 }
                 STATE.notify(key);
             },
-            _deriveAbnormal: () => {
+            _recomputeFlags: () => {
                 const mTagsMap = getMasterMap();
                 const tagMap = getTagMap(); // V29.52 PERF: build once instead of tags.find per record
                 const updatedRecords = STATE.data.records.map(r => {
@@ -86,9 +96,10 @@ export const STATE = {
                     return { ...r, isAbnormal: isAb, isStandby: isStandby };
                 });
 
-                STATE.data.records = updatedRecords; 
-
-                let list = updatedRecords;
+                STATE.data.records = updatedRecords;
+            },
+            _applyFilterSort: () => {
+                let list = STATE.data.records;
                 if (STATE.data.viewFilter === 'abnormal') {
                     list = list.filter(r => r.isAbnormal === 1);
                 }

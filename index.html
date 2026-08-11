@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.77)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.78)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -295,9 +295,19 @@
                 </div>
 
                 <div class="bg-white border border-slate-200 shadow-sm rounded-2xl p-4 flex flex-col gap-2">
-                    <div class="flex items-center gap-2 mb-1">
-                        <i data-lucide="history" class="w-4 h-4 text-slate-400"></i>
-                        <span class="text-xs font-bold text-slate-600 uppercase tracking-widest">Time Breakdown (เลือกช่วงเวลา)</span>
+                    <div class="flex items-center gap-2 mb-1 flex-wrap justify-between">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="history" class="w-4 h-4 text-slate-400"></i>
+                            <span class="text-xs font-bold text-slate-600 uppercase tracking-widest">Time Breakdown (เลือกช่วงเวลา)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <!-- V29.78 FEAT: เช็คอัตโนมัติว่าวันล่าสุดมีข้อมูลครบ 4 รอบเวลา (03:00/09:00/15:00/21:00) หรือยัง แทนที่ operator ต้องเปิดไฟล์ Excel เช็คเอง -->
+                            <span id="canonical-times-chip" class="hidden text-[10px] font-bold px-2 py-1 rounded-lg"></span>
+                            <!-- V29.78 PERF: จำกัดปุ่มที่โชว์ default ไว้ไม่กี่วันล่าสุด กันแถบบวมไม่รู้จบเมื่อสะสมข้อมูลหลายวัน — วันเก่ากว่านั้นเลือกดูผ่าน dropdown นี้แทน -->
+                            <select id="older-dates-select" class="hidden text-[10px] font-bold text-slate-600 border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-brand-500/20 bg-white">
+                                <option value="" disabled selected>ดูวันที่เก่ากว่านี้...</option>
+                            </select>
+                        </div>
                     </div>
                     <div id="time-breakdown-bar" class="flex flex-wrap gap-3 pb-2">
                         </div>
@@ -651,7 +661,7 @@
                     </div>
 
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.77 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.78 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by A(i)CODER</p>
                     </div>
                 </div>

@@ -3,3 +3,8 @@ node_modules
 dist
 .migration-tmp
 bridge/*.log
+
+# V29.78 FEAT: archived source log sheets (bridge auto-archive lands these at repo root) — data files,
+# not source code. Root-anchored so it never ignores a future nested test fixture.
+/*.xlsm
+/*.xls

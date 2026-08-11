@@ -3,14 +3,22 @@ import { getTagId, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_IMPORTHIST
 export const STORAGE_ENGINE = {
             db: null,
             init: () => new Promise((resolve, reject) => {
-                const req = indexedDB.open('PlantLogAnalyzerEnterpriseDB', 5);
+                const req = indexedDB.open('PlantLogAnalyzerEnterpriseDB', 6);
                 req.onupgradeneeded = (e) => {
                     const db = e.target.result;
                     if(!db.objectStoreNames.contains(STORE_TAGS)) db.createObjectStore(STORE_TAGS, { keyPath: 'id' });
+                    // V29.78 FEAT: index บน timestamp (numeric epoch ms) เพิ่มเติมจาก isAbnormal เดิม — เผื่อ
+                    // query แบบช่วงวันที่ในอนาคต (getRecordsByTimestampRange) ไม่ต้อง getAll() ทั้ง store เสมอไป.
+                    // Guard ด้วย indexNames.contains ทั้งสองเส้นทาง เพราะ store อาจเพิ่งถูกสร้างใหม่ (fresh install
+                    // ยังไม่มี index ไหนเลย) หรือมีอยู่แล้วจาก v5 (มีแค่ isAbnormal ต้องเติม timestamp เพิ่ม)
+                    let recordsStore;
                     if(!db.objectStoreNames.contains(STORE_RECORDS)) {
-                        const s = db.createObjectStore(STORE_RECORDS, { keyPath: 'id' });
-                        s.createIndex('isAbnormal', 'isAbnormal', { unique: false });
+                        recordsStore = db.createObjectStore(STORE_RECORDS, { keyPath: 'id' });
+                    } else {
+                        recordsStore = e.target.transaction.objectStore(STORE_RECORDS);
                     }
+                    if(!recordsStore.indexNames.contains('isAbnormal')) recordsStore.createIndex('isAbnormal', 'isAbnormal', { unique: false });
+                    if(!recordsStore.indexNames.contains('timestamp')) recordsStore.createIndex('timestamp', 'timestamp', { unique: false });
                     if(!db.objectStoreNames.contains(STORE_MASTERTAGS)) db.createObjectStore(STORE_MASTERTAGS, { keyPath: 'id' });
                     // V29.51 FEAT: Import audit trail
                     if(!db.objectStoreNames.contains(STORE_IMPORTHISTORY)) db.createObjectStore(STORE_IMPORTHISTORY, { keyPath: 'id' });
@@ -29,6 +37,29 @@ export const STORAGE_ENGINE = {
                 tags.forEach(t => { t.id = getTagId(t); tx.objectStore(STORE_TAGS).put(t); });
                 records.forEach(r => tx.objectStore(STORE_RECORDS).put(r));
                 tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            }),
+            // V29.78 FEAT: เหมือน saveBatch ทุกประการ (put()-based upsert เดียวกัน) แต่นับด้วยว่า record
+            // ไหนเป็นของใหม่จริง (id ไม่เคยมีมาก่อน) กับของเดิมที่แค่เขียนทับ — auto-import ใช้ตัวเลขนี้
+            // ตัดสินใจว่าควร log เข้า ImportHistory ไหม (ไม่ log ทุกรอบ poll ที่ไม่มีอะไรเปลี่ยนจริง) แยกเป็น
+            // ฟังก์ชันใหม่ต่างหาก ไม่แก้ saveBatch เดิม กันกระทบ manual import ที่ทดสอบมาดีอยู่แล้ว
+            saveBatchCounting: (tags, records) => new Promise((resolve, reject) => {
+                if(!STORAGE_ENGINE.db) return resolve({ recordsAdded: 0, recordsUpdated: 0 });
+                const tx = STORAGE_ENGINE.db.transaction([STORE_TAGS, STORE_RECORDS], 'readwrite');
+                const recordsStore = tx.objectStore(STORE_RECORDS);
+                let recordsAdded = 0, recordsUpdated = 0;
+
+                const keysReq = recordsStore.getAllKeys();
+                keysReq.onsuccess = (e) => {
+                    const existingIds = new Set(e.target.result);
+                    tags.forEach(t => { t.id = getTagId(t); tx.objectStore(STORE_TAGS).put(t); });
+                    records.forEach(r => {
+                        if (existingIds.has(r.id)) recordsUpdated++; else recordsAdded++;
+                        recordsStore.put(r);
+                    });
+                };
+
+                tx.oncomplete = () => resolve({ recordsAdded, recordsUpdated });
                 tx.onerror = () => reject(tx.error);
             }),
             saveMasterTag: (masterData) => new Promise((resolve, reject) => {
@@ -76,6 +107,17 @@ export const STORAGE_ENGINE = {
                 if(!STORAGE_ENGINE.db) return resolve([]);
                 const tx = STORAGE_ENGINE.db.transaction([storeName], 'readonly');
                 const req = tx.objectStore(storeName).getAll();
+                req.onsuccess = (e) => resolve(e.target.result);
+                tx.onerror = () => reject(tx.error);
+            }),
+            // V29.78 FEAT: range query ผ่าน index 'timestamp' (เพิ่มใน schema v6) — ยังไม่มีจุดใช้งานจริงใน
+            // แอปตอนนี้ (STATE.data.records ยังคงโหลดทุกวันเข้า memory เหมือนเดิมโดยตั้งใจ) แต่เตรียมไว้ให้ query
+            // แบบช่วงวันที่ทำได้โดยไม่ต้อง getAll() ทั้ง store เมื่อมีความจำเป็นในอนาคต
+            getRecordsByTimestampRange: (startTs, endTsExclusive) => new Promise((resolve, reject) => {
+                if(!STORAGE_ENGINE.db) return resolve([]);
+                const tx = STORAGE_ENGINE.db.transaction([STORE_RECORDS], 'readonly');
+                const range = IDBKeyRange.bound(startTs, endTsExclusive, false, true);
+                const req = tx.objectStore(STORE_RECORDS).index('timestamp').getAll(range);
                 req.onsuccess = (e) => resolve(e.target.result);
                 tx.onerror = () => reject(tx.error);
             }),

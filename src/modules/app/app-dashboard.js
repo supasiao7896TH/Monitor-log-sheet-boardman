@@ -1,6 +1,6 @@
 import { STATE } from '../state.js';
 import { UI_RENDERER } from '../ui-renderer.js';
-import { escapeHtml, getTagId, parseNum, resolveEffectiveLimits, getMasterMap, getTagMap, LIMIT_EPSILON, SELECT_ALL_CAP, RECURRING_ABNORMAL_THRESHOLD, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY } from '../shared.js';
+import { escapeHtml, getTagId, parseNum, resolveEffectiveLimits, getMasterMap, getTagMap, LIMIT_EPSILON, SELECT_ALL_CAP, RECURRING_ABNORMAL_THRESHOLD, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, DEFAULT_TIME_BREAKDOWN_DAYS, getCanonicalTimesStatus } from '../shared.js';
 import { APP } from './app.js';
 /* global lucide */
 
@@ -160,6 +160,24 @@ Object.assign(APP, {
                     if (r.isAbnormal) timeGroups[key].abnormal++;
                 });
 
+                // V29.78 FEAT: chip แสดงว่าวันล่าสุดมีข้อมูลครบ 4 รอบเวลา (03:00/09:00/15:00/21:00) หรือยัง
+                const chip = document.getElementById('canonical-times-chip');
+                if (chip) {
+                    const cts = getCanonicalTimesStatus(records);
+                    if (!cts.dateStr) {
+                        chip.classList.add('hidden');
+                    } else {
+                        chip.classList.remove('hidden');
+                        if (cts.isComplete) {
+                            chip.className = 'text-[10px] font-bold px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700';
+                            chip.textContent = `✓ ครบ 4 รอบเวลา (${cts.dateStr})`;
+                        } else {
+                            chip.className = 'text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-700';
+                            chip.textContent = `⏳ รอ ${cts.missingTimes.join(', ')} (${cts.dateStr})`;
+                        }
+                    }
+                }
+
                 const sortedKeys = Object.keys(timeGroups).sort((a,b) => {
                     const [da, ta] = a.split(' ');
                     const [db, tb] = b.split(' ');
@@ -171,22 +189,29 @@ Object.assign(APP, {
                     return (ta || '').localeCompare(tb || '');
                 });
 
+                // V29.78 PERF: sortedKeys is already date-ascending (sorted above), so de-duping in order
+                // yields distinct dates ascending too — no separate date sort needed.
+                const distinctDates = [...new Set(sortedKeys.map(k => timeGroups[k].date))];
+                const recentDates = new Set(distinctDates.slice(-DEFAULT_TIME_BREAKDOWN_DAYS));
+                const olderKeys = sortedKeys.filter(k => !recentDates.has(timeGroups[k].date));
+
                 const allBtn = UI_RENDERER.createEl('button', `shrink-0 px-4 py-2.5 rounded-xl border flex flex-col items-start gap-1 transition-all ${currentVal === 'all' ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-slate-200 hover:bg-slate-50'}`);
                 allBtn.onclick = () => STATE.set('timeFilter', 'all');
                 allBtn.innerHTML = `<span class="text-[10px] font-bold ${currentVal === 'all' ? 'text-indigo-600' : 'text-slate-500'}">แสดงทั้งหมด</span><span class="text-xs font-black text-slate-800">All Time</span>`;
                 timeBreakdownBar.appendChild(allBtn);
 
                 sortedKeys.forEach(k => {
+                    if (!recentDates.has(timeGroups[k].date)) return; // อยู่ dropdown "วันที่เก่ากว่านี้" แทน
                     const tg = timeGroups[k];
                     const isSelected = currentVal === k;
                     const hasAbnormal = tg.abnormal > 0;
-                    
+
                     const btn = UI_RENDERER.createEl('button', `shrink-0 px-4 py-2.5 rounded-xl border flex flex-col items-start transition-all ${isSelected ? 'ring-2 ring-brand-500 shadow-md' : 'shadow-sm hover:bg-slate-50'} ${hasAbnormal ? 'bg-red-50/50 border-red-100' : 'bg-white border-slate-200'}`);
                     btn.onclick = () => STATE.set('timeFilter', k);
-                    
+
                     const topRow = UI_RENDERER.createEl('div', 'flex items-center justify-between w-full mb-1');
                     topRow.innerHTML = `<span class="text-[10px] font-bold text-slate-500">${escapeHtml((tg.date || '').substring(0,5))}</span> <span class="text-[9px] font-bold ${hasAbnormal ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'} px-1.5 rounded ml-2">${escapeHtml(hasAbnormal ? tg.abnormal + ' Abn' : 'OK')}</span>`;
-                    
+
                     const botRow = UI_RENDERER.createEl('div', 'text-sm font-black text-slate-800');
                     botRow.textContent = (tg.time || '00:00') + ' น.';
 
@@ -194,6 +219,28 @@ Object.assign(APP, {
                     btn.appendChild(botRow);
                     timeBreakdownBar.appendChild(btn);
                 });
+
+                // V29.78 PERF: วันที่เก่ากว่า DEFAULT_TIME_BREAKDOWN_DAYS วันล่าสุด ไม่ render เป็นปุ่มถาวร
+                // (กัน DOM บวมไม่รู้จบเมื่อสะสมข้อมูลหลายเดือน) — เข้าถึงผ่าน dropdown นี้แทน ใช้ STATE.set
+                // ตัวเดียวกับปุ่มปกติทุกประการ
+                const olderSelect = document.getElementById('older-dates-select');
+                if (olderSelect) {
+                    if (olderKeys.length === 0) {
+                        olderSelect.classList.add('hidden');
+                    } else {
+                        olderSelect.classList.remove('hidden');
+                        while (olderSelect.options.length > 1) olderSelect.remove(1);
+                        olderKeys.forEach(k => {
+                            const tg = timeGroups[k];
+                            const opt = document.createElement('option');
+                            opt.value = k;
+                            opt.textContent = `${tg.date || ''} ${tg.time || ''}${tg.abnormal > 0 ? ` (${tg.abnormal} Abn)` : ''}`;
+                            if (currentVal === k) opt.selected = true;
+                            olderSelect.appendChild(opt);
+                        });
+                        olderSelect.onchange = (e) => { if (e.target.value) STATE.set('timeFilter', e.target.value); };
+                    }
+                }
 
                 const currentRecords = currentVal === 'all' ? records : records.filter(r => `${r.dateStr} ${r.timeStr}` === currentVal);
                 const totalAbnormal = currentRecords.filter(r => r.isAbnormal === 1);

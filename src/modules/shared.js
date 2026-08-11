@@ -1,5 +1,20 @@
 import { STATE } from './state.js';
 
+// V29.74/V29.78: shared by excel-writeback.js and excel-autoimport.js — both talk to the same
+// Local Bridge (bridge/excel-bridge.ps1) over localhost HTTP, so the URL and timeout wrapper live
+// here once instead of being duplicated per module.
+export const BRIDGE_URL = 'http://localhost:5175';
+const FETCH_TIMEOUT_MS = 4000;
+export async function fetchWithTimeout(url, options) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 export function escapeHtml(str) {
     if (str === null || str === undefined) return '';
     return String(str).replace(/[&<>"']/g, c => ({
@@ -91,10 +106,35 @@ export const NEIGHBOR_COLUMN_VALIDITY_THRESHOLD = 0.1;
 
 export const SELECT_ALL_CAP = 300;
 export const TABLE_RENDER_CAP = 350;
+export const DEFAULT_TIME_BREAKDOWN_DAYS = 3; // V29.78 PERF: Time Breakdown bar shows only the N most recent distinct dates by default; older dates move to the "ดูวันที่เก่ากว่านี้" dropdown instead of rendering forever-growing buttons
 export const RECURRING_ABNORMAL_THRESHOLD = 3; // V29.51 FEAT: min abnormal occurrences (all-time) before a tag gets the "recurring" badge
 export const BACKUP_REMINDER_STALE_DAYS = 3; // V29.51 FEAT: prompt to back up if last backup is older than this (or never)
 export const LS_LAST_BACKUP_KEY = 'plantLogAnalyzer_lastBackupAt';
 export const LS_BACKUP_SNOOZE_KEY = 'plantLogAnalyzer_backupSnoozeUntil';
+
+// V29.78 FEAT: auto-import จาก Excel Bridge (ดู excel-autoimport.js / app-core.js APP.pollAutoImport)
+export const AUTOIMPORT_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 นาที — ข้อมูลจริงเปลี่ยนแค่ 4 รอบ/วัน (03:00/09:00/15:00/21:00) ไม่ต้องถี่กว่านี้ และเว้นระยะพอสมควรลดโอกาสชนช่วง PI Datalink กำลังเขียนไฟล์
+export const LS_AUTOIMPORT_LAST_MTIME_KEY = 'plantLogAnalyzer_autoImportLastMtime';
+export const CANONICAL_TIMES = ['03:00', '09:00', '15:00', '21:00']; // รอบเวลาที่ PI Datalink ดึงค่าเข้ามาอัตโนมัติ
+
+// V29.78 FEAT: เช็คว่าวันล่าสุดที่มีข้อมูล (dateStr) มีครบทั้ง 4 รอบเวลาหรือยัง — แทนที่ operator ต้องเปิด
+// ไฟล์ Excel เช็คด้วยตาเอง ใช้ทั้งแสดงผล (chip ใน Dashboard) และตัดสินใจ trigger archive อัตโนมัติ
+export function getCanonicalTimesStatus(records) {
+    if (!records || records.length === 0) return { dateStr: null, missingTimes: [...CANONICAL_TIMES], isComplete: false };
+
+    // หา dateStr ล่าสุด (รูปแบบ DD/MM/YYYY) — เทียบแบบ reverse เป็น YYYYMMDD ให้ sort ตามเวลาจริงถูกต้อง
+    let latestDateStr = null, latestKey = '';
+    records.forEach(r => {
+        if (!r.dateStr) return;
+        const key = r.dateStr.includes('/') ? r.dateStr.split('/').reverse().join('') : r.dateStr;
+        if (key > latestKey) { latestKey = key; latestDateStr = r.dateStr; }
+    });
+    if (!latestDateStr) return { dateStr: null, missingTimes: [...CANONICAL_TIMES], isComplete: false };
+
+    const timesPresent = new Set(records.filter(r => r.dateStr === latestDateStr).map(r => r.timeStr));
+    const missingTimes = CANONICAL_TIMES.filter(t => !timesPresent.has(t));
+    return { dateStr: latestDateStr, missingTimes, isComplete: missingTimes.length === 0 };
+}
 
 // V29.56 FEAT: ขยายความสูง textarea ให้พอดีกับเนื้อหา แทนที่จะให้เลื่อน scroll ทีละบรรทัด
 export function autoResizeTextarea(el) {

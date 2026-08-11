@@ -183,4 +183,72 @@ Object.assign(APP, {
                     document.querySelector('[data-tab="dashboard"]').click();
                 }, 1500);
             },
+
+
+            // V29.78 FEAT: เวอร์ชันเบาของ handleFiles สำหรับ auto-import จาก Excel Bridge — ไม่แตะ DOM ของ
+            // หน้า import (drop-zone/processing-status/สลับ tab) เลย เพราะรันเงียบๆ เบื้องหลังได้ทุกเมื่อ
+            // ไม่ใช่แค่ตอน operator อยู่หน้า import และใช้ saveBatchCounting แทน saveBatch เพื่อรู้ว่ามี
+            // record ใหม่จริงกี่ตัว จะได้ log เข้า ImportHistory เฉพาะตอนมีของใหม่จริง ไม่ spam ทุกรอบ poll
+            handleAutoImportedFile: async (file) => {
+                let allTags = [], allRecords = [];
+                try {
+                    const buffer = await file.arrayBuffer();
+                    const wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+
+                    let sharedDate = null;
+                    for (let sn of wb.SheetNames) {
+                        const csv = XLSX.utils.sheet_to_csv(wb.Sheets[sn], { raw: true });
+                        const found = EXCEL_WORKER.extractGlobalDate(csv.split(/\r\n|\n/), file.name);
+                        if (found) { sharedDate = found; break; }
+                    }
+                    if (!sharedDate) sharedDate = new Date().toLocaleDateString('en-GB');
+
+                    for (let sn of wb.SheetNames) {
+                        const csv = XLSX.utils.sheet_to_csv(wb.Sheets[sn], { raw: true });
+                        const ref = wb.Sheets[sn]['!ref'];
+                        const range = ref ? XLSX.utils.decode_range(ref) : { s: { r: 0, c: 0 } };
+                        const result = await EXCEL_WORKER.processData(csv, sn, file.name, sharedDate, null, { rowOffset: range.s.r, colOffset: range.s.c });
+                        result.records.forEach(r => { r.sourceFileName = file.name; });
+                        allTags.push(...result.tags);
+                        allRecords.push(...result.records);
+                    }
+                } catch (err) {
+                    console.error('Auto-import parse failed:', err);
+                    return { status: 'error', message: err.message };
+                }
+
+                // เหมือน handleFiles: ไม่ให้ sheet ที่ไม่มี limit/description มาเขียนทับของเดิมที่เรียนรู้ไว้แล้ว
+                const uniqueTags = Array.from(new Map(allTags.map(t => [getTagId(t), t])).values());
+                const existingTagsMap = new Map(STATE.get('tags').map(t => [t.id, t]));
+                uniqueTags.forEach(t => {
+                    const existing = existingTagsMap.get(getTagId(t));
+                    if (!existing) return;
+                    if (!t.normalText && existing.normalText) t.normalText = existing.normalText;
+                    if (!t.description && existing.description) t.description = existing.description;
+                    if (t.min === null && existing.min !== null && existing.min !== undefined) t.min = existing.min;
+                    if (t.max === null && existing.max !== null && existing.max !== undefined) t.max = existing.max;
+                    if (t.exactNum === null && existing.exactNum !== null && existing.exactNum !== undefined) t.exactNum = existing.exactNum;
+                });
+
+                try {
+                    const { recordsAdded, recordsUpdated } = await STORAGE_ENGINE.saveBatchCounting(uniqueTags, allRecords);
+                    if (recordsAdded > 0) {
+                        await STORAGE_ENGINE.logImport({
+                            id: `autoimport_${Date.now()}_${file.name}`,
+                            importedAt: new Date().toISOString(),
+                            fileName: file.name,
+                            fileSizeBytes: file.size,
+                            tagsAdded: uniqueTags.length,
+                            recordsAdded,
+                            status: 'success'
+                        });
+                        await APP.renderImportHistory();
+                    }
+                    await APP.loadLocalData();
+                    return { status: 'ok', recordsAdded, recordsUpdated };
+                } catch (error) {
+                    console.error('Auto-import save failed:', error);
+                    return { status: 'error', message: error.message };
+                }
+            },
 });
