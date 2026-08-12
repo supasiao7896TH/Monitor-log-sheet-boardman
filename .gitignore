@@ -13,3 +13,8 @@ bridge/*.log
 # instead of directly at repo root — same data-files-not-source-code reasoning as above.
 /*/*.xlsm
 /*/*.xls
+
+# V29.85 FEAT: shared-db sync snapshot ($SharedDbPath in bridge/excel-bridge.ps1) — real plant
+# operational data (Tags/Records/MasterTags/UserCountermeasures), not source code, lands inside the
+# repo folder at runtime. Same reasoning as the archived .xls/.xlsm rule above.
+/shared-data/

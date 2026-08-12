@@ -100,6 +100,7 @@ Object.assign(APP, {
                 try {
                     await STORAGE_ENGINE.updateRecord(id, updates);
                     await APP.loadLocalData();
+                    APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
                 } catch (error) {
                     console.error("Save Remark Failed: ", error);
                     alert("บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
@@ -150,6 +151,7 @@ Object.assign(APP, {
                 try {
                     await STORAGE_ENGINE.updateRecord(id, { remark: '', actionStatus: 'new' });
                     await APP.loadLocalData();
+                    APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
                     APP.closeActionModal();
                 } catch (error) {
                     console.error("Clear Remark Failed: ", error);

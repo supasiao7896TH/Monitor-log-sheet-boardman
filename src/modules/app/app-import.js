@@ -185,6 +185,7 @@ Object.assign(APP, {
                     if (vfEl) vfEl.value = 'abnormal';
 
                     await APP.loadLocalData();
+                    APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
                 } catch (error) {
                     console.error("Save Import Failed: ", error);
                     logEl.appendChild(UI_RENDERER.createEl('div', 'text-red-400 font-bold', `❌ บันทึกข้อมูลลงฐานข้อมูลไม่สำเร็จ: ${error.message}`));
@@ -271,6 +272,7 @@ Object.assign(APP, {
                         await APP.renderImportHistory();
                     }
                     await APP.loadLocalData();
+                    APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget — pollAutoImport ทำงานทุก 5 นาที ทำให้ sync ให้คนอื่นอัตโนมัติไปด้วย
                     return { status: 'ok', recordsAdded, recordsUpdated };
                 } catch (error) {
                     console.error('Auto-import save failed:', error);

@@ -179,6 +179,12 @@ export const LS_BACKUP_SNOOZE_KEY = 'plantLogAnalyzer_backupSnoozeUntil';
 // V29.78 FEAT: auto-import จาก Excel Bridge (ดู excel-autoimport.js / app-core.js APP.pollAutoImport)
 export const AUTOIMPORT_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 นาที — ข้อมูลจริงเปลี่ยนแค่ 4 รอบ/วัน (03:00/09:00/15:00/21:00) ไม่ต้องถี่กว่านี้ และเว้นระยะพอสมควรลดโอกาสชนช่วง PI Datalink กำลังเขียนไฟล์
 export const LS_AUTOIMPORT_LAST_MTIME_KEY = 'plantLogAnalyzer_autoImportLastMtime';
+
+// V29.85 FIX: ป้องกัน pull-on-load (APP.init) ทับข้อมูล local ที่ยัง push ไป shared-db ไม่สำเร็จ (เช่น
+// operator บันทึก remark ตอน Bridge ดับพอดี push ล้มเหลวเงียบๆ แล้ว reload หน้าเว็บก่อนมี mutation ครั้ง
+// ใหม่มา retry ให้) — ตั้ง flag นี้ก่อนพยายาม push ทุกครั้ง แล้วเคลียร์เมื่อ push สำเร็จเท่านั้น ถ้า init
+// เจอ flag นี้ค้างอยู่ ต้อง retry push ก่อน (ด้วยข้อมูล local ปัจจุบันที่ยังไม่ถูกแตะ) แล้วค่อย pull ทีหลัง
+export const LS_SYNC_DIRTY_KEY = 'plantLogAnalyzer_syncDirty';
 export const CANONICAL_TIMES = ['03:00', '09:00', '15:00', '21:00']; // รอบเวลาที่ PI Datalink ดึงค่าเข้ามาอัตโนมัติ
 
 // V29.78 FEAT: เช็คว่าวันล่าสุดที่มีข้อมูล (dateStr) มีครบทั้ง 4 รอบเวลาหรือยัง — แทนที่ operator ต้องเปิด

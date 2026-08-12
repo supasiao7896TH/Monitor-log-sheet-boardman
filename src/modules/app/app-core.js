@@ -2,7 +2,8 @@ import { STATE } from '../state.js';
 import { STORAGE_ENGINE } from '../storage-engine.js';
 import { UI_RENDERER } from '../ui-renderer.js';
 import { EXCEL_AUTOIMPORT, LEGACY_UNKNOWN_FILENAME } from '../excel-autoimport.js';
-import { autoResizeTextarea, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, AUTOIMPORT_POLL_INTERVAL_MS, LS_AUTOIMPORT_LAST_MTIME_KEY, getCanonicalTimesStatus } from '../shared.js';
+import { EXCEL_SYNC } from '../excel-sync.js';
+import { autoResizeTextarea, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, AUTOIMPORT_POLL_INTERVAL_MS, LS_AUTOIMPORT_LAST_MTIME_KEY, LS_SYNC_DIRTY_KEY, getCanonicalTimesStatus } from '../shared.js';
 import { APP } from './app.js';
 
 // V29.78 FEAT: กันสั่ง archive ซ้ำทุกรอบ poll ตราบใดที่ยังครบ 4 เวลาอยู่ (Copy-Item -Force เขียนทับ
@@ -32,6 +33,42 @@ Object.assign(APP, {
 
                 try {
                     await STORAGE_ENGINE.init();
+
+                    // V29.85 FEAT: pull shared-db snapshot จาก D: (ผ่าน Local Bridge) ก่อน loadLocalData
+                    // ตามปกติ — แก้ปัญหา operator login คนละ Windows account บนเครื่อง shared เห็น IndexedDB
+                    // คนละก้อน ไม่มี confirm() dialog (ต่างจาก restoreData ที่เป็น manual user action)
+                    // เพราะนี่เป็น background sync ตอน init เท่านั้น — ถ้า bridge ไม่พร้อม/ยังไม่มีไฟล์เลย
+                    // (status !== 'ok') fallback ใช้ IndexedDB local เดิมเงียบๆ ไม่ error/ไม่ alert เพราะเป็น
+                    // สถานะปกติ (เครื่องไม่มี bridge, หรือเครื่องแรกที่ยังไม่มีใคร push มา)
+                    // ⚠️ ห้ามเรียก APP.pushSharedDb() ด้วยข้อมูล local ที่ยังไม่ผ่าน mutation จริงเด็ดขาด — ถ้า
+                    // pull ล้มเหลว/IndexedDB ยังเปล่าอยู่ (browser profile ใหม่) การ push ตรงนี้จะเขียนทับ
+                    // shared-db บน D: ด้วยข้อมูลเปล่า ทำลายข้อมูลของทุกคนที่แชร์กันอยู่
+                    // V29.85 FIX: ข้อยกเว้นเดียวคือ dirty flag ค้างจาก mutation จริงที่ push ไม่สำเร็จรอบก่อน
+                    // (เช่น operator save remark ตอน Bridge ดับพอดี) — กรณีนี้ IndexedDB มีข้อมูลจริงที่ยังไม่
+                    // ถูก sync อยู่แน่นอน (ไม่ใช่ข้อมูลเปล่า) ต้อง retry push ก่อนให้โอกาส sync ทันเวลา ไม่งั้น
+                    // pull ข้างล่างจะได้ shared-db เก่าที่ยังไม่มี edit นี้มาทับ local ทิ้งไปเงียบๆ
+                    if (localStorage.getItem(LS_SYNC_DIRTY_KEY)) {
+                        await APP.pushSharedDb(); // เคลียร์ dirty flag เองถ้าสำเร็จ
+                    }
+
+                    if (localStorage.getItem(LS_SYNC_DIRTY_KEY)) {
+                        // retry push ข้างบนก็ยังไม่สำเร็จ (Bridge ยังไม่พร้อม) — ข้าม pull รอบนี้ไปเลย
+                        // ปลอดภัยไว้ก่อน ใช้ local data เดิมต่อไป (เหมือน bridge offline ปกติ)
+                        APP.setSyncIndicator('local');
+                    } else {
+                        const pulled = await EXCEL_SYNC.pullSharedDb();
+                        if (pulled.status === 'ok' && pulled.data) {
+                            try {
+                                await STORAGE_ENGINE.importAll(pulled.data);
+                                APP.setSyncIndicator('synced');
+                            } catch (err) {
+                                console.error('Pull-on-load importAll failed, falling back to local data:', err);
+                                APP.setSyncIndicator('local');
+                            }
+                        } else {
+                            APP.setSyncIndicator('local');
+                        }
+                    }
 
                     // V29.51 FIX: subscribe BEFORE the initial loadLocalData so its STATE.set calls actually
                     // trigger the first render — previously, if IndexedDB already had data from a prior
@@ -66,6 +103,51 @@ Object.assign(APP, {
                 const validRecordIds = new Set(records.map(r => r.id));
                 const prevSelected = STATE.get('selectedForReport') || [];
                 STATE.set('selectedForReport', prevSelected.filter(id => validRecordIds.has(id)));
+            },
+
+
+            // V29.85 FEAT: push snapshot ปัจจุบันทั้งหมดไปเก็บที่ D: ผ่าน Local Bridge — fire-and-forget
+            // ตอนเรียกจากจุด mutation ทั้ง 10 จุด (saveAction/clearAction/saveMasterSettings/handleFiles/
+            // handleAutoImportedFile/saveCountermeasureEntry/deleteCountermeasureEntry/btn-clear-db/
+            // repairAutoImportedFileNames/restoreData) — ไม่ await เพื่อไม่บล็อก UI ให้ operator รอ
+            // network round-trip
+            // V29.85 FIX: ตั้ง LS_SYNC_DIRTY_KEY ก่อนพยายาม push ทุกครั้ง แล้วเคลียร์เมื่อสำเร็จเท่านั้น —
+            // ถ้า push รอบนี้ล้มเหลว (เช่น Bridge ดับพอดี) flag จะค้างไว้ ทำให้ init() รอบต่อไปรู้ว่ามี local
+            // change ที่ยังไม่ถูก sync ค้างอยู่ ต้อง retry push ก่อนจะยอม pull ทับ (ดู init() ด้านบน) — กัน
+            // pull-on-load ทำลาย edit ที่ operator ทำไว้จริงแต่ push ไม่ทันสำเร็จก่อน reload
+            pushSharedDb: async () => {
+                localStorage.setItem(LS_SYNC_DIRTY_KEY, '1');
+                try {
+                    const payload = await STORAGE_ENGINE.exportAll();
+                    const status = await EXCEL_SYNC.pushSharedDb(payload);
+                    if (status === 'ok') {
+                        localStorage.removeItem(LS_SYNC_DIRTY_KEY);
+                        APP.setSyncIndicator('synced');
+                    } else {
+                        APP.setSyncIndicator('local');
+                    }
+                } catch (err) {
+                    console.error('pushSharedDb failed:', err);
+                    APP.setSyncIndicator('local');
+                }
+            },
+
+            // V29.85 FEAT: sidebar indicator — เขียว "SYNCED" ตอน push/pull กับ D: สำเร็จสดๆ, เหลือง
+            // "LOCAL MODE" (ค่า default เดิม) ตอนไม่มี Bridge/ใช้ local เท่านั้น อัปเดตทุกครั้งที่ push/pull
+            // เสร็จ ไม่มี poll แยกต่างหาก
+            setSyncIndicator: (state) => {
+                const dot = document.getElementById('sync-status-dot');
+                const label = document.getElementById('sync-status-label');
+                if (!dot || !label) return;
+                if (state === 'synced') {
+                    dot.classList.remove('bg-amber-400');
+                    dot.classList.add('bg-emerald-500');
+                    label.textContent = 'SYNCED';
+                } else {
+                    dot.classList.remove('bg-emerald-500');
+                    dot.classList.add('bg-amber-400');
+                    label.textContent = 'LOCAL MODE';
+                }
             },
 
 
@@ -127,6 +209,7 @@ Object.assign(APP, {
 
                 broken.forEach(r => { r.sourceFileName = correctFileName; });
                 await STORAGE_ENGINE.updateRecordsBatch(broken);
+                APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
             },
 
             // V29.78 FEAT: trigger archive อัตโนมัติเมื่อข้อมูลวันล่าสุดครบ 4 เวลา (03:00/09:00/15:00/21:00)
@@ -192,6 +275,7 @@ Object.assign(APP, {
                         await STORAGE_ENGINE.importAll(payload);
                         await APP.loadLocalData();
                         STATE.set('timeFilter', 'all');
+                        APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget — sync restore ที่เพิ่ง import ไปทับ D: ด้วย
                         alert("กู้คืนข้อมูลสำเร็จ");
                     } catch (error) {
                         console.error("Restore Failed: ", error);
@@ -237,7 +321,10 @@ Object.assign(APP, {
                 });
 
                 assignEvent('btn-clear-db', async () => {
-                    if (confirm("ต้องการล้างค่าที่บันทึกไว้ (Readings) ของรอบก่อนหน้าใช่หรือไม่? (รายการ Tag และการตั้งค่า Master จะไม่ถูกลบ)")) {
+                    // V29.85 FIX: การล้างนี้จะ push ไป shared-db บน D: ด้วย (เหมือน mutation อื่นทุกจุด)
+                    // กระทบ Dashboard ของ operator คนอื่นที่ reload หน้าเว็บทีหลังด้วย ไม่ใช่แค่เครื่องนี้
+                    // อีกต่อไป — ต้องบอกตรงๆ ใน dialog กันสับสน
+                    if (confirm("ต้องการล้างค่าที่บันทึกไว้ (Readings) ของรอบก่อนหน้าใช่หรือไม่? (รายการ Tag และการตั้งค่า Master จะไม่ถูกลบ)\n\n⚠ การล้างนี้จะ sync ไปยังเครื่อง/operator คนอื่นที่ใช้ข้อมูลชุดเดียวกันผ่าน Local Bridge ด้วย")) {
                         try {
                             await STORAGE_ENGINE.clearImportedData();
                             STATE.set('timeFilter', 'all');
@@ -245,6 +332,7 @@ Object.assign(APP, {
                             const vf = document.getElementById('view-filter');
                             if (vf) vf.value = 'abnormal';
                             await APP.loadLocalData();
+                            APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
                         } catch (error) {
                             console.error("Clear DB Failed: ", error);
                             alert("ล้างข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");

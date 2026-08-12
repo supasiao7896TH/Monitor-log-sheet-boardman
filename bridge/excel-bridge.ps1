@@ -16,6 +16,10 @@
 # เป็นระยะเพื่อดึงไฟล์ log sheet ล่าสุดจาก $WatchFolder มา import เองอัตโนมัติ (ไม่ต้อง COM/Excel เปิดไฟล์
 # เลย แค่อ่านไฟล์ดิบจาก disk) และเรียก /archive-source-file เพื่อคัดลอกไฟล์ต้นฉบับไปเก็บ safety copy ที่
 # $ArchiveFolder เมื่อ Web App เช็คแล้วว่าข้อมูลครบ 4 เวลา (03:00/09:00/15:00/21:00) ของวันนั้น
+#
+# V29.85 FEAT: เพิ่ม /save-shared-db + /load-shared-db ให้ browser sync ข้อมูลทั้งหมด (Tags/Records/
+# MasterTags/UserCountermeasures) ผ่าน $SharedDbPath — แก้ปัญหา operator login คนละ Windows account บน
+# เครื่อง shared เห็น IndexedDB คนละก้อน (IndexedDB ผูกกับ browser profile ต่อ account เสมอ)
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -31,6 +35,12 @@ $AppCommentAuthor = 'Plant Log Analyzer (Web App)'
 $WatchFolder = "D:\PTA COMMONT WORK\Log sheet Digital"
 $ArchiveFolder = "D:\Monitor log sheet boardman"
 
+# V29.85 FEAT: path เก็บ shared-db snapshot กลาง (Tags/Records/MasterTags/UserCountermeasures ทั้งหมด)
+# — ไม่ผูกกับ Windows account คนใดคนหนึ่ง แก้ปัญหา operator login คนละ account บนเครื่อง shared แล้วเห็น
+# IndexedDB คนละก้อน (IndexedDB ผูกกับ browser profile ซึ่งผูกกับ Windows account เสมอ ไม่เกี่ยวกับว่า
+# ไฟล์ app อยู่ที่ไหน) เป็น path คงที่ในสคริปต์เท่านั้นเหมือน $WatchFolder/$ArchiveFolder ด้านบน
+$SharedDbPath = "D:\Monitor log sheet boardman\shared-data\plantlog-shared-db.json"
+
 function Write-CorsHeaders($response, $origin) {
     if ($origin -and ($AllowedOrigins -contains $origin)) {
         $response.Headers.Add('Access-Control-Allow-Origin', $origin)
@@ -41,8 +51,10 @@ function Write-CorsHeaders($response, $origin) {
     return $false
 }
 
-function Send-JsonResponse($response, $statusCode, $body) {
-    $json = $body | ConvertTo-Json -Compress -Depth 5
+function Send-JsonResponse($response, $statusCode, $body, $depth = 5) {
+    # V29.85 FEAT: $depth เสริม (default 5 เดิม ไม่กระทบ route อื่น) — payload ของ /load-shared-db ลึกกว่า
+    # route อื่นเพราะซ้อน records/tags/masterTags/userCountermeasures ทั้งหมดไว้ใต้ field 'data'
+    $json = $body | ConvertTo-Json -Compress -Depth $depth
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
     $response.StatusCode = $statusCode
     $response.ContentType = 'application/json; charset=utf-8'
@@ -142,6 +154,63 @@ function Handle-ArchiveSourceFile {
     } catch {
         if (Test-IsSharingViolation $_.Exception) {
             return @{ status = 'file-locked'; message = 'ไฟล์กำลังถูกเขียนอยู่ (Excel/PI กำลังรีเฟรชข้อมูล) กรุณาลองใหม่ในรอบถัดไป' }
+        }
+        return @{ status = 'error'; message = $_.Exception.Message }
+    }
+}
+
+# V29.85 FEAT: เขียน shared-db snapshot (Tags/Records/MasterTags/UserCountermeasures ทั้งหมดจาก
+# STORAGE_ENGINE.exportAll() ฝั่ง browser) ลง $SharedDbPath — ให้ operator ที่ login คนละ Windows account
+# บนเครื่อง shared เห็นข้อมูลชุดเดียวกัน เขียนแบบ atomic (temp file แล้ว Move-Item ทับทีเดียว) กันไฟล์
+# เสียหายครึ่งเดียวถ้า process ถูก interrupt กลางทาง (browser ปิด/network หลุดตอนกำลังเขียน) ซึ่งจะทำให้
+# คนถัดไปที่ pull โดน parse error แทน
+function Handle-SaveSharedDb($payload) {
+    if (-not $payload) {
+        return @{ status = 'error'; message = 'missing body' }
+    }
+    # เช็คว่ามี field หลักครบตาม shape ของ STORAGE_ENGINE.exportAll() ก่อนเขียนทับไฟล์กลาง — กัน payload
+    # เพี้ยน (bug ฝั่ง client, request ผิดรูปแบบ) มาทำลาย shared-db ให้ operator คนอื่น pull ได้ข้อมูลพัง
+    # ไปด้วย หมายเหตุ: ConvertFrom-Json บน PowerShell 5.1 แปลง JSON array ว่าง [] เป็น $null (ไม่ใช่ array
+    # เปล่า) จึงเช็คแค่ว่า property มีอยู่จริง ไม่เช็คว่าต้องไม่เป็น $null (ไม่งั้น payload ที่ tags/records
+    # ว่างจริงๆ เช่น export ก่อน import ครั้งแรก จะถูก reject ผิดๆ)
+    $requiredFields = @('tags', 'records', 'masterTags')
+    $propNames = $payload.PSObject.Properties.Name
+    $missing = $requiredFields | Where-Object { $propNames -notcontains $_ }
+    if ($missing.Count -gt 0) {
+        return @{ status = 'error'; message = "payload missing required field(s): $($missing -join ', ')" }
+    }
+    try {
+        $dir = Split-Path -Parent $SharedDbPath
+        if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        }
+        $tmpPath = "$SharedDbPath.tmp"
+        $json = $payload | ConvertTo-Json -Compress -Depth 10
+        # WriteAllText(path, text, Encoding.UTF8) เขียน BOM (U+FEFF) นำหน้าเสมอ — ConvertFrom-Json ตอน
+        # อ่านกลับใน Handle-LoadSharedDb จะ parse ไม่ผ่าน ("Invalid JSON primitive") เพราะ GetString ไม่ตัด
+        # BOM ออกให้ ต้องเขียนด้วย GetBytes ตรงๆ (ไม่มี preamble) เหมือน Send-JsonResponse ใช้อยู่แล้ว
+        [System.IO.File]::WriteAllBytes($tmpPath, [System.Text.Encoding]::UTF8.GetBytes($json))
+        Move-Item -LiteralPath $tmpPath -Destination $SharedDbPath -Force
+        return @{ status = 'ok' }
+    } catch {
+        return @{ status = 'error'; message = $_.Exception.Message }
+    }
+}
+
+# V29.85 FEAT: อ่าน shared-db snapshot ล่าสุดกลับมาให้ browser ตอน init (pull-on-load) — 'not-found' ไม่ใช่
+# error ถือเป็นสถานะปกติตอนยังไม่มีใคร push อะไรมาก่อนเลย (เครื่องใหม่/ครั้งแรกที่ตั้ง Bridge)
+function Handle-LoadSharedDb {
+    if (-not (Test-Path -LiteralPath $SharedDbPath -PathType Leaf)) {
+        return @{ status = 'not-found' }
+    }
+    try {
+        $bytes = Read-FileBytesShared $SharedDbPath
+        $text = [System.Text.Encoding]::UTF8.GetString($bytes)
+        $data = $text | ConvertFrom-Json
+        return @{ status = 'ok'; data = $data }
+    } catch {
+        if (Test-IsSharingViolation $_.Exception) {
+            return @{ status = 'file-locked'; message = 'ไฟล์กำลังถูกเขียนอยู่ กรุณาลองใหม่' }
         }
         return @{ status = 'error'; message = $_.Exception.Message }
     }
@@ -331,6 +400,24 @@ try {
             # แล้วว่าข้อมูลครบ 4 เวลาของวันนั้น (คู่ขนานกับที่ operator อัปโหลด SharePoint เองด้วยมือตามปกติ)
             if ($request.Url.AbsolutePath -eq '/archive-source-file' -and $request.HttpMethod -eq 'POST') {
                 Send-JsonResponse $response 200 (Handle-ArchiveSourceFile)
+                continue
+            }
+
+            # V29.85 FEAT: push shared-db snapshot จาก browser ไปเก็บที่ $SharedDbPath — เรียกทุกครั้งที่
+            # มีการแก้ไขข้อมูลใน Web App (fire-and-forget ฝั่ง client, ดู APP.pushSharedDb)
+            if ($request.Url.AbsolutePath -eq '/save-shared-db' -and $request.HttpMethod -eq 'POST') {
+                $reader = New-Object System.IO.StreamReader($request.InputStream, [System.Text.Encoding]::UTF8)
+                $bodyText = $reader.ReadToEnd()
+                $reader.Close()
+                $payload = $bodyText | ConvertFrom-Json
+                $result = Handle-SaveSharedDb $payload
+                Send-JsonResponse $response 200 $result
+                continue
+            }
+
+            # V29.85 FEAT: pull shared-db snapshot ล่าสุด — Web App เรียกครั้งเดียวตอน init ก่อน loadLocalData
+            if ($request.Url.AbsolutePath -eq '/load-shared-db' -and $request.HttpMethod -eq 'GET') {
+                Send-JsonResponse $response 200 (Handle-LoadSharedDb) 10
                 continue
             }
 

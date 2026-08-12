@@ -85,8 +85,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 | `/source-file-info` | GET | คืนชื่อ/ขนาด/เวลาแก้ไขล่าสุดของไฟล์ log sheet ปัจจุบันใน `$WatchFolder` — Web App poll route นี้ทุก 5 นาทีเพื่อเช็คว่าไฟล์เปลี่ยนไปหรือยัง |
 | `/source-file` | GET | คืนเนื้อไฟล์ดิบ (raw binary ตอนสำเร็จ, JSON envelope ตอน error/file-locked) — Web App เอาไป import เหมือนลาก-วางไฟล์เอง |
 | `/archive-source-file` | POST | คัดลอกไฟล์ต้นฉบับไปเก็บที่ `$ArchiveFolder` — Web App เรียกอัตโนมัติเมื่อเช็คแล้วว่าข้อมูลวันนั้นครบ 4 เวลา (03:00/09:00/15:00/21:00) |
+| `/save-shared-db` | POST | รับ JSON snapshot ทั้งหมด (Tags/Records/MasterTags/UserCountermeasures) จาก browser แล้วเขียนทับ `$SharedDbPath` แบบ atomic — เรียกทุกครั้งที่มีการแก้ไขข้อมูลใน Web App (fire-and-forget, ดูหัวข้อ `$SharedDbPath` ด้านล่าง) |
+| `/load-shared-db` | GET | คืน snapshot ล่าสุดจาก `$SharedDbPath` — Web App ดึงมา `importAll` เข้า IndexedDB ตอนเปิดแอปครั้งเดียว (`status:'not-found'` ถ้ายังไม่มีใคร push มาก่อนเลย ไม่ใช่ error) |
 
-ทั้งสาม route ไม่ต้องเปิด Excel ไฟล์ต้นฉบับไว้ก็ทำงานได้ (อ่านไฟล์ดิบจาก disk ตรงๆ ไม่ผ่าน COM) — ถ้า Excel/PI Datalink กำลังเขียนไฟล์อยู่พอดี (ช่วงสั้นๆ ตอน refresh 4 รอบ/วัน) จะตอบ `{status:'file-locked'}` แทนที่จะ error รอบ poll ถัดไปจะลองใหม่เองอัตโนมัติ ไม่ต้องทำอะไรเพิ่ม
+ทั้งสาม route แรก (source-file*, archive-source-file) ไม่ต้องเปิด Excel ไฟล์ต้นฉบับไว้ก็ทำงานได้ (อ่านไฟล์ดิบจาก disk ตรงๆ ไม่ผ่าน COM) — ถ้า Excel/PI Datalink กำลังเขียนไฟล์อยู่พอดี (ช่วงสั้นๆ ตอน refresh 4 รอบ/วัน) จะตอบ `{status:'file-locked'}` แทนที่จะ error รอบ poll ถัดไปจะลองใหม่เองอัตโนมัติ ไม่ต้องทำอะไรเพิ่ม (`/save-shared-db`/`/load-shared-db` ก็ใช้หลักการเดียวกัน — ดูหัวข้อถัดไป)
+
+## ตั้งค่า $SharedDbPath (V29.85 — Multi-Operator Sync)
+
+เครื่อง Office ใช้ร่วมกันหลาย operator แต่ login คนละ Windows account — ข้อมูลในแอป (Tags/Records/Master overrides/Remark) เก็บอยู่ใน **IndexedDB ของ browser ซึ่งผูกกับ Windows account เสมอ** (ไม่เกี่ยวกับว่า repo/ไฟล์แอปอยู่ที่ไหน) ทำให้คนที่ login ใหม่เห็น Dashboard เปล่าๆ ไม่เห็นข้อมูลของคนก่อนหน้า
+
+`$SharedDbPath` (ค่า default: `D:\Monitor log sheet boardman\shared-data\plantlog-shared-db.json`) แก้ปัญหานี้โดยให้ Web App **push** snapshot ข้อมูลทั้งหมดไปเก็บที่ D: ทุกครั้งที่มีการแก้ไข (fire-and-forget ไม่บล็อก UI) และ **pull** กลับมาตอนเปิดแอปครั้งเดียว (ไม่มี periodic re-pull — reload หน้าเว็บถ้าต้องการข้อมูลล่าสุด) เป็น path คงที่ในสคริปต์เหมือน `$WatchFolder`/`$ArchiveFolder` (ห้ามรับจากเบราว์เซอร์) เขียนแบบ atomic (temp file แล้ว `Move-Item` ทับทีเดียว) กันไฟล์เสียหายครึ่งเดียวถ้า process ถูก interrupt กลางทาง — โฟลเดอร์ `shared-data` จะถูกสร้างอัตโนมัติตอน push ครั้งแรก
+
+แก้ตัวแปรนี้ในสคริปต์ถ้าย้ายโฟลเดอร์บนเครื่องจริง
 
 ## Troubleshooting
 
@@ -100,3 +110,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 | `Register-ScheduledTask` ขึ้น `Access is denied` | ปกติถ้าใช้ `-GroupId` (trigger แบบ Any user) กับ account ที่ไม่มีสิทธิ์ local Administrator — Task Scheduler บังคับต้องใช้สิทธิ์ Admin เสมอสำหรับ group principal ใช้ `-UserId` แบบ Specific user แทนถ้าไม่มีสิทธิ์ Admin (ดูหัวข้อด้านบน) |
 | ข้อมูลใน Dashboard ไม่อัปเดตเองอัตโนมัติ | เช็คว่า bridge รันอยู่ไหม (`/ping`) และไฟล์ใน `$WatchFolder` ไม่มีคำว่า `(master)` ในชื่อ + มีแค่ไฟล์เดียวที่ไม่ใช่ master — ถ้ามีมากกว่า 1 ไฟล์ bridge จะปฏิเสธไม่ import เลย (กันดึงไฟล์ผิด) auto-import เช็คทุก 5 นาที ไม่ใช่ทันที |
 | ไม่มีไฟล์ archive โผล่ที่ `$ArchiveFolder` | archive จะเกิดเฉพาะตอนข้อมูลวันนั้นครบ 4 เวลา (03:00/09:00/15:00/21:00) แล้วเท่านั้น — เช็ค chip สถานะข้าง "Time Breakdown" บน Dashboard ว่าขึ้น "✓ ครบ 4 รอบเวลา" หรือยัง และอย่าลืมเช็คใน**โฟลเดอร์ย่อยตามเดือน** (เช่น `$ArchiveFolder\Aug 26\`) ไม่ใช่แค่ root ของ `$ArchiveFolder` เฉยๆ |
+| Dashboard เห็นข้อมูล/remark ไม่ตรงกับเพื่อนร่วมกะที่ login คนละ account | เช็คว่า bridge รันอยู่ไหม (`/ping`) ทั้งสองเครื่อง/สอง session แล้ว **reload หน้าเว็บใหม่** — pull จาก `$SharedDbPath` เกิดแค่ตอนเปิดแอป (init) เท่านั้น ไม่มี periodic re-pull ระหว่างใช้งาน |
+| Sidebar indicator ค้างที่ "LOCAL MODE" สีเหลืองทั้งที่ bridge เปิดอยู่ | เช็คสิทธิ์เขียนไฟล์ที่โฟลเดอร์ `shared-data` ใต้ `$SharedDbPath` (NTFS permission บนเครื่อง shared) หรือดู error ใน console ของ browser (`EXCEL_SYNC.pushSharedDb`/`pullSharedDb`) |

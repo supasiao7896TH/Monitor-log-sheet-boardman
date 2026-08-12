@@ -182,6 +182,7 @@ Object.assign(APP, {
 
                     const newList = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
                     STATE.set('userCountermeasures', newList);
+                    APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
 
                     APP.closeCountermeasureModal();
                 } catch (error) {
@@ -200,6 +201,7 @@ Object.assign(APP, {
                     await STORAGE_ENGINE.deleteCountermeasure(id);
                     const newList = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
                     STATE.set('userCountermeasures', newList);
+                    APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
 
                     APP.closeCountermeasureModal();
                 } catch (error) {

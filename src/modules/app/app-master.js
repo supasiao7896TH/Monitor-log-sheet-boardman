@@ -201,6 +201,7 @@ Object.assign(APP, {
                     STATE.set('masterTags', newMasters);
 
                     await STORAGE_ENGINE.updateRecordsBatch(STATE.get('records'));
+                    APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
 
                     APP.closeMasterModal();
                 } catch (error) {
