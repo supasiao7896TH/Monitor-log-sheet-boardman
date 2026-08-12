@@ -2,8 +2,8 @@
 
 ## 📅 อัปเดตล่าสุด
 2026-08-12 — เครื่อง: Office PC (`26007294`)
-Branch: `main` | Commit ล่าสุด: `51f102b` — **ตรงกับ `origin/main` แล้ว, working tree clean สนิท** (`git status --short` ไม่มี output)
-เวอร์ชันแอปปัจจุบัน: **V29.83**
+Branch: `main` | Commit ล่าสุด: `b6df8c8` — **push ขึ้น `origin/main` แล้ว** (`0a6d7e5..b6df8c8`)
+เวอร์ชันแอปปัจจุบัน: **V29.84**
 
 > ⚠️ ตอนเริ่ม session นี้ที่เครื่อง Office `git log` พบว่า `origin/main` ไปไกลกว่า header เดิมด้านล่าง (ซึ่งหยุดที่ `2b81b3b` / V29.81) อีก 1 commit ที่ไม่เคยถูกบันทึกเป็น entry ใน HANDOFF.md เลย: `51ec9d2` — **V29.82** "Fix canonical-times completeness reporting a future time slot as present" (แก้ `getCanonicalTimesStatus` ให้เทียบกับเวลาจริง ณ ปัจจุบันด้วย ไม่ใช่แค่เช็คว่ามี record ของ time slot นั้นหรือยัง กันไม่ให้ dashboard ขึ้น "ครบ 4 รอบเวลา" ก่อนเวลาจริงมาถึง) — **session นี้ (เครื่อง Office) ไม่ได้เป็นคนทำ V29.82** พบแค่จาก `git log`/`git show --stat` ตอนตรวจสอบก่อนเริ่มงาน ไม่มีบริบทเพิ่มเติมนอกจาก commit message เอง — ถ้าใครรับงานต่อที่เครื่องบ้านและมีบริบทมากกว่านี้ ควรเติม entry ย้อนหลังให้ครบ
 >
@@ -83,11 +83,40 @@ Branch: `main` | Commit ล่าสุด: `51f102b` — **ตรงกับ `
 
 ---
 
+## ✅ เรื่องที่ 9 — เพิ่ม Statistical Deviation detection แยกจาก hard-limit เดิม, opt-in ต่อ tag (V29.84) — เครื่อง Office
+
+**โจทย์:** พี่ A แจ้งว่า Web App กำลังจะเข้ามาแทนการจดกระดาษด้วยมือ 100% (ข้อมูลไหลเข้าจาก PI Datalink ผ่าน Excel auto-import อัตโนมัติ 4 ครั้ง/วัน/tag) แต่ระบบตรวจจับ "ผิดปกติ" เดิมเช็คแค่ hard min/max/exact limit จาก sheet — บาง tag มี spec กว้างมาก (ตัวอย่างที่ยกมา: `TI-2301` spec 220-262) แต่ค่าจริงเสถียรแคบกว่ามาก (swing แค่ 253.4-254.1) ถ้าค่าตกมาที่ 238.7 (ยังอยู่ใน spec) ระบบเดิมจะไม่จับว่าผิดปกติ ทั้งที่จริงคือสัญญาณ sensor clogging
+
+**แนวทางที่เลือก (คุยกับพี่ A แล้วก่อนเริ่ม):** เพิ่มเกณฑ์ตรวจจับตัวที่สอง "Statistical Deviation" — เทียบค่ากับ baseline ทางสถิติของ tag เอง (mean ± 3σ จาก causal, leave-one-out rolling window 120 samples ≈ 30 วัน ที่ 4 samples/วัน) แยกเป็น flag/badge คนละอันจาก hard-limit violation เดิม (ไม่ปนกัน) เปิดใช้แบบ **opt-in ต่อ tag** ผ่าน Tag Master (เหมือน `disableZeroShield`/`forceStandby` ที่มีอยู่แล้ว)
+
+**Implementation:**
+- `src/modules/shared.js` — เพิ่ม constants (`STAT_DEVIATION_WINDOW_SAMPLES=120`, `STAT_DEVIATION_MIN_SAMPLES=20`, `STAT_DEVIATION_SIGMA_K=3`) และ pure helper ใหม่ `computeCausalStatDeviation` (ring-buffer streaming mean/variance, causal/leave-one-out, กัน sample ที่ถูก flag แล้วไม่ให้ปนเข้า baseline pool ของตัวเอง)
+- `src/modules/state.js` — เพิ่ม pass ที่สองใน `_recomputeFlags` ต่อจาก hard-limit check เดิม เฉพาะ tag ที่เปิด `enableStatDeviation`, skip tag แบบ Exact Value, เขียน `isStatDeviation`/`statZScore` กลับเข้า record — mutually exclusive กับ `isAbnormal` โดยธรรมชาติ (evaluate เฉพาะ record ที่ `isAbnormal===0 && !isStandby`)
+- `src/modules/app/app-master.js` + `index.html` — checkbox opt-in ใหม่ใน Tag Master modal + badge `σ-BAND` ในตาราง
+- `src/modules/app/app-dashboard.js` + `index.html` — badge/สีม่วงที่ 3 บน dashboard card (แยกจากแดง), counter card ใหม่ "Statistical Deviation", filter option ใหม่, default filter "Abnormal Only" ขยายให้ครอบคลุมทั้งสองแบบ (ห้าม operator พลาดเพราะดูแค่ Web App แล้ว), ปรับ `autoSelectCritical` ให้ครอบคลุม stat-deviation ด้วย
+- `src/modules/app/app-report.js` — Infographic Report (Card+Table) แยกสีม่วงให้ stat-deviation ด้วย ไม่ให้โชว์เขียวปกติหลอกๆ
+- `tests/shared.test.js` + `tests/state.test.js` (ไฟล์ใหม่) — test ครอบคลุม cold-start, causal/leave-one-out, baseline pool exclusion, std=0 edge case, window eviction, mutual exclusivity, filter integration
+
+**Code review รอบเดียวก่อน commit (เรียก sa-code-reviewer เอง) เจอและแก้แล้ว:**
+- **บั๊กจริง:** Time Breakdown bar (ปุ่มเวลาบนสุดของ dashboard) นับแค่ `isAbnormal` ไม่รวม `isStatDeviation` ทำให้ปุ่มโชว์ "OK" ทั้งที่มีรายการผิดปกติทางสถิติอยู่ — แก้ใน `app-dashboard.js`
+- Test หนึ่งใน `state.test.js` ไม่ได้ isolate สิ่งที่อ้างว่าทดสอบจริง (เพราะ mutual-exclusivity ทำให้ผลลัพธ์เหมือนกันไม่ว่า guard จะมีหรือไม่) — แก้ให้ test ตรงกับพฤติกรรมที่สังเกตได้จริง พร้อม comment อธิบาย
+- Infinity edge case ใน `autoSelectCritical` severity scoring (เมื่อ baseline คงที่เป๊ะ, std=0) — เพิ่ม clamp กัน `Infinity - Infinity = NaN` ทำให้ sort ไม่ deterministic
+- Badge `σ-BAND` โชว์แม้ตอน tag เป็น Exact Value ที่ฟีเจอร์นี้ไม่มีผลจริง (state.js skip ไปเงียบๆ) — เพิ่มเงื่อนไข `eExact === null` ก่อนโชว์ badge กันสับสน
+- อัปเดต `CLAUDE.md`/`AGENTS.md` ให้ตรงกับโครงสร้าง `_recomputeFlags` แบบ 2-pass ใหม่ (เดิม doc ยังพูดถึง `_deriveAbnormal` ที่เลิกใช้ไปแล้วตั้งแต่ V29.78 — doc drift ที่ค้างมานาน แก้พร้อมกันไปด้วย)
+
+**การทดสอบ:** เครื่อง Office นี้ไม่มี Node.js/npm เลย (ยืนยันซ้ำอีกครั้ง หา `node`/`npm` ไม่เจอทั้ง bash/PowerShell) จึง **ไม่ได้รัน `npm test` จริงทั้ง 2 รอบ** (ทั้งตอนเขียน test และตอน sa-code-reviewer ตรวจ) — ตรวจด้วย hand-trace ตัวเลขทีละ step แทน (ไม่พบข้อผิดพลาดทางคณิตศาสตร์) และทดสอบ end-to-end จริงผ่าน browser (Claude in Chrome) แทน: ตั้ง local Python static server ชั่วคราว (เลียนแบบ Vite dev server, map `/vendor/*` → `public/vendor/*`), สร้าง synthetic backup JSON (`STORAGE_ENGINE.importAll` format) ที่มี TI-2301 baseline 25 samples + ค่า anomaly 238.7 + ค่าหลุด hard-limit 300 แล้วใช้ "กู้คืนข้อมูล" (restore) โดย override `window.confirm`/`window.alert` ผ่าน `javascript_tool` ก่อน เพื่อไม่ให้ native dialog บล็อก session (เจอปัญหานี้จริงรอบแรก — tab หลุดค้าง ต้อง `tabs_close_mcp` แล้วเปิดใหม่) ยืนยันผ่านหมด: purple badge/card/filter/counter ถูกต้อง, Infographic Report (Card+Table) สีถูก, Tag Master badge ถูก, ไม่มี console error (นอกจาก "bridge unreachable" ที่ปกติเพราะไม่ได้รัน Local Bridge)
+
+**Commit:** `b6df8c8` "Add Statistical Deviation detection, opt-in per tag (V29.84)" — 10 files, 343 insertions — **push ขึ้น `origin/main` แล้ว** (`0a6d7e5..b6df8c8`)
+
+**สถานะ:** แก้เสร็จ + commit + push แล้ว **แต่ยังไม่มีใครรัน `npm test` จริงเลยตลอด session นี้** (ทั้ง test เก่าและ test ใหม่ที่เพิ่งเขียน) — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 9 และ **ฟีเจอร์นี้ปิดอยู่ทุก tag โดย default** จนกว่าพี่ A จะไปเปิด `enableStatDeviation` เองผ่าน Tag Master — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 10
+
+---
+
 ## 🚧 ค้างอยู่ตรงไหน
 
 1. **V29.81 fix (เรื่องที่ 5) ยังไม่ได้ยืนยันในสภาพแวดล้อมจริง** — ทดสอบแค่กับ temp folder จำลองที่เครื่องบ้าน ยังไม่เคยทดสอบกับ watch folder จริง (`D:\PTA COMMONT WORK\Log sheet Digital`) บนเครื่องที่มีจริง และยังไม่เคยทดสอบกับ Excel ตัวจริงที่เปิดไฟล์ค้างไว้จริงๆ (จำลองด้วย `FileShare.None` เท่านั้น) — แนะนำให้ยืนยันที่เครื่อง Office (หรือเครื่องไหนก็ตามที่มี watch folder จริง) ว่า auto-import/auto-archive ยังทำงานต่อได้ปกติขณะ log sheet เปิดค้างอยู่ใน Excel เพราะนั่นคือเงื่อนไขที่พังมาก่อน
-2. **ยังไม่ได้เช็ค GitHub Actions deploy status ของ commit ล่าสุด (`51f102b`)** — เช็คได้ที่ https://github.com/supasiao7896TH/Monitor-log-sheet-boardman/actions ก่อนสรุปว่า production ขึ้น V29.83 แล้วจริง
-3. **บั๊กเล็กๆ ที่เจอแต่ยังไม่ได้แก้ (cosmetic, ไม่เร่งด่วน):** `index.html` บรรทัดราว 274 มี badge UI hardcode ข้อความ "V29.52 Strict Numeric Core" ที่ไม่เคยอัปเดตมาตั้งแต่ V29.52 (ผ่านมาแล้วหลายเวอร์ชัน ปัจจุบัน V29.83 ก็ยังขึ้น V29.52 อยู่)
+2. **ยังไม่ได้เช็ค GitHub Actions deploy status ของ commit ล่าสุด (`b6df8c8`)** — เช็คได้ที่ https://github.com/supasiao7896TH/Monitor-log-sheet-boardman/actions ก่อนสรุปว่า production ขึ้น V29.84 แล้วจริง
+3. **บั๊กเล็กๆ ที่เจอแต่ยังไม่ได้แก้ (cosmetic, ไม่เร่งด่วน):** `index.html` บรรทัดราว 274 มี badge UI hardcode ข้อความ "V29.52 Strict Numeric Core" ที่ไม่เคยอัปเดตมาตั้งแต่ V29.52 (ผ่านมาแล้วหลายเวอร์ชัน ปัจจุบัน V29.84 ก็ยังขึ้น V29.52 อยู่)
 4. **รายการค้างเก่าจาก session ที่เครื่อง Office (22416d8 เป็นต้นไป) — ยังไม่ได้ตรวจสอบซ้ำใน session นี้ ให้ถือว่ายังค้างอยู่จนกว่าจะมีหลักฐานใหม่:**
    - สูตร Hyperlink (`=HYPERLINK("D:\Monitor log sheet boardman\bridge\start-bridge.bat", ...)`) ยังไม่ได้แปะในไฟล์ log sheet จริง
    - Task Scheduler (Specific-user, ผูก `PTTGC\26007294`) ยังไม่ได้ยืนยันด้วยการ log off/log on จริงว่า auto-start ทำงาน
@@ -96,20 +125,25 @@ Branch: `main` | Commit ล่าสุด: `51f102b` — **ตรงกับ `
 5. **bridge บนเครื่องบ้าน (4000D) ยังรันแบบ manual** เหมือนเดิม (ยังไม่ได้ตั้ง Task Scheduler ที่นี่)
 6. **V29.83 fix (เรื่องที่ 7) ยังไม่ได้รัน `npm test` (Vitest suite) เลย** — เครื่อง Office ไม่มี Node.js/npm ติดตั้ง ยืนยันแค่ manual ผ่าน browser เท่านั้น ควรรัน `npm test` ที่เครื่องบ้าน (หรือเครื่องที่มี Node.js) เพื่อ double-check ว่ายังผ่านครบ 49/49 เหมือนเดิม
 7. **commit `51ec9d2` (V29.82, canonical-times fix) ไม่เคยมีการบันทึกรายละเอียดใน HANDOFF.md เลย** มีแค่ commit message ที่เห็นจาก `git log`/`git show --stat` — ถ้าใครที่เครื่องบ้านมีบริบทเพิ่มเติมของ session ที่ทำ V29.82 ควรเติม entry ย้อนหลังให้ครบ
-8. **เครื่อง Office (`26007294`) ไม่มี Node.js/npm ติดตั้งอยู่เลย** — ถ้าจะ dev/test ต่อบนเครื่องนี้ในอนาคตต้องติดตั้ง Node.js ก่อน (การตั้ง static server ชั่วคราวแบบที่ทำใน "เรื่องที่ 7" ใช้ตรวจ UI ได้เท่านั้น ไม่ครอบคลุม Vitest suite)
+8. **เครื่อง Office (`26007294`) ไม่มี Node.js/npm ติดตั้งอยู่เลย** — ถ้าจะ dev/test ต่อบนเครื่องนี้ในอนาคตต้องติดตั้ง Node.js ก่อน (การตั้ง static server ชั่วคราวแบบที่ทำใน "เรื่องที่ 7"/"เรื่องที่ 9" ใช้ตรวจ UI ได้เท่านั้น ไม่ครอบคลุม Vitest suite)
+9. **V29.84 (เรื่องที่ 9) — ทั้ง test suite เดิม (49 tests) และ test ใหม่ (`tests/shared.test.js` describe ใหม่, `tests/state.test.js` ทั้งไฟล์) ยังไม่มีใคร run จริงเลยด้วย `npm test`** — ต้องรันที่เครื่องบ้านก่อนไว้ใจ 100% ว่า test ใหม่ผ่านและ suite เดิมไม่พัง (ตรวจด้วย hand-trace + browser manual test เท่านั้นใน session นี้)
+10. **Statistical Deviation feature (V29.84) ยังไม่ได้เปิดใช้กับ tag ไหนเลยในข้อมูลจริง** — default ปิดทุก tag ต้องไปติ๊ก `enableStatDeviation` เองผ่าน Tag Master ทีละ tag (เช่น TI-2301) ก่อนฟีเจอร์นี้จะเริ่มทำงาน
+11. **Known limitation ของ Statistical Deviation ที่ตั้งใจไม่แก้ใน v1 (มี comment ในโค้ดแล้ว):** ถ้า process เปลี่ยน setpoint จริงถาวร (ไม่ใช่ fault) จะเกิด false-positive ต่อเนื่องจนกว่า window 120 samples จะเลื่อนผ่านครบ — mitigation ระยะสั้นคือปิด `enableStatDeviation` ชั่วคราวเองผ่าน Tag Master
 
 ---
 
 ## 🎯 ขั้นตอนถัดไปที่ตั้งใจจะทำ
 
 1. ยืนยัน V29.81 fix กับ watch folder จริง + Excel ตัวจริงเปิดไฟล์ค้างไว้ (ที่เครื่อง Office หรือเครื่องที่มี path จริง)
-2. เช็คสถานะ GitHub Actions ของ commit ล่าสุด (`51f102b`)
+2. เช็คสถานะ GitHub Actions ของ commit ล่าสุด (`b6df8c8`)
 3. `git show 1e99d15 --stat` เช็คว่า "เรื่องที่ 3" เดิม (doc changes ของ Hyperlink/multi-user setup) commit ไปแล้วจริงหรือยัง
 4. ถ้ายังไม่ได้ทำ: แปะสูตร Hyperlink ในไฟล์ log sheet จริง, ทดสอบ Task Scheduler ด้วย log off/log on จริง, ลบเศษ `.git` ค้างที่เครื่อง Office
 5. (ไม่เร่งด่วน) แก้ badge "V29.52" ที่ค้างใน `index.html` บรรทัดราว 274 ให้ตรงเวอร์ชันปัจจุบัน
 6. รัน `npm test` ที่เครื่องบ้าน (หรือเครื่องที่มี Node.js) เพื่อ double-check ว่า V29.83 fix (เรื่องที่ 7) ไม่ทำ suite เดิม (49/49) พัง
 7. ถ้าจะพัฒนาต่อที่เครื่อง Office ในอนาคต ให้ติดตั้ง Node.js ก่อน
 8. พิจารณาเติม entry ย้อนหลังของ V29.82 (`51ec9d2`) ใน HANDOFF.md ให้ครบถ้วน (ตอนนี้มีแค่ commit message)
+9. **สำคัญที่สุด:** รัน `npm test` ที่เครื่องบ้าน (มี Node.js) เพื่อ confirm ชุด test ใหม่ของ V29.84 (`tests/shared.test.js` describe block ใหม่, `tests/state.test.js` ทั้งไฟล์) ผ่านจริงและ suite เดิมไม่พัง — ยังไม่มีใคร run จริงเลยตลอด session ที่เขียนฟีเจอร์นี้
+10. เปิดใช้ Statistical Deviation ผ่าน Tag Master ให้ tag ที่ต้องการจริง (เช่น TI-2301) เพราะ default ปิดไว้ทุก tag ฟีเจอร์นี้ยังไม่ทำงานกับ tag ไหนเลยจนกว่าจะไปติ๊กเปิดเอง
 
 ---
 
@@ -124,6 +158,7 @@ Branch: `main` | Commit ล่าสุด: `51f102b` — **ตรงกับ `
 - แบรนด์เปลี่ยนจาก "Supasit.A" → **"A(i)CODER"** แล้วตั้งแต่ commit `64fae6a` — ถ้าจะเพิ่ม branding ใหม่ที่ไหน ให้ใช้ชื่อใหม่
 - **หลัง V29.83:** re-import (ทั้ง manual drag-drop และ auto-import) จะ carry-over `remark`+`actionStatus` จาก record เดิมมาก่อนบันทึกทับเสมอ (`src/modules/app/app-import.js`) — ถ้าต้องการล้าง remark ของ record ใดจริงๆ ต้องลบ/แก้เองผ่าน UI (annotation modal) ไม่ใช่หวังพึ่งการ re-import ทับให้ว่าง
 - **เครื่อง Office (`26007294`) ไม่มี Node.js/npm ติดตั้ง** — ตรวจสอบ/ติดตั้งก่อนถ้าจะรัน `npm run dev`/`npm test`/`npm install` ที่นี่ (session ที่ผ่านมาต้องใช้ local Python static server จำลองแทน ใช้ตรวจ UI ได้เท่านั้น)
+- **หลัง V29.84:** Statistical Deviation (`isStatDeviation`/`statZScore`) เป็นเกณฑ์แยกจาก hard-limit (`isAbnormal`) โดยตั้งใจ — mutually exclusive กัน (evaluate เฉพาะ record ที่ผ่าน hard-limit แล้วว่าไม่ผิดปกติ) ต้องเปิด opt-in ต่อ tag ผ่าน Tag Master (`enableStatDeviation`) ก่อนจะมีผล ไม่ทำงานกับ tag แบบ Exact Value และต้องมีข้อมูลอย่างน้อย 20 samples ก่อน baseline จะเริ่มมีผล (ไม่งั้น record จะไม่ถูก flag เพราะข้อมูลไม่พอ ไม่ใช่บั๊ก) — ถ้า process เปลี่ยน setpoint จริงถาวรจะเห็น false-positive ต่อเนื่องจนกว่า rolling window 120 samples จะเลื่อนผ่าน ให้ปิด `enableStatDeviation` ชั่วคราวถ้าเจอกรณีนี้
 
 ---
 
@@ -132,7 +167,7 @@ Branch: `main` | Commit ล่าสุด: `51f102b` — **ตรงกับ `
 ```bash
 git pull
 npm install   # ถ้ายังไม่เคยลงที่เครื่องนี้ หรือ package.json เปลี่ยน
-npm test      # ควรผ่าน 49/49
+npm test      # ควรผ่าน 49/49 + test ใหม่จาก V29.84 (tests/shared.test.js, tests/state.test.js) — ยังไม่มีใคร run จริงเลย ให้รันเป็นอันดับแรก
 ```
 
 > หมายเหตุ: เครื่อง Office (`26007294`) ยังไม่มี Node.js ติดตั้ง — ต้องติดตั้ง Node.js ก่อนถึงจะรันคำสั่งข้างบนได้จริงที่เครื่องนี้
@@ -169,4 +204,3 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 **สถานะ:** ทดสอบ end-to-end ผ่านจริงครบวงจร (2026-08-10 ดึก) — comment ขึ้นใน Excel จริงสำเร็จ, `npm test` ผ่าน 35/35 (ตอนนั้น), deploy ขึ้น production ผ่าน GitHub Actions
 
 </details>
-</content>
