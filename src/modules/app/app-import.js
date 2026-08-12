@@ -139,6 +139,20 @@ Object.assign(APP, {
                     }
                 }
 
+                // V29.83 FIX: EXCEL_WORKER สร้าง record ใหม่ทุกครั้งด้วย remark:''/actionStatus:'new' เสมอ
+                // (excel-worker.js) และ record id เป็นค่าคงที่ตามตำแหน่ง cell — ถ้า re-import ไฟล์เดิม (manual
+                // หรือ auto-import ที่ poll ทุก 5 นาที) จะเขียนทับ remark ที่ operator กรอกไว้ก่อนหน้ากลับเป็นค่าว่าง
+                // เงียบๆ โดยไม่มีการแจ้งเตือน ก่อน saveBatch ต้อง carry-over remark/actionStatus จาก record เดิมมาก่อน
+                // เหมือน tag merge ด้านบน
+                const existingRecordsMap = new Map(STATE.get('records').map(r => [r.id, r]));
+                allRecords.forEach(r => {
+                    const existing = existingRecordsMap.get(r.id);
+                    if (existing && existing.remark) {
+                        r.remark = existing.remark;
+                        r.actionStatus = existing.actionStatus;
+                    }
+                });
+
                 logEl.appendChild(UI_RENDERER.createEl('div', 'text-emerald-400 mt-2 font-bold', `> Saving to Local Database...`));
                 const uniqueTags = Array.from(new Map(allTags.map(t => [getTagId(t), t])).values());
 
@@ -228,6 +242,18 @@ Object.assign(APP, {
                     if (t.min === null && existing.min !== null && existing.min !== undefined) t.min = existing.min;
                     if (t.max === null && existing.max !== null && existing.max !== undefined) t.max = existing.max;
                     if (t.exactNum === null && existing.exactNum !== null && existing.exactNum !== undefined) t.exactNum = existing.exactNum;
+                });
+
+                // V29.83 FIX: เหมือนกับ handleFiles ด้านบน — ป้องกัน remark/actionStatus ที่ operator กรอกไว้
+                // ถูกเขียนทับกลับเป็นค่าว่างเงียบๆ เมื่อ auto-import poll เจอไฟล์เดิมถูกแก้ (เช่น mtime ขยับ
+                // จาก EXCEL_WRITEBACK sync remark กลับ Excel comment เอง หรือ PI Datalink refresh ตามรอบเวลา)
+                const existingRecordsMap = new Map(STATE.get('records').map(r => [r.id, r]));
+                allRecords.forEach(r => {
+                    const existing = existingRecordsMap.get(r.id);
+                    if (existing && existing.remark) {
+                        r.remark = existing.remark;
+                        r.actionStatus = existing.actionStatus;
+                    }
                 });
 
                 try {
