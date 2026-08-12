@@ -34,13 +34,15 @@ Object.assign(APP, {
                 else normText = 'N/A';
 
                 const isAbnormal = r.isAbnormal;
-                const valColor = isAbnormal ? 'text-red-600' : 'text-emerald-600';
-                const iconColor = isAbnormal ? 'text-red-500' : 'text-emerald-500';
-                const iconName = isAbnormal ? 'alert-triangle' : 'check-circle-2';
+                const isStatDev = r.isStatDeviation === 1; // V29.84 FEAT — mutually exclusive กับ isAbnormal
+                const valColor = isAbnormal ? 'text-red-600' : (isStatDev ? 'text-purple-600' : 'text-emerald-600');
+                const iconColor = isAbnormal ? 'text-red-500' : (isStatDev ? 'text-purple-500' : 'text-emerald-500');
+                const iconName = isAbnormal ? 'alert-triangle' : (isStatDev ? 'activity' : 'check-circle-2');
+                const accentBg = isAbnormal ? 'bg-red-500' : (isStatDev ? 'bg-purple-500' : 'bg-emerald-500');
 
                 return `
                         <div class="info-card p-5 rounded-2xl flex flex-col relative overflow-hidden group">
-                            <div class="absolute left-0 top-0 bottom-0 w-1.5 ${isAbnormal ? 'bg-red-500' : 'bg-emerald-500'}"></div>
+                            <div class="absolute left-0 top-0 bottom-0 w-1.5 ${accentBg}"></div>
 
                             <div class="flex justify-between items-start mb-1 pl-2">
                                 <div>
@@ -92,8 +94,9 @@ Object.assign(APP, {
                 else normText = 'N/A';
 
                 const isAbnormal = r.isAbnormal;
-                const valColor = isAbnormal ? 'text-red-600' : 'text-emerald-600';
-                const rowBg = isAbnormal ? 'bg-red-50/60' : '';
+                const isStatDev = r.isStatDeviation === 1; // V29.84 FEAT — mutually exclusive กับ isAbnormal
+                const valColor = isAbnormal ? 'text-red-600' : (isStatDev ? 'text-purple-600' : 'text-emerald-600');
+                const rowBg = isAbnormal ? 'bg-red-50/60' : (isStatDev ? 'bg-purple-50/60' : '');
 
                 return `
                         <tr class="${rowBg} border-b border-slate-200 last:border-b-0">

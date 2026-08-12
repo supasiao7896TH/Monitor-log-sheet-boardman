@@ -104,6 +104,70 @@ export const ZERO_SHIELD_REF_ABS = 1.5;
 export const ZERO_SHIELD_REF_RATIO = 0.03;
 export const NEIGHBOR_COLUMN_VALIDITY_THRESHOLD = 0.1;
 
+// V29.84 FEAT: Statistical Deviation detection (opt-in per-tag via Tag Master) — จับ reading ที่ยัง
+// อยู่ใน hard-limit spec แต่ผิดปกติเทียบกับ baseline จริงของ tag เอง (เช่น TI-2301 spec กว้าง 220-262
+// แต่ค่าจริงเสถียรแคบมากที่ 253-254 — ค่า 238.7 ยัง "ใน spec" แต่คือสัญญาณ sensor clogging)
+// Known limitation (v1, ไม่ต้อง auto-fix): ถ้า process เปลี่ยน setpoint จริงถาวร (ไม่ใช่ fault) จะเกิด
+// false-positive ต่อเนื่องจนกว่า window นี้จะเลื่อนผ่าน mean เก่าไปหมด — mitigation ระยะสั้น: operator
+// ปิด enableStatDeviation ชั่วคราวเองผ่าน Tag Master จนกว่า baseline ใหม่จะสะสมพอ
+// Known limitation #2 (v1, ไม่ต้อง auto-fix): variance คำนวณแบบ sumSq/n - mean² (ไม่ใช่ Welford's online
+// algorithm) มีความเสี่ยง catastrophic cancellation เมื่อ magnitude ค่าจริงสูงแต่ variance เล็กมาก (เช่น
+// mean≈254, variance≈0.006) — float64 ยังพอมี precision เหลือพอในทางปฏิบัติ แต่ถ้า windowSize ใหญ่ขึ้นมาก
+// หรือใช้กับ tag magnitude สูงกว่านี้มาก (เช่น pressure หลักพัน) ควรพิจารณาเปลี่ยนเป็น Welford's algorithm
+export const STAT_DEVIATION_WINDOW_SAMPLES = 120; // ~30 วัน ที่ 4 samples/วัน (ดู CANONICAL_TIMES)
+export const STAT_DEVIATION_MIN_SAMPLES = 20;      // cold-start guard — tag ที่เพิ่งเปิดใช้ยังไม่มี baseline พอ ห้ามจับ
+export const STAT_DEVIATION_SIGMA_K = 3;           // เกณฑ์ mean ± 3σ
+
+// รับ samples ที่เรียงตาม timestamp ascending มาแล้ว: [{ value, isBaselineEligible }, ...]
+// isBaselineEligible: caller ต้อง set เป็น false สำหรับ record ที่ isAbnormal===1 หรือ isStandby===true
+// (กัน reading แย่มากลากค่าเฉลี่ยเพี้ยน) — คืนค่า array ขนาดเท่ากัน: [{ isStatDeviation: 0|1, zScore }, ...]
+// Causal + leave-one-out จริง: ประเมินค่าปัจจุบันจาก baseline "ก่อนหน้า" เท่านั้น แล้วค่อยเอาค่านั้นเข้า
+// baseline pool หลังประเมินแล้ว — และเงื่อนไขเข้า pool ต้องไม่ใช่ตัวมันเองที่ถูก flag ด้วย (ไม่ใช่แค่
+// isBaselineEligible เฉยๆ) ไม่งั้น clog ที่ลากยาวหลายวันจะค่อยๆ "ลาก" mean ของตัวเองตามจนระบบเลิกจับไปเอง
+export function computeCausalStatDeviation(samples, opts = {}) {
+    const windowSize = opts.windowSize ?? STAT_DEVIATION_WINDOW_SAMPLES;
+    const minSamples = opts.minSamples ?? STAT_DEVIATION_MIN_SAMPLES;
+    const sigmaK = opts.sigmaK ?? STAT_DEVIATION_SIGMA_K;
+
+    const results = new Array(samples.length);
+    const buf = new Array(windowSize); // ring buffer ขนาดคงที่ — เก็บเฉพาะค่าที่ผ่านเกณฑ์เข้า baseline pool
+    let bufStart = 0, bufLen = 0, sum = 0, sumSq = 0;
+
+    for (let i = 0; i < samples.length; i++) {
+        const val = Number(samples[i].value);
+        const validVal = !isNaN(val);
+
+        if (validVal && bufLen >= minSamples) {
+            const mean = sum / bufLen;
+            const variance = Math.max(sumSq / bufLen - mean * mean, 0); // กัน float error ติดลบเล็กน้อย
+            const std = Math.sqrt(variance);
+            if (std > 0) {
+                const z = (val - mean) / std;
+                results[i] = { isStatDeviation: Math.abs(z) > sigmaK ? 1 : 0, zScore: z };
+            } else {
+                // baseline คงที่เป๊ะ (std=0) — ค่าใดๆที่ต่างจาก mean คือผิดปกติทันที ไม่ต้องหารด้วยศูนย์
+                const dev = val !== mean;
+                results[i] = { isStatDeviation: dev ? 1 : 0, zScore: dev ? Infinity * Math.sign(val - mean) : 0 };
+            }
+        } else {
+            results[i] = { isStatDeviation: 0, zScore: null }; // cold-start หรือค่าไม่ใช่ตัวเลข
+        }
+
+        // เพิ่มเข้า baseline pool "หลังประเมินแล้ว" เท่านั้น และห้ามเป็นค่าที่ตัวมันเองถูก flag ด้วย
+        if (validVal && samples[i].isBaselineEligible && results[i].isStatDeviation !== 1) {
+            if (bufLen < windowSize) {
+                buf[bufLen] = val; bufLen++;
+            } else {
+                sum -= buf[bufStart]; sumSq -= buf[bufStart] * buf[bufStart];
+                buf[bufStart] = val;
+                bufStart = (bufStart + 1) % windowSize;
+            }
+            sum += val; sumSq += val * val;
+        }
+    }
+    return results;
+}
+
 export const SELECT_ALL_CAP = 300;
 export const TABLE_RENDER_CAP = 350;
 export const DEFAULT_TIME_BREAKDOWN_DAYS = 3; // V29.78 PERF: Time Breakdown bar shows only the N most recent distinct dates by default; older dates move to the "ดูวันที่เก่ากว่านี้" dropdown instead of rendering forever-growing buttons

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getCanonicalTimesStatus } from '../src/modules/shared.js';
+import { getCanonicalTimesStatus, computeCausalStatDeviation } from '../src/modules/shared.js';
 
 function rec(dateStr, timeStr) { return { dateStr, timeStr }; }
 
@@ -107,5 +107,63 @@ describe('getCanonicalTimesStatus (V29.78 FEAT)', () => {
             expect(status.isComplete).toBe(false);
             expect(status.missingTimes).toEqual(['03:00', '09:00', '15:00', '21:00']);
         });
+    });
+});
+
+function s(value, isBaselineEligible = true) { return { value, isBaselineEligible }; }
+
+describe('computeCausalStatDeviation (V29.84 FEAT)', () => {
+    it('never flags anything before minSamples eligible samples have accumulated (cold-start guard)', () => {
+        // ค่าที่ 3 (9999) ต่างจากสองค่าแรกมหาศาล แต่ยังไม่มี baseline พอ (minSamples=3) ต้องไม่ flag
+        const results = computeCausalStatDeviation([s(10), s(20), s(9999)], { minSamples: 3 });
+        results.forEach(r => {
+            expect(r.isStatDeviation).toBe(0);
+            expect(r.zScore).toBeNull();
+        });
+    });
+
+    it('flags a value that drifts far from a tight baseline (TI-2301 clogging scenario)', () => {
+        // Tag จริงสวิงแคบมาก 253.4-254.1 — ค่า 238.7 ยังอยู่ใน hard-limit spec ทั่วไป (เช่น 220-262)
+        // แต่ผิดปกติมากเทียบกับ baseline จริงของตัวเอง
+        const baseline = [253.7, 253.9, 253.8, 254.0, 253.6, 253.9].map(v => s(v));
+        const results = computeCausalStatDeviation([...baseline, s(238.7)], { minSamples: 5 });
+        expect(results[results.length - 1].isStatDeviation).toBe(1);
+        expect(results[results.length - 1].zScore).toBeLessThan(-3);
+    });
+
+    it('is causal / leave-one-out: a later sample never changes the flag decided for an earlier one', () => {
+        const withoutFuture = computeCausalStatDeviation([s(10), s(10), s(10), s(10)], { minSamples: 3 });
+        const withFutureOutlier = computeCausalStatDeviation([s(10), s(10), s(10), s(10), s(99999)], { minSamples: 3 });
+        // ตัดผลของ index สุดท้าย (future outlier) ออก เทียบที่เหลือต้องเหมือนกันเป๊ะ — พิสูจน์ว่าอนาคตไม่ย้อนแก้อดีต
+        expect(withFutureOutlier.slice(0, 4)).toEqual(withoutFuture);
+    });
+
+    it('excludes non-eligible (already-flagged/contaminated) samples from the baseline pool', () => {
+        const samples = [
+            s(100), s(100), s(100), // baseline
+            s(500, false),          // contaminated reading (e.g. already isAbnormal by hard-limit) — must NOT enter the pool
+            s(100),                 // back to normal
+        ];
+        const results = computeCausalStatDeviation(samples, { minSamples: 3, windowSize: 10 });
+        // ถ้า pool ยังเป็น {100,100,100} เป๊ะ (ไม่ปนเปื้อน) mean=100,std=0 พอดี ค่าที่ 5 (100) ต้อง match
+        // เป๊ะจนได้ zScore=0 เท่านั้น — ถ้า 500 หลุดเข้า pool ไปได้ mean/std จะขยับออกจาก 0 ทันที (พิสูจน์ได้แม่นกว่า
+        // เช็คแค่ isStatDeviation เพราะแม้ปนเปื้อนแล้ว z อาจยังไม่เกิน sigma threshold แต่ zScore จะไม่เท่ากับ 0 แน่ๆ)
+        expect(results[4].zScore).toBe(0);
+        expect(results[4].isStatDeviation).toBe(0);
+    });
+
+    it('std=0 edge case: any different value from a perfectly constant baseline is flagged, exact matches are not', () => {
+        const results = computeCausalStatDeviation([s(100), s(100), s(100), s(100), s(100.001)], { minSamples: 3, sigmaK: 1000 });
+        expect(results[3].isStatDeviation).toBe(0); // เท่ากับ baseline เป๊ะ — ไม่ flag แม้ sigmaK จะเข้มมากก็ไม่เกี่ยว (std=0 branch ไม่หารด้วย sigmaK)
+        expect(results[4].isStatDeviation).toBe(1); // ต่างจาก baseline แม้เพียงนิดเดียว (0.001) — ต้อง flag เพราะ std=0 ไม่มีทางบอกว่า "ต่างน้อย"
+    });
+
+    it('slides the window: only the most recent windowSize eligible samples affect the baseline, not full history', () => {
+        // v0=10,v1=20,v2=10,v3=20,v4=10 กับ windowSize=3 — พิสูจน์ว่า mean ที่ใช้ประเมิน v4 มาจาก {v1,v2,v3}
+        // เท่านั้น (v0 ถูก evict ไปแล้ว) ไม่ใช่ค่าเฉลี่ยของ v0..v3 ทั้งหมด
+        const results = computeCausalStatDeviation([s(10), s(20), s(10), s(20), s(10)], { minSamples: 2, windowSize: 3, sigmaK: 1000 });
+        // ก่อนประเมิน v4: pool = {v1=20, v2=10, v3=20} → mean = 50/3 ≈ 16.667, std ≈ 4.714
+        // z = (10 - 16.667) / 4.714 ≈ -1.4142 (≈ -√2)
+        expect(results[4].zScore).toBeCloseTo(-1.4142, 3);
     });
 });

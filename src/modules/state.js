@@ -1,4 +1,4 @@
-import { getMasterMap, getTagMap, resolveEffectiveLimits, parseNum, getTagId, LIMIT_EPSILON, ZERO_SHIELD_ABS, ZERO_SHIELD_REF_MAGNITUDE, ZERO_SHIELD_REF_ABS, ZERO_SHIELD_REF_RATIO } from './shared.js';
+import { getMasterMap, getTagMap, resolveEffectiveLimits, parseNum, getTagId, LIMIT_EPSILON, ZERO_SHIELD_ABS, ZERO_SHIELD_REF_MAGNITUDE, ZERO_SHIELD_REF_ABS, ZERO_SHIELD_REF_RATIO, computeCausalStatDeviation } from './shared.js';
 
 export const STATE = {
             data: {
@@ -93,7 +93,38 @@ export const STATE = {
                         isStandby = true;
                         isAb = 0;
                     }
-                    return { ...r, isAbnormal: isAb, isStandby: isStandby };
+                    return { ...r, isAbnormal: isAb, isStandby: isStandby, isStatDeviation: 0, statZScore: null };
+                });
+
+                // V29.84 FEAT: pass ที่สอง — Statistical Deviation (opt-in ต่อ tag ผ่าน Tag Master) จับ
+                // reading ที่ยังอยู่ใน hard-limit spec แต่หลุด baseline จริงของ tag เอง (ดู shared.js
+                // computeCausalStatDeviation) ทำเฉพาะ tag ที่เปิด enableStatDeviation ไว้เท่านั้น เพื่อไม่ให้
+                // tag ที่ swing กว้างโดยธรรมชาติ (เช่น batch process) เกิด false-positive รัว
+                const statGroups = new Map(); // tagId -> [{ idx, timestamp, value, isAbnormal, isStandby }]
+                updatedRecords.forEach((r, idx) => {
+                    const tId = getTagId(r);
+                    const master = mTagsMap.get(tId);
+                    if (!master || !master.enableStatDeviation) return;
+                    if (!statGroups.has(tId)) statGroups.set(tId, []);
+                    statGroups.get(tId).push({ idx, timestamp: r.timestamp, value: parseNum(r.value), isAbnormal: r.isAbnormal, isStandby: r.isStandby });
+                });
+
+                statGroups.forEach((entries, tId) => {
+                    const { eExact } = resolveEffectiveLimits(tagMap.get(tId), mTagsMap.get(tId));
+                    if (eExact !== null) return; // exact-match/discrete tag — mean/σ ไม่มีความหมาย, skip แม้เปิด opt-in
+
+                    entries.sort((a, b) => a.timestamp - b.timestamp);
+                    const samples = entries.map(e => ({
+                        value: e.value,
+                        isBaselineEligible: !isNaN(e.value) && e.isAbnormal !== 1 && !e.isStandby
+                    }));
+                    const results = computeCausalStatDeviation(samples);
+                    entries.forEach((e, i) => {
+                        // record ที่หลุด hard-limit หรือ standby อยู่แล้วต้องไม่ได้ป้ายที่สองทับ (mutual
+                        // exclusivity ตาม design) — ปล่อยให้ค่าเริ่มต้น isStatDeviation:0 จาก pass แรกคงอยู่
+                        if (e.isAbnormal === 1 || e.isStandby) return;
+                        updatedRecords[e.idx] = { ...updatedRecords[e.idx], isStatDeviation: results[i].isStatDeviation, statZScore: results[i].zScore };
+                    });
                 });
 
                 STATE.data.records = updatedRecords;
@@ -101,7 +132,12 @@ export const STATE = {
             _applyFilterSort: () => {
                 let list = STATE.data.records;
                 if (STATE.data.viewFilter === 'abnormal') {
-                    list = list.filter(r => r.isAbnormal === 1);
+                    // V29.84: ต้องครอบคลุมทั้ง hard-limit violation และ Statistical Deviation — operator
+                    // ดู Web App แทนกระดาษ 100% แล้ว ห้ามพลาดอะไรเพราะ default filter แคบเกินไป (badge/สี
+                    // ที่แยกกันใน dashboard ทำหน้าที่บอกความต่างของประเภทปัญหาแทน)
+                    list = list.filter(r => r.isAbnormal === 1 || r.isStatDeviation === 1);
+                } else if (STATE.data.viewFilter === 'stat-deviation') {
+                    list = list.filter(r => r.isStatDeviation === 1);
                 }
                 if (STATE.data.timeFilter !== 'all') {
                     list = list.filter(r => `${r.dateStr} ${r.timeStr}` === STATE.data.timeFilter);

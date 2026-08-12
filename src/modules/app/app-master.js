@@ -80,6 +80,11 @@ Object.assign(APP, {
                     if (master && master.forceStandby) {
                         tdLim.innerHTML += ` <span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black border border-amber-200 text-[9px] ml-1">STANDBY</span>`;
                     }
+                    if (master && master.enableStatDeviation && eExact === null) {
+                        // V29.84 FIX: state.js skip stat-deviation ให้ tag แบบ Exact Value เสมอ (mean/σ ไม่มี
+                        // ความหมาย) — ถ้าโชว์ badge นี้ต่อให้ eExact ตั้งไว้ operator จะเข้าใจผิดว่าฟีเจอร์ทำงานอยู่
+                        tdLim.innerHTML += ` <span class="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-black border border-purple-200 text-[9px] ml-1">σ-BAND</span>`;
+                    }
                     tr.appendChild(tdLim);
 
                     const tdAct = UI_RENDERER.createEl('td', 'py-3 px-6 text-center');
@@ -134,6 +139,8 @@ Object.assign(APP, {
                 if (eDzs) eDzs.checked = !!(master && master.disableZeroShield);
                 const eFs = document.getElementById('master-edit-force-standby');
                 if (eFs) eFs.checked = !!(master && master.forceStandby);
+                const eSd = document.getElementById('master-edit-enable-statdev');
+                if (eSd) eSd.checked = !!(master && master.enableStatDeviation);
 
                 showModal('master-modal');
             },
@@ -155,6 +162,7 @@ Object.assign(APP, {
                 const exEl = document.getElementById('master-edit-exact');
                 const dzsEl = document.getElementById('master-edit-disable-zeroshield');
                 const fsEl = document.getElementById('master-edit-force-standby');
+                const sdEl = document.getElementById('master-edit-enable-statdev');
 
                 const desc = dEl ? dEl.value.trim() : '';
                 const minV = minEl ? minEl.value.trim() : '';
@@ -182,6 +190,7 @@ Object.assign(APP, {
                     exactNum: exactV !== '' ? parseFloat(exactV) : null,
                     disableZeroShield: dzsEl ? dzsEl.checked : false,
                     forceStandby: fsEl ? fsEl.checked : false,
+                    enableStatDeviation: sdEl ? sdEl.checked : false,
                     updatedAt: Date.now()
                 };
 

@@ -1,6 +1,6 @@
 import { STATE } from '../state.js';
 import { UI_RENDERER } from '../ui-renderer.js';
-import { escapeHtml, getTagId, parseNum, resolveEffectiveLimits, getMasterMap, getTagMap, LIMIT_EPSILON, SELECT_ALL_CAP, RECURRING_ABNORMAL_THRESHOLD, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, DEFAULT_TIME_BREAKDOWN_DAYS, getCanonicalTimesStatus } from '../shared.js';
+import { escapeHtml, getTagId, parseNum, resolveEffectiveLimits, getMasterMap, getTagMap, LIMIT_EPSILON, SELECT_ALL_CAP, RECURRING_ABNORMAL_THRESHOLD, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, DEFAULT_TIME_BREAKDOWN_DAYS, getCanonicalTimesStatus, STAT_DEVIATION_SIGMA_K } from '../shared.js';
 import { APP } from './app.js';
 /* global lucide */
 
@@ -11,8 +11,10 @@ Object.assign(APP, {
                 const currentVal = STATE.get('timeFilter');
                 
                 let timeFiltered = currentVal === 'all' ? allRecords : allRecords.filter(r => `${r.dateStr} ${r.timeStr}` === currentVal);
-                let strictlyAbnormal = timeFiltered.filter(r => r.isAbnormal === 1 && !r.isStandby);
-                
+                // V29.84: ครอบคลุม Statistical Deviation ด้วย ไม่งั้น record ประเภทนี้จะไม่ถูกเลือกเข้า
+                // Infographic Report อัตโนมัติเลย เพราะ isAbnormal ของมันเป็น 0 เสมอ (mutually exclusive)
+                let strictlyAbnormal = timeFiltered.filter(r => (r.isAbnormal === 1 || r.isStatDeviation === 1) && !r.isStandby);
+
                 if(strictlyAbnormal.length === 0) {
                     alert("ไม่มีข้อมูลพารามิเตอร์ผิดปกติ (ที่ไม่ใช่การหยุดเครื่อง) ในช่วงเวลานี้ครับ");
                     return;
@@ -31,7 +33,14 @@ Object.assign(APP, {
                     let val = parseNum(r.value);
                     let score = 0;
 
-                    if (!isNaN(val)) {
+                    if (r.isStatDeviation === 1 && r.statZScore !== null) {
+                        // Normalize เทียบเคียงกับ severity score เดิม (สัดส่วนระยะห่างจาก limit): 1.0 = พอดี
+                        // เกณฑ์ sigma, >1 = รุนแรงกว่า — heuristic ranking ไม่ใช่หน่วยเดียวกันเป๊ะ แต่พอสำหรับ
+                        // จัดลำดับ Top-N ให้ operator เห็นทั้งสองประเภทปนกันตามความรุนแรงสัมพัทธ์
+                        // clamp กัน Infinity (std=0 edge case ใน computeCausalStatDeviation) ทำให้ sort เทียบ
+                        // Infinity-Infinity=NaN แล้วลำดับ Top-N ของคู่นั้นไม่ deterministic
+                        score = Math.min(Math.abs(r.statZScore) / STAT_DEVIATION_SIGMA_K, 1000);
+                    } else if (!isNaN(val)) {
                         if (eMax !== null && val > eMax) {
                             score = eMax !== 0 ? Math.abs((val - eMax) / eMax) : Math.abs(val);
                         } else if (eMin !== null && val < eMin) {
@@ -157,7 +166,10 @@ Object.assign(APP, {
                     const key = `${r.dateStr} ${r.timeStr}`;
                     if (!timeGroups[key]) timeGroups[key] = { date: r.dateStr, time: r.timeStr, total: 0, abnormal: 0 };
                     timeGroups[key].total++;
-                    if (r.isAbnormal) timeGroups[key].abnormal++;
+                    // V29.84 FIX: ต้องนับ Statistical Deviation ด้วย ไม่งั้นปุ่ม time-slot จะโชว์ "OK" (0 ผิดปกติ)
+                    // ทั้งที่รายการด้านล่างมี Statistical Deviation ปรากฏอยู่จริง — ขัดกับเจตนาของฟีเจอร์นี้ที่
+                    // อยากให้ operator ไม่พลาดอะไรเพราะแยกดูแค่ isAbnormal
+                    if (r.isAbnormal === 1 || r.isStatDeviation === 1) timeGroups[key].abnormal++;
                 });
 
                 // V29.78 FEAT: chip แสดงว่าวันล่าสุดมีข้อมูลครบ 4 รอบเวลา (03:00/09:00/15:00/21:00) หรือยัง
@@ -244,19 +256,28 @@ Object.assign(APP, {
 
                 const currentRecords = currentVal === 'all' ? records : records.filter(r => `${r.dateStr} ${r.timeStr}` === currentVal);
                 const totalAbnormal = currentRecords.filter(r => r.isAbnormal === 1);
-                
+                const totalStatDev = currentRecords.filter(r => r.isStatDeviation === 1); // V29.84 FEAT
+
                 const st = document.getElementById('stat-tags');
                 if (st) st.textContent = tags.length.toLocaleString();
                 const sr = document.getElementById('stat-records');
                 if (sr) sr.textContent = currentRecords.length.toLocaleString();
                 const sa = document.getElementById('stat-abnormal');
                 if (sa) sa.textContent = totalAbnormal.length.toLocaleString();
-                
+
                 const ackCount = totalAbnormal.filter(r => r.actionStatus === 'acknowledged').length;
                 const sack = document.getElementById('stat-ack');
                 if (sack) sack.textContent = ackCount;
                 const spen = document.getElementById('stat-pending');
                 if (spen) spen.textContent = totalAbnormal.length - ackCount;
+
+                const sSd = document.getElementById('stat-statdev');
+                if (sSd) sSd.textContent = totalStatDev.length.toLocaleString();
+                const sdAckCount = totalStatDev.filter(r => r.actionStatus === 'acknowledged').length;
+                const sdAck = document.getElementById('stat-statdev-ack');
+                if (sdAck) sdAck.textContent = sdAckCount;
+                const sdPen = document.getElementById('stat-statdev-pending');
+                if (sdPen) sdPen.textContent = totalStatDev.length - sdAckCount;
 
                 // V29.51 FEAT: ช่องค้นหาใน Dashboard (ค้นหาภายในช่วงเวลา/filter ที่เลือกอยู่)
                 const searchInput = document.getElementById('dashboard-search');
@@ -301,13 +322,14 @@ Object.assign(APP, {
                         const master = mTagsMap.get(tId);
                         const isAck = r.actionStatus === 'acknowledged';
                         const isAbnormal = r.isAbnormal === 1;
-                        const isStandby = r.isStandby === true; 
+                        const isStandby = r.isStandby === true;
+                        const isStatDev = r.isStatDeviation === 1; // V29.84 FEAT — mutually exclusive กับ isAbnormal (state.js เช็คแค่ record ที่ isAbnormal===0 เท่านั้น)
                         const isSelected = selectedForReport.includes(r.id);
-                        
+
                         let borderColor = isSelected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-slate-100';
                         let accentColor = 'bg-brand-500';
                         let valueColor = 'text-slate-800';
-                        
+
                         if (isStandby) {
                             borderColor = isSelected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-slate-200 bg-slate-50/50';
                             accentColor = 'bg-slate-300';
@@ -316,6 +338,10 @@ Object.assign(APP, {
                             if (!isSelected) borderColor = isAck ? 'border-amber-200' : 'border-red-100 bg-red-50/10';
                             accentColor = isAck ? 'bg-amber-400' : 'bg-red-500';
                             valueColor = isAck ? 'text-amber-600' : 'text-red-600';
+                        } else if (isStatDev) {
+                            if (!isSelected) borderColor = isAck ? 'border-amber-200' : 'border-purple-100 bg-purple-50/10';
+                            accentColor = isAck ? 'bg-amber-400' : 'bg-purple-500';
+                            valueColor = isAck ? 'text-amber-600' : 'text-purple-600';
                         }
                         
                         const card = UI_RENDERER.createEl('div', `p-5 rounded-2xl border bg-white shadow-sm hover:shadow-md relative overflow-hidden flex flex-col min-h-[9rem] transition-all cursor-pointer group ${borderColor}`);
@@ -343,6 +369,9 @@ Object.assign(APP, {
                         } else if (isAbnormal) {
                             timeSpan.innerHTML = isAck ? '<i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-amber-500"></i>' : '<i data-lucide="alert-circle" class="w-3.5 h-3.5 text-red-500"></i>';
                             timeSpan.appendChild(document.createTextNode(` ${r.dateStr || ''} • ${r.timeStr || ''}`));
+                        } else if (isStatDev) {
+                            timeSpan.innerHTML = isAck ? '<i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-amber-500"></i>' : '<i data-lucide="activity" class="w-3.5 h-3.5 text-purple-500"></i>';
+                            timeSpan.appendChild(document.createTextNode(` ${r.dateStr || ''} • ${r.timeStr || ''} (STAT DEVIATION)`));
                         } else {
                             timeSpan.innerHTML = '<i data-lucide="check-circle" class="w-3.5 h-3.5 text-brand-500"></i>';
                             timeSpan.appendChild(document.createTextNode(` ${r.dateStr || ''} • ${r.timeStr || ''}`));
