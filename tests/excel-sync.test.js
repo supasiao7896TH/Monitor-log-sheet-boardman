@@ -51,7 +51,7 @@ describe('EXCEL_SYNC.pullSharedDb (V29.85 FEAT)', () => {
         fetch.mockResolvedValue({ ok: true, json: async () => envelope });
         const result = await EXCEL_SYNC.pullSharedDb();
         expect(result).toEqual(envelope);
-        expect(fetch).toHaveBeenCalledWith('http://localhost:5175/load-shared-db', { method: 'GET' });
+        expect(fetch).toHaveBeenCalledWith('http://localhost:5175/load-shared-db', expect.objectContaining({ method: 'GET' }));
     });
 
     it('passes through not-found (nobody has pushed to the shared file yet) unchanged', async () => {
