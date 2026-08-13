@@ -9,6 +9,10 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 ```
 =HYPERLINK("https://monitor-log-sheet-boardman.supasiao.workers.dev/", "@Open Plant Log Analyzer")
 ```
+สูตร Hyperlink สำหรับเปิด Excel Bridge ที่ใช้งานจริงตอนนี้ (พี่ A ยืนยันเอง 2026-08-13 — label text อัปเดตจากที่เคยบันทึกไว้ที่ "เรื่องที่ 3" ด้านล่าง ซึ่งเป็น label เก่า "กดตอนเริ่มกะ" ไม่ใช่ label ปัจจุบันแล้ว):
+```
+=HYPERLINK("D:\Monitor log sheet boardman\bridge\start-bridge.bat", "▶ เปิด Excel Bridge (กดก่อนจะ Update log sheet)")
+```
 
 > ⚠️ **เหตุผลที่มี entry ย้อนหลัง (เรื่องที่ 10-11 ด้านล่าง):** เมื่อวันที่ 2026-08-12 ~19:37 น. (เวลาไทย) sa-handoff ตัวก่อนหน้ากำลังบันทึกสถานะ session ให้ แต่พี่ A ปิดเครื่องก่อนบันทึกเสร็จ ทำให้ HANDOFF.md ฉบับก่อนหน้า **ไม่มีข้อมูล 2 เรื่องที่เกิดขึ้นจริงแล้วบน `origin/main`**: (1) เรื่องที่ 10 — shared-DB sync ข้าม operator (V29.85, commit `bcfb16b`, push แล้วตั้งแต่ 2026-08-12 ~19:37 เวลาไทย) และ (2) เรื่องที่ 11 — แก้บั๊ก badge เวอร์ชันค้าง (commit `f1041e9`, push แล้ว 2026-08-13 ~09:56 เวลาไทย) — เพิ่ม entry ทั้งสองย้อนหลังใน session recovery นี้ โดยอ้างอิงจาก commit message/diff stat ผ่าน GitHub API เท่านั้น (ไม่มี local clone จึงไม่มีบริบทเพิ่มเติมนอกเหนือจากที่ commit message ระบุไว้ — ถ้าใครมีบริบทการทดสอบเพิ่มเติมของ 2 commit นี้ ควรเติมให้ครบ)
 >
