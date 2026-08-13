@@ -1,11 +1,13 @@
 # HANDOFF — Plant Log Analyzer
 
 ## 📅 อัปเดตล่าสุด
-2026-08-12 — เครื่อง: Office PC (`26007294`)
-Branch: `main` | Commit ล่าสุด: `b6df8c8` — **push ขึ้น `origin/main` แล้ว** (`0a6d7e5..b6df8c8`)
-เวอร์ชันแอปปัจจุบัน: **V29.84**
+2026-08-13 — อัปเดตโดย recovery session ผ่าน GitHub API โดยตรง (ไม่มี local clone ของ repo ในเครื่องที่ทำ recovery นี้)
+Branch: `main` | Commit ล่าสุดบน `origin/main`: `f1041e9` — **push แล้ว** (ต่อจาก `b6df8c8` ผ่าน `bcfb16b` → `f1041e9`)
+เวอร์ชันแอปปัจจุบัน: **V29.85**
 
-> ⚠️ ตอนเริ่ม session นี้ที่เครื่อง Office `git log` พบว่า `origin/main` ไปไกลกว่า header เดิมด้านล่าง (ซึ่งหยุดที่ `2b81b3b` / V29.81) อีก 1 commit ที่ไม่เคยถูกบันทึกเป็น entry ใน HANDOFF.md เลย: `51ec9d2` — **V29.82** "Fix canonical-times completeness reporting a future time slot as present" (แก้ `getCanonicalTimesStatus` ให้เทียบกับเวลาจริง ณ ปัจจุบันด้วย ไม่ใช่แค่เช็คว่ามี record ของ time slot นั้นหรือยัง กันไม่ให้ dashboard ขึ้น "ครบ 4 รอบเวลา" ก่อนเวลาจริงมาถึง) — **session นี้ (เครื่อง Office) ไม่ได้เป็นคนทำ V29.82** พบแค่จาก `git log`/`git show --stat` ตอนตรวจสอบก่อนเริ่มงาน ไม่มีบริบทเพิ่มเติมนอกจาก commit message เอง — ถ้าใครรับงานต่อที่เครื่องบ้านและมีบริบทมากกว่านี้ ควรเติม entry ย้อนหลังให้ครบ
+> ⚠️ **เหตุผลที่มี entry ย้อนหลัง (เรื่องที่ 10-11 ด้านล่าง):** เมื่อวันที่ 2026-08-12 ~19:37 น. (เวลาไทย) sa-handoff ตัวก่อนหน้ากำลังบันทึกสถานะ session ให้ แต่พี่ A ปิดเครื่องก่อนบันทึกเสร็จ ทำให้ HANDOFF.md ฉบับก่อนหน้า **ไม่มีข้อมูล 2 เรื่องที่เกิดขึ้นจริงแล้วบน `origin/main`**: (1) เรื่องที่ 10 — shared-DB sync ข้าม operator (V29.85, commit `bcfb16b`, push แล้วตั้งแต่ 2026-08-12 ~19:37 เวลาไทย) และ (2) เรื่องที่ 11 — แก้บั๊ก badge เวอร์ชันค้าง (commit `f1041e9`, push แล้ว 2026-08-13 ~09:56 เวลาไทย) — เพิ่ม entry ทั้งสองย้อนหลังใน session recovery นี้ โดยอ้างอิงจาก commit message/diff stat ผ่าน GitHub API เท่านั้น (ไม่มี local clone จึงไม่มีบริบทเพิ่มเติมนอกเหนือจากที่ commit message ระบุไว้ — ถ้าใครมีบริบทการทดสอบเพิ่มเติมของ 2 commit นี้ ควรเติมให้ครบ)
+>
+> ⚠️ ตอนเริ่ม session ที่เครื่อง Office (ก่อนหน้านี้) `git log` พบว่า `origin/main` ไปไกลกว่า header เดิมด้านล่าง (ซึ่งหยุดที่ `2b81b3b` / V29.81) อีก 1 commit ที่ไม่เคยถูกบันทึกเป็น entry ใน HANDOFF.md เลย: `51ec9d2` — **V29.82** "Fix canonical-times completeness reporting a future time slot as present" (แก้ `getCanonicalTimesStatus` ให้เทียบกับเวลาจริง ณ ปัจจุบันด้วย ไม่ใช่แค่เช็คว่ามี record ของ time slot นั้นหรือยัง กันไม่ให้ dashboard ขึ้น "ครบ 4 รอบเวลา" ก่อนเวลาจริงมาถึง) — **session นั้น (เครื่อง Office) ไม่ได้เป็นคนทำ V29.82** พบแค่จาก `git log`/`git show --stat` ตอนตรวจสอบก่อนเริ่มงาน ไม่มีบริบทเพิ่มเติมนอกจาก commit message เอง — ถ้าใครรับงานต่อและมีบริบทมากกว่านี้ ควรเติม entry ย้อนหลังให้ครบ
 >
 > หมายเหตุเก่าจากเครื่องบ้าน (เก็บไว้เป็นบันทึกประวัติ): HANDOFF.md ฉบับก่อนหน้า (เขียนที่เครื่อง Office `26007294`) ค้างข้อมูลไว้ที่ commit `22416d8` และบอกว่า "เรื่องที่ 4" (Threaded Comment fix) ยังไม่ commit — ความจริงตอนเริ่ม session นั้นที่เครื่องบ้าน `origin/main` ไปไกลกว่านั้นแล้ว 10 commits (รวม "เรื่องที่ 4" ที่ commit ไปแล้วเป็น `952d8f5`) เนื้อหาเก่าด้านล่างเก็บไว้เป็นบันทึกประวัติ
 
@@ -112,11 +114,43 @@ Branch: `main` | Commit ล่าสุด: `b6df8c8` — **push ขึ้น `o
 
 ---
 
+## ✅ เรื่องที่ 10 — Shared-DB sync ข้าม operator ผ่าน Local Bridge (V29.85) — บันทึกย้อนหลังจาก recovery session
+
+**หมายเหตุสำคัญ:** entry นี้เขียนย้อนหลังโดย recovery session (2026-08-13) ที่ไม่มี local clone ของ repo อยู่เลย — สรุปจาก commit `bcfb16b` (commit message เต็ม + diff stat) ผ่าน GitHub API เท่านั้น ไม่มีบริบทการทำงาน/การตัดสินใจระหว่างทางเพิ่มเติมนอกเหนือจากที่ commit message ระบุไว้ ถ้าคนที่ทำ session จริงมีบริบทมากกว่านี้ ควรเติมให้ครบ
+
+**ปัญหา:** แอปเป็น local-first (IndexedDB) แต่ PC ที่ทำงานมี operator หลายคน login คนละ Windows account จริง — IndexedDB ผูกกับ browser profile ต่อ account ทำให้ login account ใหม่เห็น dashboard ว่างเปล่า ไม่เห็นข้อมูล/remark ที่ operator คนก่อนกรอกไว้
+
+**Fix:** ขยาย Local Bridge (`bridge/excel-bridge.ps1`) เพิ่ม route ใหม่ 2 อัน — `POST /save-shared-db` และ `GET /load-shared-db` เขียน/อ่าน JSON snapshot เต็มรูปแบบ (shape เดียวกับ backup/restore เดิม) ไปที่ shared file บนไดรฟ์ D: ของเครื่อง — browser pull snapshot ครั้งเดียวตอน init (เงียบๆ ก่อน `loadLocalData`) และ push แบบ fire-and-forget หลังทุกครั้งที่มีการแก้ข้อมูล เพื่อให้ operator ทุกคนเห็นข้อมูลเดียวกันไม่ว่าจะ login account ไหน มี sidebar indicator แสดงสถานะ sync แบบ real-time
+
+**Guard ป้องกันปัญหา 2 แบบ:**
+1. `init()` จะไม่ push เองเด็ดขาด — IndexedDB ว่าง/ใหม่ หรือ pull fail จะไม่มีทาง overwrite shared file ได้ มีแต่การแก้ข้อมูลจริงเท่านั้นที่ push
+2. มี dirty-flag ใน localStorage ตาม track push ที่ fail (เช่นตอน bridge ปิดอยู่) — `init()` จะ retry push ที่ค้างก่อนจะยอมให้ pull ได้ กัน reload ทับข้อมูลที่ยังไม่ sync ด้วย snapshot เก่า
+
+**การทดสอบ (ตามที่ระบุไว้ใน commit message):** ทดสอบกับ bridge instance ที่รันอยู่จริง round-trip ข้อมูล production จริง (301 tags/901 records) ระหว่าง 2 browser origin คนละตัว, ยืนยัน fallback ทำงานถูกต้องตอน bridge หยุดทำงาน, และเจอ+แก้บั๊กจริงระหว่างทดสอบ (`WriteAllText` เขียน UTF-8 BOM ทำให้ `ConvertFrom-Json` อ่านกลับไม่ได้)
+
+**ไฟล์ที่แก้ (12 files, +341/-9):** `.gitignore`, `bridge/README.md`, `bridge/excel-bridge.ps1`, `index.html`, `src/modules/app/app-core.js`, `src/modules/app/app-countermeasure.js`, `src/modules/app/app-import.js`, `src/modules/app/app-master.js`, `src/modules/app/app-modal.js`, `src/modules/excel-sync.js`, `src/modules/shared.js`, `tests/excel-sync.test.js` — bump เป็น **V29.85**
+
+**Commit:** `bcfb16b` "Add shared-DB sync across operators via Local Bridge (V29.85)" — **push ขึ้น `origin/main` แล้ว** (2026-08-12 ~19:37 น. เวลาไทย, ต่อจาก `b6df8c8`)
+
+**สถานะ:** shipped + push แล้ว — **แต่ยังไม่มีข้อมูลยืนยันว่า `tests/excel-sync.test.js` (ไฟล์ test ใหม่ของ feature นี้) เคยรันผ่าน `npm test` จริงหรือไม่** (commit message ไม่ได้ระบุ ไม่มีข้อมูลยืนยัน) — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 12
+
+---
+
+## ✅ เรื่องที่ 11 — Fix badge เวอร์ชันค้าง "V29.52" → "V29.85" (cosmetic) — บันทึกย้อนหลังจาก recovery session
+
+บั๊กที่เคยบันทึกไว้ใน HANDOFF.md ฉบับก่อนหน้าว่า "ยังไม่ได้แก้": `index.html` มี badge UI hardcode ข้อความ "V29.52 Strict Numeric Core" ที่ไม่เคยอัปเดตมาตั้งแต่ V29.52 แม้เวอร์ชันจริงของแอปไปถึง V29.84/V29.85 แล้ว — **แก้เรียบร้อยแล้ว**
+
+**Commit:** `f1041e9` "Fix stale version badge V29.52 -> V29.85 (cosmetic, tracked in HANDOFF.md)" — 1 ไฟล์ (`index.html`), +1/-1 — **push ขึ้น `origin/main` แล้ว** (2026-08-13 ~09:56 น. เวลาไทย)
+
+**สถานะ:** แก้เสร็จ + commit + push แล้ว เป็น commit ล่าสุดบน `origin/main` ณ ตอนที่บันทึก entry นี้
+
+---
+
 ## 🚧 ค้างอยู่ตรงไหน
 
 1. **V29.81 fix (เรื่องที่ 5) ยังไม่ได้ยืนยันในสภาพแวดล้อมจริง** — ทดสอบแค่กับ temp folder จำลองที่เครื่องบ้าน ยังไม่เคยทดสอบกับ watch folder จริง (`D:\PTA COMMONT WORK\Log sheet Digital`) บนเครื่องที่มีจริง และยังไม่เคยทดสอบกับ Excel ตัวจริงที่เปิดไฟล์ค้างไว้จริงๆ (จำลองด้วย `FileShare.None` เท่านั้น) — แนะนำให้ยืนยันที่เครื่อง Office (หรือเครื่องไหนก็ตามที่มี watch folder จริง) ว่า auto-import/auto-archive ยังทำงานต่อได้ปกติขณะ log sheet เปิดค้างอยู่ใน Excel เพราะนั่นคือเงื่อนไขที่พังมาก่อน
-2. **ยังไม่ได้เช็ค GitHub Actions deploy status ของ commit ล่าสุด (`b6df8c8`)** — เช็คได้ที่ https://github.com/supasiao7896TH/Monitor-log-sheet-boardman/actions ก่อนสรุปว่า production ขึ้น V29.84 แล้วจริง
-3. **บั๊กเล็กๆ ที่เจอแต่ยังไม่ได้แก้ (cosmetic, ไม่เร่งด่วน):** `index.html` บรรทัดราว 274 มี badge UI hardcode ข้อความ "V29.52 Strict Numeric Core" ที่ไม่เคยอัปเดตมาตั้งแต่ V29.52 (ผ่านมาแล้วหลายเวอร์ชัน ปัจจุบัน V29.84 ก็ยังขึ้น V29.52 อยู่)
+2. **ยังไม่ได้เช็ค GitHub Actions deploy status ของ commit ล่าสุด (`f1041e9`, ต่อจาก `bcfb16b`/`b6df8c8`)** — เช็คได้ที่ https://github.com/supasiao7896TH/Monitor-log-sheet-boardman/actions ก่อนสรุปว่า production ขึ้น V29.85 แล้วจริง
+3. ~~บั๊กเล็กๆ ที่เจอแต่ยังไม่ได้แก้ (cosmetic, ไม่เร่งด่วน): `index.html` badge UI hardcode ข้อความ "V29.52 Strict Numeric Core" ที่ไม่เคยอัปเดตมาตั้งแต่ V29.52~~ — **แก้แล้ว** commit `f1041e9` (2026-08-13) เปลี่ยนเป็น "V29.85 Strict Numeric Core" ดู "เรื่องที่ 11" ด้านบน
 4. **รายการค้างเก่าจาก session ที่เครื่อง Office (22416d8 เป็นต้นไป) — ยังไม่ได้ตรวจสอบซ้ำใน session นี้ ให้ถือว่ายังค้างอยู่จนกว่าจะมีหลักฐานใหม่:**
    - สูตร Hyperlink (`=HYPERLINK("D:\Monitor log sheet boardman\bridge\start-bridge.bat", ...)`) ยังไม่ได้แปะในไฟล์ log sheet จริง
    - Task Scheduler (Specific-user, ผูก `PTTGC\26007294`) ยังไม่ได้ยืนยันด้วยการ log off/log on จริงว่า auto-start ทำงาน
@@ -129,21 +163,24 @@ Branch: `main` | Commit ล่าสุด: `b6df8c8` — **push ขึ้น `o
 9. **V29.84 (เรื่องที่ 9) — ทั้ง test suite เดิม (49 tests) และ test ใหม่ (`tests/shared.test.js` describe ใหม่, `tests/state.test.js` ทั้งไฟล์) ยังไม่มีใคร run จริงเลยด้วย `npm test`** — ต้องรันที่เครื่องบ้านก่อนไว้ใจ 100% ว่า test ใหม่ผ่านและ suite เดิมไม่พัง (ตรวจด้วย hand-trace + browser manual test เท่านั้นใน session นี้)
 10. **Statistical Deviation feature (V29.84) ยังไม่ได้เปิดใช้กับ tag ไหนเลยในข้อมูลจริง** — default ปิดทุก tag ต้องไปติ๊ก `enableStatDeviation` เองผ่าน Tag Master ทีละ tag (เช่น TI-2301) ก่อนฟีเจอร์นี้จะเริ่มทำงาน
 11. **Known limitation ของ Statistical Deviation ที่ตั้งใจไม่แก้ใน v1 (มี comment ในโค้ดแล้ว):** ถ้า process เปลี่ยน setpoint จริงถาวร (ไม่ใช่ fault) จะเกิด false-positive ต่อเนื่องจนกว่า window 120 samples จะเลื่อนผ่านครบ — mitigation ระยะสั้นคือปิด `enableStatDeviation` ชั่วคราวเองผ่าน Tag Master
+12. **V29.85 shared-DB sync (เรื่องที่ 10) — ยังไม่มีข้อมูลยืนยันว่า `tests/excel-sync.test.js` เคยรันผ่าน `npm test` จริงหรือไม่** (entry เขียนย้อนหลังจาก recovery session ที่ไม่มี local clone จึงรันเองไม่ได้ ไม่มีข้อมูลยืนยันจาก commit message) — ควรรัน `npm test` ที่เครื่องบ้าน/เครื่องที่มี Node.js เพื่อยืนยัน พร้อมกับ suite เดิมและ test ของ V29.84
+13. **V29.85 shared-DB sync (เรื่องที่ 10) ยังไม่มีใครยืนยันการใช้งานจริงกับ operator หลายคนบน PC ที่ทำงานหลัง deploy** — commit message ยืนยันแค่ผลทดสอบ round-trip ระหว่าง browser origin 2 ตัว ไม่ใช่การใช้งานจริงกับ Windows account คนละ account บนเครื่อง Office
 
 ---
 
 ## 🎯 ขั้นตอนถัดไปที่ตั้งใจจะทำ
 
 1. ยืนยัน V29.81 fix กับ watch folder จริง + Excel ตัวจริงเปิดไฟล์ค้างไว้ (ที่เครื่อง Office หรือเครื่องที่มี path จริง)
-2. เช็คสถานะ GitHub Actions ของ commit ล่าสุด (`b6df8c8`)
+2. เช็คสถานะ GitHub Actions ของ commit ล่าสุด (`f1041e9`)
 3. `git show 1e99d15 --stat` เช็คว่า "เรื่องที่ 3" เดิม (doc changes ของ Hyperlink/multi-user setup) commit ไปแล้วจริงหรือยัง
 4. ถ้ายังไม่ได้ทำ: แปะสูตร Hyperlink ในไฟล์ log sheet จริง, ทดสอบ Task Scheduler ด้วย log off/log on จริง, ลบเศษ `.git` ค้างที่เครื่อง Office
-5. (ไม่เร่งด่วน) แก้ badge "V29.52" ที่ค้างใน `index.html` บรรทัดราว 274 ให้ตรงเวอร์ชันปัจจุบัน
+5. ~~(ไม่เร่งด่วน) แก้ badge "V29.52" ที่ค้างใน `index.html` ให้ตรงเวอร์ชันปัจจุบัน~~ — **ทำแล้ว** commit `f1041e9`
 6. รัน `npm test` ที่เครื่องบ้าน (หรือเครื่องที่มี Node.js) เพื่อ double-check ว่า V29.83 fix (เรื่องที่ 7) ไม่ทำ suite เดิม (49/49) พัง
 7. ถ้าจะพัฒนาต่อที่เครื่อง Office ในอนาคต ให้ติดตั้ง Node.js ก่อน
 8. พิจารณาเติม entry ย้อนหลังของ V29.82 (`51ec9d2`) ใน HANDOFF.md ให้ครบถ้วน (ตอนนี้มีแค่ commit message)
-9. **สำคัญที่สุด:** รัน `npm test` ที่เครื่องบ้าน (มี Node.js) เพื่อ confirm ชุด test ใหม่ของ V29.84 (`tests/shared.test.js` describe block ใหม่, `tests/state.test.js` ทั้งไฟล์) ผ่านจริงและ suite เดิมไม่พัง — ยังไม่มีใคร run จริงเลยตลอด session ที่เขียนฟีเจอร์นี้
+9. **สำคัญที่สุด:** รัน `npm test` ที่เครื่องบ้าน (มี Node.js) เพื่อ confirm ชุด test ใหม่ของ V29.84 (`tests/shared.test.js` describe block ใหม่, `tests/state.test.js` ทั้งไฟล์) **และ** V29.85 (`tests/excel-sync.test.js`) ผ่านจริงและ suite เดิมไม่พัง — ยังไม่มีใคร run จริงเลยตลอดทั้ง 2 session ที่เขียนฟีเจอร์เหล่านี้
 10. เปิดใช้ Statistical Deviation ผ่าน Tag Master ให้ tag ที่ต้องการจริง (เช่น TI-2301) เพราะ default ปิดไว้ทุก tag ฟีเจอร์นี้ยังไม่ทำงานกับ tag ไหนเลยจนกว่าจะไปติ๊กเปิดเอง
+11. ยืนยันการใช้งานจริงของ shared-DB sync (V29.85) กับ operator หลายคนบน PC ที่ทำงานจริง (login คนละ Windows account) หลัง deploy ขึ้น production แล้ว — ตรวจว่า sidebar sync indicator ขึ้นสถานะถูกต้องและข้อมูล/remark เห็นตรงกันข้ามคน login
 
 ---
 
@@ -159,6 +196,7 @@ Branch: `main` | Commit ล่าสุด: `b6df8c8` — **push ขึ้น `o
 - **หลัง V29.83:** re-import (ทั้ง manual drag-drop และ auto-import) จะ carry-over `remark`+`actionStatus` จาก record เดิมมาก่อนบันทึกทับเสมอ (`src/modules/app/app-import.js`) — ถ้าต้องการล้าง remark ของ record ใดจริงๆ ต้องลบ/แก้เองผ่าน UI (annotation modal) ไม่ใช่หวังพึ่งการ re-import ทับให้ว่าง
 - **เครื่อง Office (`26007294`) ไม่มี Node.js/npm ติดตั้ง** — ตรวจสอบ/ติดตั้งก่อนถ้าจะรัน `npm run dev`/`npm test`/`npm install` ที่นี่ (session ที่ผ่านมาต้องใช้ local Python static server จำลองแทน ใช้ตรวจ UI ได้เท่านั้น)
 - **หลัง V29.84:** Statistical Deviation (`isStatDeviation`/`statZScore`) เป็นเกณฑ์แยกจาก hard-limit (`isAbnormal`) โดยตั้งใจ — mutually exclusive กัน (evaluate เฉพาะ record ที่ผ่าน hard-limit แล้วว่าไม่ผิดปกติ) ต้องเปิด opt-in ต่อ tag ผ่าน Tag Master (`enableStatDeviation`) ก่อนจะมีผล ไม่ทำงานกับ tag แบบ Exact Value และต้องมีข้อมูลอย่างน้อย 20 samples ก่อน baseline จะเริ่มมีผล (ไม่งั้น record จะไม่ถูก flag เพราะข้อมูลไม่พอ ไม่ใช่บั๊ก) — ถ้า process เปลี่ยน setpoint จริงถาวรจะเห็น false-positive ต่อเนื่องจนกว่า rolling window 120 samples จะเลื่อนผ่าน ให้ปิด `enableStatDeviation` ชั่วคราวถ้าเจอกรณีนี้
+- **หลัง V29.85:** เปิดแอปแล้วอาจเห็น dashboard ดึงข้อมูลจาก shared snapshot บน D: มาทับ/ผสานกับ IndexedDB local ตอน init (pull แบบเงียบๆ ก่อน `loadLocalData`) — ถ้า bridge ปิดอยู่ ระบบจะ fallback ไปใช้ IndexedDB local เดิมโดยไม่ error แต่จะไม่ sync ข้าม operator จนกว่า bridge จะกลับมาออนไลน์ (มี dirty-flag ใน localStorage คอย retry push ที่ค้างเองอัตโนมัติ) — ยังไม่มีการยืนยันการใช้งานจริงกับ operator หลายคนบนเครื่อง Office หลัง deploy (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 13)
 
 ---
 
@@ -167,7 +205,7 @@ Branch: `main` | Commit ล่าสุด: `b6df8c8` — **push ขึ้น `o
 ```bash
 git pull
 npm install   # ถ้ายังไม่เคยลงที่เครื่องนี้ หรือ package.json เปลี่ยน
-npm test      # ควรผ่าน 49/49 + test ใหม่จาก V29.84 (tests/shared.test.js, tests/state.test.js) — ยังไม่มีใคร run จริงเลย ให้รันเป็นอันดับแรก
+npm test      # ควรผ่าน 49/49 (suite เดิม) + test ใหม่จาก V29.84 (tests/shared.test.js, tests/state.test.js) + V29.85 (tests/excel-sync.test.js) — ยังไม่มีใคร run จริงเลยทั้งหมด ให้รันเป็นอันดับแรก
 ```
 
 > หมายเหตุ: เครื่อง Office (`26007294`) ยังไม่มี Node.js ติดตั้ง — ต้องติดตั้ง Node.js ก่อนถึงจะรันคำสั่งข้างบนได้จริงที่เครื่องนี้
