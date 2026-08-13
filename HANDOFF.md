@@ -5,6 +5,10 @@
 Branch: `main` | Commit ล่าสุดบน `origin/main`: `f1041e9` — **push แล้ว** (ต่อจาก `b6df8c8` ผ่าน `bcfb16b` → `f1041e9`)
 เวอร์ชันแอปปัจจุบัน: **V29.85**
 URL production จริง: **https://monitor-log-sheet-boardman.supasiao.workers.dev** (ยืนยันจาก `AllowedOrigins` ใน `bridge/excel-bridge.ps1` + output จริงของ Cloudflare deploy job ล่าสุด commit `3d4792a` — ลิงก์นี้ถูก embed ไว้ใน Excel log sheet ของโรงงานผ่านสูตร `HYPERLINK` ให้ operator กดเปิดแอป ห้ามเปลี่ยนชื่อ worker ใน `wrangler.jsonc` เด็ดขาดเพราะจะทำให้ลิงก์เดิมใน Excel ใช้ไม่ได้)
+สูตร Hyperlink ที่ใช้งานจริงตอนนี้ในไฟล์ Excel log sheet (พี่ A ยืนยันเอง 2026-08-13):
+```
+=HYPERLINK("https://monitor-log-sheet-boardman.supasiao.workers.dev/", "@Open Plant Log Analyzer")
+```
 
 > ⚠️ **เหตุผลที่มี entry ย้อนหลัง (เรื่องที่ 10-11 ด้านล่าง):** เมื่อวันที่ 2026-08-12 ~19:37 น. (เวลาไทย) sa-handoff ตัวก่อนหน้ากำลังบันทึกสถานะ session ให้ แต่พี่ A ปิดเครื่องก่อนบันทึกเสร็จ ทำให้ HANDOFF.md ฉบับก่อนหน้า **ไม่มีข้อมูล 2 เรื่องที่เกิดขึ้นจริงแล้วบน `origin/main`**: (1) เรื่องที่ 10 — shared-DB sync ข้าม operator (V29.85, commit `bcfb16b`, push แล้วตั้งแต่ 2026-08-12 ~19:37 เวลาไทย) และ (2) เรื่องที่ 11 — แก้บั๊ก badge เวอร์ชันค้าง (commit `f1041e9`, push แล้ว 2026-08-13 ~09:56 เวลาไทย) — เพิ่ม entry ทั้งสองย้อนหลังใน session recovery นี้ โดยอ้างอิงจาก commit message/diff stat ผ่าน GitHub API เท่านั้น (ไม่มี local clone จึงไม่มีบริบทเพิ่มเติมนอกเหนือจากที่ commit message ระบุไว้ — ถ้าใครมีบริบทการทดสอบเพิ่มเติมของ 2 commit นี้ ควรเติมให้ครบ)
 >
