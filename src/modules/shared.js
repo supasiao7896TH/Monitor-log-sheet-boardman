@@ -95,6 +95,10 @@ export function showTransientMessage(elId, text, variant = 'info', duration = 40
 }
 
 export const STORE_TAGS = 'Tags', STORE_RECORDS = 'Records', STORE_MASTERTAGS = 'MasterTags', STORE_IMPORTHISTORY = 'ImportHistory', STORE_COUNTERMEASURES = 'UserCountermeasures';
+// V29.90 FEAT: เก็บ snapshot ของ record ที่เคยเป็น Abnormal/Stat Deviation แยกจาก STORE_RECORDS โดยตั้งใจ —
+// "ล้างฐานข้อมูล" (STORAGE_ENGINE.clearImportedData) เคลียร์แค่ STORE_RECORDS เท่านั้น ไม่แตะ store นี้เลย
+// ดู APP.syncAbnormalHistory ใน app-core.js สำหรับ logic การ upsert เข้า store นี้
+export const STORE_ABNORMAL_HISTORY = 'AbnormalHistory';
 
 // Zero-shield / abnormal-detection tolerances (V29.40/V29.42-tuned — values frozen, names only)
 export const LIMIT_EPSILON = 0.0001;

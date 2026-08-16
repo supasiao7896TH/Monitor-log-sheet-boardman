@@ -5,11 +5,15 @@ import { APP } from './app.js';
 /* global lucide */
 
 // V29.89 FEAT: หน้า "History" — ดูข้อมูล Abnormal/Stat Deviation ย้อนหลังแบบเลือกช่วงวันที่ได้ แทนที่จะ
-// จำกัดแค่ Time Breakdown chip 3 วันล่าสุด + dropdown ทีละวันของ Dashboard เดิม อ่านข้อมูลจาก
-// STATE.data.records ตรงๆ (ผ่าน STATE._recomputeFlags แล้ว) ไม่ query IndexedDB แยกต่างหาก — isAbnormal/
-// isStatDeviation ไม่ได้ถูกเก็บถาวรลง IndexedDB เลย คำนวณสดใน memory ทุกครั้งที่โหลดแอปเท่านั้น (ต้องมี
-// full-history context สำหรับ Stat Deviation baseline ด้วย) ดังนั้นการ query IndexedDB range ตรงๆ
-// (STORAGE_ENGINE.getRecordsByTimestampRange) จะได้ record ที่ยังไม่มี flag ถูกต้อง ใช้ไม่ได้กับหน้านี้
+// จำกัดแค่ Time Breakdown chip 3 วันล่าสุด + dropdown ทีละวันของ Dashboard เดิม
+// V29.90 FIX: อ่านจาก STATE.get('abnormalHistory') (sync จาก STORE_ABNORMAL_HISTORY โดย
+// APP.syncAbnormalHistory ใน app-core.js) แทน STATE.data.records ตรงๆ เหมือนเดิม — เพราะ "ล้างฐานข้อมูล"
+// เคลียร์แค่ STORE_RECORDS ถ้าอ่านจาก records ตรงๆ หน้า History จะโดนลบไปด้วยทั้งที่ไม่ควร isAbnormal/
+// isStatDeviation เองไม่เคยถูกเก็บถาวรลง IndexedDB เลย (คำนวณสดใน memory ทุกครั้งที่โหลดแอปโดย
+// STATE._recomputeFlags ซึ่งต้องมี full-history context สำหรับ Stat Deviation baseline ด้วย) — ดังนั้น
+// STORE_ABNORMAL_HISTORY จึงเป็น snapshot ที่ capture ผลลัพธ์ของ flag หลังคำนวณแล้วมา persist ต่างหาก ไม่ใช่
+// query IndexedDB range ตรงๆ ผ่าน STORAGE_ENGINE.getRecordsByTimestampRange (ยังเป็น dead code เหมือนเดิม
+// จะได้ record ที่ยังไม่มี flag ถูกต้อง ใช้ไม่ได้)
 //
 // State ทั้งหมดเป็น module-level (ไม่ผ่าน STATE.data) เพราะเป็น UI state เฉพาะหน้านี้ล้วนๆ ไม่ต้อง trigger
 // STATE._recomputeFlags/_applyFilterSort ซ้ำซ้อนเวลาแค่เปลี่ยนหน้า/ช่วงวันที่ที่ดู — เหมือน pattern เดียวกับ
@@ -42,15 +46,20 @@ Object.assign(APP, {
             // V29.89 FEAT: filter เดียวใช้ร่วมกันทั้งตาราง History และ Export (app-export.js เรียกตรงๆ ผ่าน
             // APP.getHistoryFilteredRecords() — ไม่ duplicate logic, ใช้ date-range/search ที่ operator
             // กำลังดูอยู่ในหน้า History เป็นค่าเดียวกับที่จะ export ด้วย)
+            // V29.90 FIX: อ่านจาก STATE.get('abnormalHistory') (sync จาก STORE_ABNORMAL_HISTORY โดย
+            // APP.syncAbnormalHistory ใน app-core.js) แทน STATE.get('records') — เดิมอ่านจาก records ตรงๆ
+            // ทำให้ "ล้างฐานข้อมูล" (เคลียร์แค่ Records) ลบข้อมูลในหน้า History ไปด้วยทั้งที่ไม่ควร
             getHistoryFilteredRecords: () => {
-                const records = STATE.get('records') || [];
+                const records = STATE.get('abnormalHistory') || [];
                 const searchEl = document.getElementById('history-search');
                 const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
                 const tagMap = getTagMap();
                 const mTagsMap = getMasterMap();
 
+                // record ใน abnormalHistory เป็น snapshot ที่ผ่านการกรองมาแล้ว (upsert เฉพาะตอน isAbnormal/
+                // isStatDeviation === 1 ณ ตอนที่ sync) ไม่ต้อง filter ซ้ำสองเงื่อนไขนี้อีก — ต่างจาก records
+                // เดิมที่ต้องกรองเองเพราะมีทุก record ปนกันอยู่
                 return records
-                    .filter(r => r.isAbnormal === 1 || r.isStatDeviation === 1)
                     .filter(r => isDateInRange(r.dateStr, historyFrom, historyTo))
                     .filter(r => {
                         if (!q) return true;

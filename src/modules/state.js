@@ -7,7 +7,8 @@ export const STATE = {
                 masterTags: [],
                 userCountermeasures: [],
                 records: [],
-                abnormalRecords: [], 
+                abnormalRecords: [],
+                abnormalHistory: [], // V29.90 FEAT: snapshot ของ record ที่เคย Abnormal/Stat Deviation, sync จาก STORE_ABNORMAL_HISTORY โดย APP.syncAbnormalHistory (app-core.js) — อยู่รอด "ล้างฐานข้อมูล" (ต่างจาก records)
                 timeFilter: 'all',
                 viewFilter: 'abnormal', 
                 activeRecordId: null,

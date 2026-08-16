@@ -1,9 +1,9 @@
-import { getTagId, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_IMPORTHISTORY, STORE_COUNTERMEASURES } from './shared.js';
+import { getTagId, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_IMPORTHISTORY, STORE_COUNTERMEASURES, STORE_ABNORMAL_HISTORY } from './shared.js';
 
 export const STORAGE_ENGINE = {
             db: null,
             init: () => new Promise((resolve, reject) => {
-                const req = indexedDB.open('PlantLogAnalyzerEnterpriseDB', 6);
+                const req = indexedDB.open('PlantLogAnalyzerEnterpriseDB', 7);
                 req.onupgradeneeded = (e) => {
                     const db = e.target.result;
                     if(!db.objectStoreNames.contains(STORE_TAGS)) db.createObjectStore(STORE_TAGS, { keyPath: 'id' });
@@ -24,6 +24,10 @@ export const STORAGE_ENGINE = {
                     if(!db.objectStoreNames.contains(STORE_IMPORTHISTORY)) db.createObjectStore(STORE_IMPORTHISTORY, { keyPath: 'id' });
                     // V29.58 FEAT: คำแนะนำ Auto-Draft ที่ผู้ใช้เพิ่มเอง (นอกเหนือจากคู่มือ MPS ที่ hardcode ไว้)
                     if(!db.objectStoreNames.contains(STORE_COUNTERMEASURES)) db.createObjectStore(STORE_COUNTERMEASURES, { keyPath: 'id' });
+                    // V29.90 FEAT: snapshot ของ record ที่เคยเป็น Abnormal/Stat Deviation แยกจาก STORE_RECORDS
+                    // โดยตั้งใจ — ให้อยู่รอด "ล้างฐานข้อมูล" (ซึ่งเคลียร์แค่ STORE_RECORDS) ดู
+                    // APP.syncAbnormalHistory ใน app-core.js
+                    if(!db.objectStoreNames.contains(STORE_ABNORMAL_HISTORY)) db.createObjectStore(STORE_ABNORMAL_HISTORY, { keyPath: 'id' });
                 };
                 req.onsuccess = (e) => { STORAGE_ENGINE.db = e.target.result; resolve(); };
                 req.onerror = reject;
@@ -103,6 +107,16 @@ export const STORAGE_ENGINE = {
                 tx.oncomplete = resolve;
                 tx.onerror = () => reject(tx.error);
             }),
+            // V29.90 FEAT: upsert record ที่เป็น Abnormal/Stat Deviation ณ ตอนนี้เข้า STORE_ABNORMAL_HISTORY
+            // — put() ทับด้วย id เดิม ทำให้ remark/actionStatus ที่แก้ทีหลังอัปเดต entry เดิมอัตโนมัติ ไม่
+            // ต้องมี sync logic แยกสำหรับ remark โดยเฉพาะ (ดู APP.syncAbnormalHistory ใน app-core.js)
+            upsertAbnormalHistoryBatch: (recordsArr) => new Promise((resolve, reject) => {
+                if(!STORAGE_ENGINE.db || recordsArr.length === 0) return resolve();
+                const tx = STORAGE_ENGINE.db.transaction([STORE_ABNORMAL_HISTORY], 'readwrite');
+                recordsArr.forEach(r => tx.objectStore(STORE_ABNORMAL_HISTORY).put(r));
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            }),
             getAll: (storeName) => new Promise((resolve, reject) => {
                 if(!STORAGE_ENGINE.db) return resolve([]);
                 const tx = STORAGE_ENGINE.db.transaction([storeName], 'readonly');
@@ -130,31 +144,37 @@ export const STORAGE_ENGINE = {
             }),
             // V29.51 FEAT: Backup / Restore (สำรอง/กู้คืนข้อมูลทั้ง 3 store เป็นไฟล์ JSON)
             // V29.58 FEAT: เพิ่ม userCountermeasures เข้า backup/restore ด้วย
+            // V29.90 FEAT: เพิ่ม abnormalHistory เข้า backup/restore ด้วย — ให้ backup JSON เป็นสำเนาถาวรที่
+            // ครบถ้วนจริงๆ (ไม่งั้น field ที่ตั้งใจให้ "รอดล้างฐานข้อมูล" กลับไม่รอดตอน restore จากไฟล์เก่า)
             exportAll: async () => {
-                const [tags, records, masterTags, userCountermeasures] = await Promise.all([
+                const [tags, records, masterTags, userCountermeasures, abnormalHistory] = await Promise.all([
                     STORAGE_ENGINE.getAll(STORE_TAGS),
                     STORAGE_ENGINE.getAll(STORE_RECORDS),
                     STORAGE_ENGINE.getAll(STORE_MASTERTAGS),
-                    STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES)
+                    STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES),
+                    STORAGE_ENGINE.getAll(STORE_ABNORMAL_HISTORY)
                 ]);
-                return { schemaVersion: 1, exportedAt: new Date().toISOString(), tags, records, masterTags, userCountermeasures };
+                return { schemaVersion: 1, exportedAt: new Date().toISOString(), tags, records, masterTags, userCountermeasures, abnormalHistory };
             },
             importAll: (payload) => new Promise((resolve, reject) => {
                 if(!STORAGE_ENGINE.db) return resolve();
                 if (!payload || !Array.isArray(payload.tags) || !Array.isArray(payload.records) || !Array.isArray(payload.masterTags)) {
                     return reject(new Error('Invalid backup file structure'));
                 }
-                // backup เก่าก่อนมีฟีเจอร์นี้จะไม่มี userCountermeasures — default เป็น array ว่างกันพัง
+                // backup เก่าก่อนมีฟีเจอร์นี้จะไม่มี userCountermeasures/abnormalHistory — default เป็น array ว่างกันพัง
                 const userCountermeasures = Array.isArray(payload.userCountermeasures) ? payload.userCountermeasures : [];
-                const tx = STORAGE_ENGINE.db.transaction([STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES], 'readwrite');
+                const abnormalHistory = Array.isArray(payload.abnormalHistory) ? payload.abnormalHistory : [];
+                const tx = STORAGE_ENGINE.db.transaction([STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES, STORE_ABNORMAL_HISTORY], 'readwrite');
                 tx.objectStore(STORE_TAGS).clear();
                 tx.objectStore(STORE_RECORDS).clear();
                 tx.objectStore(STORE_MASTERTAGS).clear();
                 tx.objectStore(STORE_COUNTERMEASURES).clear();
+                tx.objectStore(STORE_ABNORMAL_HISTORY).clear();
                 payload.tags.forEach(t => tx.objectStore(STORE_TAGS).put(t));
                 payload.records.forEach(r => tx.objectStore(STORE_RECORDS).put(r));
                 payload.masterTags.forEach(m => tx.objectStore(STORE_MASTERTAGS).put(m));
                 userCountermeasures.forEach(c => tx.objectStore(STORE_COUNTERMEASURES).put(c));
+                abnormalHistory.forEach(h => tx.objectStore(STORE_ABNORMAL_HISTORY).put(h));
                 tx.oncomplete = resolve;
                 tx.onerror = () => reject(tx.error);
             }),

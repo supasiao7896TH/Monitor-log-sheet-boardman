@@ -3,7 +3,7 @@ import { STORAGE_ENGINE } from '../storage-engine.js';
 import { UI_RENDERER } from '../ui-renderer.js';
 import { EXCEL_AUTOIMPORT, LEGACY_UNKNOWN_FILENAME } from '../excel-autoimport.js';
 import { EXCEL_SYNC } from '../excel-sync.js';
-import { autoResizeTextarea, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, AUTOIMPORT_POLL_INTERVAL_MS, LS_AUTOIMPORT_LAST_MTIME_KEY, LS_SYNC_DIRTY_KEY, getCanonicalTimesStatus } from '../shared.js';
+import { autoResizeTextarea, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES, STORE_ABNORMAL_HISTORY, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, AUTOIMPORT_POLL_INTERVAL_MS, LS_AUTOIMPORT_LAST_MTIME_KEY, LS_SYNC_DIRTY_KEY, getCanonicalTimesStatus } from '../shared.js';
 import { APP } from './app.js';
 
 // V29.86 FIX: เก็บ mtime ของไฟล์ต้นฉบับ ณ ตอนที่ archive สำเร็จล่าสุด (แทน boolean เดิมที่เคยยิง archive
@@ -95,6 +95,11 @@ Object.assign(APP, {
                     // session (the normal case once an operator has imported before), the dashboard stayed
                     // stuck on its 0/blank loading state until some other STATE change (e.g. a nav click).
                     STATE.subscribe(APP.render);
+                    // V29.90 FEAT: sync record ที่เป็น Abnormal/Stat Deviation เข้า STORE_ABNORMAL_HISTORY
+                    // (แยกจาก Records โดยตั้งใจ ให้อยู่รอด "ล้างฐานข้อมูล") ทุกครั้งที่ records/masterTags
+                    // เปลี่ยน — ใช้ STATE.subscribe แทนการเรียกจาก 10 จุด mutation แยกทีละจุด เพราะทุกจุดเปลี่ยน
+                    // ผ่าน STATE.set('records'/'masterTags', ...) อยู่แล้วทั้งหมด (ดู APP.syncAbnormalHistory)
+                    STATE.subscribe(APP.syncAbnormalHistoryOnChange);
                     await APP.loadLocalData();
                     await APP.renderImportHistory();
                     APP.startAutoImportPolling(); // V29.78 FEAT: เริ่ม poll ไฟล์จาก Excel Bridge เบื้องหลัง (เงียบๆ ไม่บล็อก init)
@@ -123,6 +128,30 @@ Object.assign(APP, {
                 const validRecordIds = new Set(records.map(r => r.id));
                 const prevSelected = STATE.get('selectedForReport') || [];
                 STATE.set('selectedForReport', prevSelected.filter(id => validRecordIds.has(id)));
+            },
+
+            // V29.90 FEAT: STATE.subscribe listener — sync record ที่เป็น Abnormal/Stat Deviation เข้า
+            // STORE_ABNORMAL_HISTORY ทุกครั้งที่ records/masterTags เปลี่ยน (import ใหม่, auto-import poll,
+            // แก้ Tag Master, บันทึก/ลบ remark — ทุกจุดเปลี่ยนผ่าน STATE.set('records'/'masterTags', ...)
+            // อยู่แล้วทั้งหมด ไม่ต้องแก้ 10 จุด mutation แยกทีละจุด)
+            syncAbnormalHistoryOnChange: (changedKey) => {
+                if (!['records', 'masterTags'].includes(changedKey)) return;
+                APP.syncAbnormalHistory(); // fire-and-forget เหมือน pushSharedDb — ไม่บล็อก UI
+            },
+
+            syncAbnormalHistory: async () => {
+                const records = STATE.get('records') || [];
+                const toUpsert = records.filter(r => r.isAbnormal === 1 || r.isStatDeviation === 1);
+                try {
+                    if (toUpsert.length > 0) await STORAGE_ENGINE.upsertAbnormalHistoryBatch(toUpsert);
+                    // ดึงทั้ง store กลับมาเสมอ (ไม่ใช่แค่ตอน toUpsert.length > 0) — กันเคส records ว่างเปล่า
+                    // ตอนนี้ (เช่น เพิ่งกด "ล้างฐานข้อมูล" แล้ว reload หน้า) ทำให้ STATE.data.abnormalHistory
+                    // ไม่เคยถูก set จาก IndexedDB เลยตั้งแต่เปิดแอปมา
+                    const merged = await STORAGE_ENGINE.getAll(STORE_ABNORMAL_HISTORY);
+                    STATE.set('abnormalHistory', merged);
+                } catch (err) {
+                    console.error('[history-sync] upsert failed:', err);
+                }
             },
 
 
@@ -520,7 +549,7 @@ Object.assign(APP, {
                 const masterSearchVal = () => { const el = document.getElementById('master-search'); return el ? el.value : ''; };
                 const countermeasureSearchVal = () => { const el = document.getElementById('countermeasure-search'); return el ? el.value : ''; };
 
-                if (['tags', 'records', 'timeFilter', 'viewFilter', 'masterTags', 'userCountermeasures', 'selectedForReport'].includes(changedKey)) {
+                if (['tags', 'records', 'timeFilter', 'viewFilter', 'masterTags', 'userCountermeasures', 'selectedForReport', 'abnormalHistory'].includes(changedKey)) {
                     // V29.52 PERF: render only the table for the visible tab; hidden tabs re-render on switch below
                     if (activeTab === 'dashboard') APP.renderDashboard();
                     else if (activeTab === 'tags') APP.renderTagTable(tagSearchVal());
