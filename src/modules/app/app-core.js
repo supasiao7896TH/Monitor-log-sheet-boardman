@@ -14,6 +14,15 @@ import { APP } from './app.js';
 // รีเซ็ตเมื่อ reload หน้าได้ ไม่กระทบอะไร (แค่ archive ซ้ำอีกครั้งตอนเช็ครอบแรกหลัง reload)
 let lastArchivedMtime = null;
 
+// V29.87 FEAT: sync-warning banner state — จุดเล็กๆ สีเหลือง "LOCAL MODE" ที่ sidebar (setSyncIndicator เดิม)
+// สังเกตยากมากสำหรับ operator ที่ไม่ได้สนใจรายละเอียดทางเทคนิค ทั้งที่มันแปลว่าการตั้งค่า Tag Master/
+// Resolution Remark ที่เพิ่งบันทึกจะไม่ถูกแชร์ให้เพื่อนร่วมกะที่ login คนละบัญชี (ดู bridge/README.md หัวข้อ
+// Troubleshooting) — เพิ่ม banner เด่นๆ บน Dashboard คู่กับจุดเดิม ปิดชั่วคราวได้ต่อ session เดียว (ไม่
+// persist ข้าม reload) แล้วจะโผล่เตือนใหม่อัตโนมัติถ้าหลุด sync อีกรอบหลังจากเคย sync สำเร็จมาก่อนแล้ว
+// กันไม่ให้ operator กด dismiss ครั้งเดียวแล้วพลาดเตือนตลอดกะที่เหลือ
+let currentSyncState = 'local';
+let syncWarningDismissed = false;
+
 Object.assign(APP, {
             // V29.78 FEAT: ขอให้เบราว์เซอร์ mark storage ของแอปนี้เป็น "persistent" กันเบราว์เซอร์ auto-evict
             // (ลบ IndexedDB ทิ้งเงียบๆ) ตอนดิสก์เครื่องตึง — เกิดได้แม้มีข้อมูลแค่วันเดียว ไม่เกี่ยวกับปริมาณ
@@ -138,19 +147,38 @@ Object.assign(APP, {
             // V29.85 FEAT: sidebar indicator — เขียว "SYNCED" ตอน push/pull กับ D: สำเร็จสดๆ, เหลือง
             // "LOCAL MODE" (ค่า default เดิม) ตอนไม่มี Bridge/ใช้ local เท่านั้น อัปเดตทุกครั้งที่ push/pull
             // เสร็จ ไม่มี poll แยกต่างหาก
+            // V29.87 FEAT: คู่กับจุดเล็กๆ นี้ ยังอัปเดต banner เด่นๆ บน Dashboard ด้วย (renderSyncWarningBanner)
+            // ให้ operator ที่ไม่ได้สังเกตจุดเล็กๆ รู้ตัวว่าข้อมูลที่แก้ไม่ถูกแชร์ให้เพื่อนร่วมกะ
             setSyncIndicator: (state) => {
+                currentSyncState = state;
+                if (state === 'synced') syncWarningDismissed = false; // sync กลับมาแล้ว เผื่อหลุดอีกจะได้เตือนใหม่
+
                 const dot = document.getElementById('sync-status-dot');
                 const label = document.getElementById('sync-status-label');
-                if (!dot || !label) return;
-                if (state === 'synced') {
-                    dot.classList.remove('bg-amber-400');
-                    dot.classList.add('bg-emerald-500');
-                    label.textContent = 'SYNCED';
-                } else {
-                    dot.classList.remove('bg-emerald-500');
-                    dot.classList.add('bg-amber-400');
-                    label.textContent = 'LOCAL MODE';
+                if (dot && label) {
+                    if (state === 'synced') {
+                        dot.classList.remove('bg-amber-400');
+                        dot.classList.add('bg-emerald-500');
+                        label.textContent = 'SYNCED';
+                    } else {
+                        dot.classList.remove('bg-emerald-500');
+                        dot.classList.add('bg-amber-400');
+                        label.textContent = 'LOCAL MODE';
+                    }
                 }
+                APP.renderSyncWarningBanner();
+            },
+
+            renderSyncWarningBanner: () => {
+                const banner = document.getElementById('sync-warning-banner');
+                if (!banner) return;
+                banner.classList.toggle('hidden', currentSyncState === 'synced' || syncWarningDismissed);
+                if (!banner.classList.contains('hidden')) UI_RENDERER.initIcons();
+            },
+
+            dismissSyncWarning: () => {
+                syncWarningDismissed = true;
+                APP.renderSyncWarningBanner();
             },
 
 
@@ -354,6 +382,9 @@ Object.assign(APP, {
                         }
                     }
                 });
+
+                // V29.87 FEAT: Sync warning banner dismiss (ปิดชั่วคราวต่อ session เดียว ไม่ persist)
+                assignEvent('btn-sync-warning-dismiss', () => APP.dismissSyncWarning());
 
                 // V29.51 FEAT: สำรอง/กู้คืนข้อมูล (Backup/Restore)
                 assignEvent('btn-backup-db', APP.backupData);
