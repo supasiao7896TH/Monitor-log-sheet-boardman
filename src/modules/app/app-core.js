@@ -23,6 +23,14 @@ let lastArchivedMtime = null;
 let currentSyncState = 'local';
 let syncWarningDismissed = false;
 
+// V29.88 FEAT: auto-import config error banner state — แยกจาก sync-warning-banner ข้างบน เพราะสถานะ
+// 'error' ที่ getSourceFileInfo() คืนมา (เจอไฟล์ log sheet ที่ไม่ใช่ (master) มากกว่า 1 ไฟล์ใน
+// $WatchFolder, หรือหาโฟลเดอร์ $WatchFolder เองไม่เจอ — ดู Resolve-SourceFile ใน excel-bridge.ps1) เป็น
+// ปัญหาที่ต้องมีคนไปจัดการไฟล์/path จริง ต่างจาก 'bridge-offline' (แค่ยังไม่เปิด Bridge) ที่เป็นสถานะปกติ
+// รายวัน ถ้ารวมเป็นเงื่อนไขเดียวกัน operator จะเห็นแค่ "Dashboard ไม่อัปเดต" โดยไม่รู้สาเหตุ
+let autoImportErrorMessage = null; // ข้อความล่าสุดจาก Bridge ตอน status === 'error', null = ไม่มีปัญหา
+let autoImportWarningDismissed = false;
+
 Object.assign(APP, {
             // V29.78 FEAT: ขอให้เบราว์เซอร์ mark storage ของแอปนี้เป็น "persistent" กันเบราว์เซอร์ auto-evict
             // (ลบ IndexedDB ทิ้งเงียบๆ) ตอนดิสก์เครื่องตึง — เกิดได้แม้มีข้อมูลแค่วันเดียว ไม่เกี่ยวกับปริมาณ
@@ -181,6 +189,33 @@ Object.assign(APP, {
                 APP.renderSyncWarningBanner();
             },
 
+            // V29.88 FEAT: แยก banner นี้จาก sync-warning-banner เพราะ 'error' (เจอไฟล์ซ้ำ/หา WatchFolder
+            // ไม่เจอ) เป็นปัญหาที่ต้องมีคนไปจัดการไฟล์/path จริง ต่างจาก 'bridge-offline' (แค่ยังไม่เปิด
+            // Bridge) ที่ยังคงเงียบเหมือนเดิม — reset dismiss อัตโนมัติถ้าข้อความเปลี่ยน (ปัญหาใหม่คนละเรื่อง)
+            // หรือกลับมาปกติแล้วเจอปัญหาอีกรอบ กันไม่ให้ dismiss ครั้งเดียวพลาดเตือนปัญหาถัดไป
+            renderAutoImportWarningBanner: (info) => {
+                const banner = document.getElementById('autoimport-warning-banner');
+                if (!banner) return;
+
+                if (info.status === 'error') {
+                    if (autoImportErrorMessage !== info.message) autoImportWarningDismissed = false;
+                    autoImportErrorMessage = info.message || 'ตั้งค่า Watch Folder ของ Excel Bridge มีปัญหา';
+                    const textEl = document.getElementById('autoimport-warning-text');
+                    if (textEl) textEl.textContent = autoImportErrorMessage;
+                    banner.classList.toggle('hidden', autoImportWarningDismissed);
+                    if (!banner.classList.contains('hidden')) UI_RENDERER.initIcons();
+                } else {
+                    autoImportErrorMessage = null;
+                    banner.classList.add('hidden');
+                }
+            },
+
+            dismissAutoImportWarning: () => {
+                autoImportWarningDismissed = true;
+                const banner = document.getElementById('autoimport-warning-banner');
+                if (banner) banner.classList.add('hidden');
+            },
+
 
             // V29.78 FEAT: auto-import จาก Excel Bridge — เช็คทันที 1 ครั้งตอนเปิดแอป แล้ว poll ต่อเนื่อง
             // ทุก AUTOIMPORT_POLL_INTERVAL_MS ตราบใดที่ยังเปิดแอปทิ้งไว้ (เงียบๆ เบื้องหลัง ไม่มี dialog
@@ -193,9 +228,11 @@ Object.assign(APP, {
 
             pollAutoImport: async () => {
                 const info = await EXCEL_AUTOIMPORT.getSourceFileInfo();
+                APP.renderAutoImportWarningBanner(info); // V29.88 FEAT: โชว์/ซ่อน banner ตามสถานะล่าสุดทุกรอบ poll
+
                 if (info.status !== 'ok') {
-                    // bridge-offline / not-found / error — ไม่เปิดโปรแกรม Bridge ไว้เป็นสถานะปกติ ไม่ใช่
-                    // ข้อผิดพลาดที่ต้องรบกวน operator รอรอบ poll ถัดไปเฉยๆ
+                    // bridge-offline / not-found — สถานะปกติ ไม่ต้องรบกวน operator (เหมือนเดิม)
+                    // 'error' (เจอไฟล์ซ้ำ/หา WatchFolder ไม่เจอ) โชว์ผ่าน banner ข้างบนไปแล้ว
                     return;
                 }
 
@@ -385,6 +422,9 @@ Object.assign(APP, {
 
                 // V29.87 FEAT: Sync warning banner dismiss (ปิดชั่วคราวต่อ session เดียว ไม่ persist)
                 assignEvent('btn-sync-warning-dismiss', () => APP.dismissSyncWarning());
+
+                // V29.88 FEAT: Auto-import config error banner dismiss (ปิดชั่วคราวต่อ session เดียว)
+                assignEvent('btn-autoimport-warning-dismiss', () => APP.dismissAutoImportWarning());
 
                 // V29.51 FEAT: สำรอง/กู้คืนข้อมูล (Backup/Restore)
                 assignEvent('btn-backup-db', APP.backupData);

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.87)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.88)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -282,6 +282,21 @@
         <div class="flex-1 overflow-hidden relative">
             
             <div id="view-dashboard" class="view-panel absolute inset-0 overflow-y-auto p-6 md:p-8 space-y-6 animate-fade-in pb-24">
+
+                <!-- V29.88 FEAT: Auto-import config error banner — แยกจาก sync-warning-banner เพราะสถานะ
+                     'error' จาก Bridge (เจอไฟล์ log sheet ซ้ำ/หา $WatchFolder ไม่เจอ) ต่างจาก
+                     'bridge-offline'/'not-found' ที่เป็นสถานะปกติรายวัน — ถ้าไม่แยก operator จะเห็นแค่
+                     "Dashboard ไม่อัปเดต" เฉยๆ โดยไม่รู้สาเหตุ ใช้โทน rose แยกจาก amber ของ banner อื่น
+                     กันสับสนว่าเป็นปัญหาคนละระดับ -->
+                <div id="autoimport-warning-banner" class="hidden bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap">
+                    <div class="flex items-center gap-2.5">
+                        <i data-lucide="folder-x" class="w-5 h-5 text-rose-500 shrink-0"></i>
+                        <p id="autoimport-warning-text" class="text-xs font-bold text-rose-800"></p>
+                    </div>
+                    <button id="btn-autoimport-warning-dismiss" class="text-rose-400 hover:text-rose-700 p-1 shrink-0">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
 
                 <!-- V29.87 FEAT: Sync warning banner — เตือนชัดเจนกว่าจุดเล็กๆ ที่ sidebar (APP.setSyncIndicator)
                      เวลาไม่ได้เชื่อมต่อ Excel Bridge เพราะ operator ที่ไม่ใช่สาย technical มักไม่สังเกตจุดเล็กๆ นั้น
@@ -691,7 +706,7 @@
                     </div>
 
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.87 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.88 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by A(i)CODER</p>
                     </div>
                 </div>
