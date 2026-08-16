@@ -6,10 +6,13 @@ import { EXCEL_SYNC } from '../excel-sync.js';
 import { autoResizeTextarea, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, AUTOIMPORT_POLL_INTERVAL_MS, LS_AUTOIMPORT_LAST_MTIME_KEY, LS_SYNC_DIRTY_KEY, getCanonicalTimesStatus } from '../shared.js';
 import { APP } from './app.js';
 
-// V29.78 FEAT: กันสั่ง archive ซ้ำทุกรอบ poll ตราบใดที่ยังครบ 4 เวลาอยู่ (Copy-Item -Force เขียนทับ
-// เฉยๆ ไม่เสียหายถ้าซ้ำ แต่ไม่จำเป็นต้องยิง request ทุก 5 นาทีถ้าไม่มีอะไรเปลี่ยน) — in-memory ล้วนๆ
+// V29.86 FIX: เก็บ mtime ของไฟล์ต้นฉบับ ณ ตอนที่ archive สำเร็จล่าสุด (แทน boolean เดิมที่เคยยิง archive
+// แค่ครั้งเดียวแล้วล็อกตัวเองไว้ตลอดวัน) — operator มักพิมพ์ Resolution Remark หลังข้อมูล 21:00 เข้ามาแล้ว
+// ซึ่งทำให้ bridge เขียน comment กลับ Excel + save ไฟล์ (mtime เปลี่ยนจริง) ถ้ายังใช้ boolean เดิม
+// archive copy ที่ทำไปแล้วครั้งแรกจะไม่มีวันได้ comment ที่เขียนทีหลังเลย เทียบ mtime แทนทำให้ archive
+// ยิงซ้ำ (overwrite) ทุกครั้งที่ไฟล์เปลี่ยนจริง ตราบใดที่วันนั้นยังนับว่าครบ 4 เวลาอยู่ — in-memory ล้วนๆ
 // รีเซ็ตเมื่อ reload หน้าได้ ไม่กระทบอะไร (แค่ archive ซ้ำอีกครั้งตอนเช็ครอบแรกหลัง reload)
-let lastKnownCanonicalComplete = false;
+let lastArchivedMtime = null;
 
 Object.assign(APP, {
             // V29.78 FEAT: ขอให้เบราว์เซอร์ mark storage ของแอปนี้เป็น "persistent" กันเบราว์เซอร์ auto-evict
@@ -173,7 +176,14 @@ Object.assign(APP, {
                 await APP.repairAutoImportedFileNames(info.fileName);
 
                 const lastMtime = localStorage.getItem(LS_AUTOIMPORT_LAST_MTIME_KEY);
-                if (lastMtime === info.lastWriteTimeUtc) return; // ไฟล์ไม่เปลี่ยนจากรอบก่อน ไม่ต้องทำอะไรต่อ
+                if (lastMtime === info.lastWriteTimeUtc) {
+                    // V29.86 FIX: ไฟล์ไม่เปลี่ยนจากรอบก่อน ไม่ต้อง reimport ซ้ำ — แต่ยังเช็ค archive ต่อ
+                    // เผื่อรอบก่อน archive ล้มเหลว (เช่นไฟล์ล็อกจังหวะ Excel/PI กำลังเขียน) จะได้ retry ได้
+                    // ต่อแม้ไฟล์จะไม่เปลี่ยนแปลงเพิ่มแล้วก็ตาม (เดิมจะ return ทิ้งตรงนี้เลย ทำให้ archive
+                    // ที่เคยพลาดไม่มีวันถูก retry อีกถ้าไฟล์ไม่ถูกแก้เพิ่ม)
+                    await APP.checkAndArchiveIfComplete(info.lastWriteTimeUtc);
+                    return;
+                }
 
                 const fetched = await EXCEL_AUTOIMPORT.fetchSourceFile(info.fileName);
                 if (fetched.status !== 'ok') {
@@ -192,9 +202,10 @@ Object.assign(APP, {
                     return;
                 }
 
-                // เช็คว่าข้อมูลวันล่าสุดครบ 4 เวลา (03:00/09:00/15:00/21:00) แล้วหรือยัง — ถ้าเพิ่งครบรอบนี้
-                // ให้สั่ง Bridge archive ไฟล์ต้นฉบับเก็บ safety copy ให้อัตโนมัติ
-                await APP.checkAndArchiveIfComplete();
+                // เช็คว่าข้อมูลวันล่าสุดครบ 4 เวลา (03:00/09:00/15:00/21:00) แล้วหรือยัง — ถ้าไฟล์ต้นฉบับ
+                // เปลี่ยนไปจากตอน archive ล่าสุด (mtime ต่าง) ให้สั่ง Bridge archive ซ้ำเก็บ safety copy
+                // ให้อัตโนมัติ ครอบคลุมทั้งข้อมูลใหม่และ Resolution Remark ที่เพิ่งเขียนกลับ Excel
+                await APP.checkAndArchiveIfComplete(info.lastWriteTimeUtc);
             },
 
             // แก้ record ที่เคย auto-import เข้ามาตอนยังมีบั๊ก CORS (ก่อน fix นี้) แล้วติดชื่อไฟล์ placeholder
@@ -212,21 +223,25 @@ Object.assign(APP, {
                 APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
             },
 
-            // V29.78 FEAT: trigger archive อัตโนมัติเมื่อข้อมูลวันล่าสุดครบ 4 เวลา (03:00/09:00/15:00/21:00)
-            // — เช็คใหม่ทุกครั้งที่เรียก แต่สั่ง archive จริงเฉพาะตอน "เพิ่งครบ" (เปลี่ยนจากไม่ครบ→ครบ) กัน
-            // ยิง request ซ้ำไม่จำเป็นทุกรอบ poll ถ้า archive ล้มเหลว (เช่นไฟล์ล็อกจังหวะ PI กำลังเขียน) จะ
-            // ไม่ mark ว่าเสร็จแล้ว รอบ poll ถัดไปจะลองใหม่เอง ไม่ต้องมี retry logic พิเศษ
-            checkAndArchiveIfComplete: async () => {
+            // V29.86 FIX (เดิม V29.78 FEAT): trigger archive อัตโนมัติเมื่อข้อมูลวันล่าสุดครบ 4 เวลา
+            // (03:00/09:00/15:00/21:00) — เช็คใหม่ทุกครั้งที่เรียก และสั่ง archive ซ้ำทุกครั้งที่ไฟล์
+            // ต้นฉบับเปลี่ยนไปจากตอน archive สำเร็จล่าสุด (เทียบ mtime) ไม่ใช่แค่ครั้งแรกที่ครบ 4 เวลา
+            // เหมือนเดิม — เพราะ operator มักพิมพ์ Resolution Remark หลังข้อมูล 21:00 เข้ามาแล้ว ทำให้
+            // bridge เขียน comment กลับ Excel + save ไฟล์ (mtime เปลี่ยนจริง) ถ้า archive ไปแล้วครั้งเดียว
+            // แล้วหยุดเลย comment ที่เขียนทีหลังจะไม่มีวันถูกคัดลอกไปที่ archive copy เลย ถ้า archive
+            // ล้มเหลว (เช่นไฟล์ล็อกจังหวะ PI กำลังเขียน) จะไม่ mark ว่าเสร็จแล้ว รอบ poll ถัดไปจะลองใหม่เอง
+            // ไม่ต้องมี retry logic พิเศษ
+            checkAndArchiveIfComplete: async (currentMtime) => {
                 const status = getCanonicalTimesStatus(STATE.get('records'));
                 if (!status.isComplete) {
-                    lastKnownCanonicalComplete = false; // เผื่อเปลี่ยนวันใหม่ ให้เริ่มนับใหม่รอบหน้า
+                    lastArchivedMtime = null; // เผื่อเปลี่ยนวันใหม่ ให้เริ่มนับใหม่รอบหน้า
                     return;
                 }
-                if (lastKnownCanonicalComplete) return; // ครบอยู่แล้วจากรอบก่อน ไม่ต้อง archive ซ้ำ
+                if (lastArchivedMtime === currentMtime) return; // archive ไฟล์เวอร์ชันนี้ไปแล้ว ไม่ต้องซ้ำ
 
                 const archiveStatus = await EXCEL_AUTOIMPORT.archiveSourceFile();
                 if (archiveStatus === 'ok') {
-                    lastKnownCanonicalComplete = true;
+                    lastArchivedMtime = currentMtime;
                 } else {
                     console.warn('[auto-archive] archive failed, will retry next poll:', archiveStatus);
                 }
