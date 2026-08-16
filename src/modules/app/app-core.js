@@ -367,6 +367,18 @@ Object.assign(APP, {
             },
 
 
+            // V29.89 FEAT: สลับ tab แบบ imperative (toggle nav-btn active class + view-panel visibility)
+            // แยกออกมาจาก nav-btn click handler เดิม เพื่อให้โค้ดที่ไม่ใช่ click event จริง (เช่น ปุ่ม "ดู
+            // ทั้งหมดที่หน้า History" ใน Dashboard truncation-notice) เรียกสลับ tab ได้แบบเดียวกันโดยไม่ต้อง
+            // duplicate logic
+            switchTab: (tab) => {
+                document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('tab-active', b.dataset.tab === tab));
+                document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+                const viewEl = document.getElementById(`view-${tab}`);
+                if (viewEl) viewEl.classList.remove('hidden');
+                STATE.set('activeTab', tab);
+            },
+
             bindEvents: () => {
                 const assignEvent = (id, fn, evt = 'click') => {
                     const el = document.getElementById(id);
@@ -389,16 +401,17 @@ Object.assign(APP, {
                 }, 'change');
 
                 document.querySelectorAll('.nav-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const tab = e.currentTarget.dataset.tab;
-                        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('tab-active'));
-                        e.currentTarget.classList.add('tab-active');
-                        document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
-                        const viewEl = document.getElementById(`view-${tab}`);
-                        if (viewEl) viewEl.classList.remove('hidden');
-                        STATE.set('activeTab', tab);
-                    });
+                    btn.addEventListener('click', (e) => APP.switchTab(e.currentTarget.dataset.tab));
                 });
+
+                // V29.89 FEAT: History view (date-range, search, pagination, export)
+                assignEvent('history-search', () => APP.renderHistoryView(), 'input');
+                assignEvent('history-from', (e) => APP.setHistoryDateRange(e.target.value, document.getElementById('history-to')?.value), 'change');
+                assignEvent('history-to', (e) => APP.setHistoryDateRange(document.getElementById('history-from')?.value, e.target.value), 'change');
+                assignEvent('btn-history-reset-range', () => APP.resetHistoryDateRangeToAll());
+                assignEvent('btn-history-prev', () => APP.historyPrevPage());
+                assignEvent('btn-history-next', () => APP.historyNextPage());
+                assignEvent('btn-history-export', () => APP.exportAbnormalHistory());
 
                 assignEvent('btn-clear-db', async () => {
                     // V29.85 FIX: การล้างนี้จะ push ไป shared-db บน D: ด้วย (เหมือน mutation อื่นทุกจุด)
@@ -513,6 +526,7 @@ Object.assign(APP, {
                     else if (activeTab === 'tags') APP.renderTagTable(tagSearchVal());
                     else if (activeTab === 'master') APP.renderMasterTable(masterSearchVal());
                     else if (activeTab === 'countermeasure') APP.renderCountermeasureTable(countermeasureSearchVal());
+                    else if (activeTab === 'history') APP.renderHistoryView(); // V29.89 FEAT
                     APP.updateFloatingBar();
                 }
                 if (changedKey === 'activeTab') {
@@ -520,6 +534,7 @@ Object.assign(APP, {
                     if (activeTab === 'tags') APP.renderTagTable(tagSearchVal());
                     if (activeTab === 'master') APP.renderMasterTable(masterSearchVal());
                     if (activeTab === 'countermeasure') APP.renderCountermeasureTable(countermeasureSearchVal());
+                    if (activeTab === 'history') APP.renderHistoryView(); // V29.89 FEAT
                 }
             },
 });

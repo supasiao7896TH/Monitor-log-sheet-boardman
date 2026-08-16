@@ -169,6 +169,12 @@ export function computeCausalStatDeviation(samples, opts = {}) {
 }
 
 export const SELECT_ALL_CAP = 300;
+// V29.89 FIX: แยกจาก SELECT_ALL_CAP โดยตั้งใจ — เดิมสองอย่างนี้ผูกค่าเดียวกัน ทำให้ตอนเลือก Dashboard
+// filter "All Time" ที่มี Abnormal สะสมเกิน 300 รายการ (เช่นสะสมมาเป็นปี) จะ render แค่ 300 รายการที่เก่า
+// ที่สุด (list เรียงเก่า→ใหม่) ทำให้รายการล่าสุดไม่โผล่เลยแบบเงียบๆ — ตอนนี้ dashboard slice จากท้าย list
+// แทน (ดู app-dashboard.js) ให้เหลือ "300 รายการล่าสุด" ไม่ใช่ "300 รายการเก่าที่สุด" ส่วนดูข้อมูลทั้งหมด
+// จริงๆ ให้ไปหน้า History แทน (app-history.js) ซึ่งไม่มี cap นี้ (มี pagination ของตัวเอง)
+export const DASHBOARD_RENDER_CAP = 300;
 export const TABLE_RENDER_CAP = 350;
 export const DEFAULT_TIME_BREAKDOWN_DAYS = 3; // V29.78 PERF: Time Breakdown bar shows only the N most recent distinct dates by default; older dates move to the "ดูวันที่เก่ากว่านี้" dropdown instead of rendering forever-growing buttons
 export const RECURRING_ABNORMAL_THRESHOLD = 3; // V29.51 FEAT: min abnormal occurrences (all-time) before a tag gets the "recurring" badge
@@ -224,6 +230,28 @@ export function getCanonicalTimesStatus(records, now = new Date()) {
     }
     return { dateStr: latestDateStr, missingTimes, isComplete: missingTimes.length === 0 };
 }
+
+// V29.89 FEAT: History view (app-history.js) + Export (app-export.js) — เปรียบเทียบ dateStr (รูปแบบ
+// DD/MM/YYYY จาก excelSerialToDateStr หรือ import อื่นๆ) กับ date-range ที่ operator เลือกผ่าน
+// <input type="date"> (รูปแบบ YYYY-MM-DD ของ HTML เอง ไม่มีขีดหลัง .replace(/-/g,'')) โดยแปลงทั้งคู่เป็น
+// key แบบ YYYYMMDD สำหรับเทียบ string ตรงๆ ได้ (เรียงตามเวลาจริงถูกต้อง) — ตรรกะเดียวกับที่ใช้กระจายอยู่
+// ในหลายจุดของโค้ด (getCanonicalTimesStatus, dashboard sortedKeys) แต่แยกเป็น helper ให้เรียกซ้ำได้ ไม่
+// duplicate logic เพิ่มอีกจุด
+export function dateStrToKey(dateStrVal) {
+    if (!dateStrVal) return '';
+    return dateStrVal.includes('/') ? dateStrVal.split('/').reverse().join('') : dateStrVal;
+}
+
+// fromKey/toKey เป็น YYYYMMDD string หรือ null/'' (=ไม่จำกัดขอบด้านนั้น)
+export function isDateInRange(dateStrVal, fromKey, toKey) {
+    const key = dateStrToKey(dateStrVal);
+    if (fromKey && key < fromKey) return false;
+    if (toKey && key > toKey) return false;
+    return true;
+}
+
+export const HISTORY_DEFAULT_DAYS = 30; // V29.89 FEAT: หน้า History เปิดครั้งแรกโชว์ 30 วันล่าสุด ไม่ใช่ทั้งหมด กันโหลด/render ช้าตอนข้อมูลสะสมเยอะ
+export const HISTORY_PAGE_SIZE = 50;    // V29.89 FEAT: จำนวนแถวต่อหน้าในตาราง History (pagination)
 
 // V29.56 FEAT: ขยายความสูง textarea ให้พอดีกับเนื้อหา แทนที่จะให้เลื่อน scroll ทีละบรรทัด
 export function autoResizeTextarea(el) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getCanonicalTimesStatus, computeCausalStatDeviation } from '../src/modules/shared.js';
+import { getCanonicalTimesStatus, computeCausalStatDeviation, dateStrToKey, isDateInRange } from '../src/modules/shared.js';
 
 function rec(dateStr, timeStr) { return { dateStr, timeStr }; }
 
@@ -165,5 +165,40 @@ describe('computeCausalStatDeviation (V29.84 FEAT)', () => {
         // ก่อนประเมิน v4: pool = {v1=20, v2=10, v3=20} → mean = 50/3 ≈ 16.667, std ≈ 4.714
         // z = (10 - 16.667) / 4.714 ≈ -1.4142 (≈ -√2)
         expect(results[4].zScore).toBeCloseTo(-1.4142, 3);
+    });
+});
+
+describe('dateStrToKey (V29.89 FEAT)', () => {
+    it('reverses a DD/MM/YYYY dateStr into a sortable YYYYMMDD key', () => {
+        expect(dateStrToKey('11/08/2026')).toBe('20260811');
+    });
+
+    it('passes through a value with no slashes unchanged (already a plain key)', () => {
+        expect(dateStrToKey('20260811')).toBe('20260811');
+    });
+
+    it('returns an empty string for null/undefined/empty input', () => {
+        expect(dateStrToKey(null)).toBe('');
+        expect(dateStrToKey(undefined)).toBe('');
+        expect(dateStrToKey('')).toBe('');
+    });
+});
+
+describe('isDateInRange (V29.89 FEAT)', () => {
+    it('is inside an inclusive from/to range', () => {
+        expect(isDateInRange('11/08/2026', '20260801', '20260831')).toBe(true);
+        expect(isDateInRange('01/08/2026', '20260801', '20260831')).toBe(true); // boundary: from
+        expect(isDateInRange('31/08/2026', '20260801', '20260831')).toBe(true); // boundary: to
+    });
+
+    it('is outside the range before "from" or after "to"', () => {
+        expect(isDateInRange('31/07/2026', '20260801', '20260831')).toBe(false);
+        expect(isDateInRange('01/09/2026', '20260801', '20260831')).toBe(false);
+    });
+
+    it('treats a missing/empty from or to bound as unbounded on that side', () => {
+        expect(isDateInRange('01/01/2000', null, '20260831')).toBe(true);
+        expect(isDateInRange('31/12/2099', '20260801', null)).toBe(true);
+        expect(isDateInRange('01/01/2000', null, null)).toBe(true);
     });
 });

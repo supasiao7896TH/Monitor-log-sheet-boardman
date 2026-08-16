@@ -8,5 +8,7 @@ import './modules/app/app-countermeasure.js';
 import './modules/app/app-modal.js';
 import './modules/app/app-chart.js';
 import './modules/app/app-report.js';
+import './modules/app/app-history.js';
+import './modules/app/app-export.js';
 
 document.addEventListener('DOMContentLoaded', APP.init);

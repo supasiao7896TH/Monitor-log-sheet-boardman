@@ -1,6 +1,6 @@
 import { STATE } from '../state.js';
 import { UI_RENDERER } from '../ui-renderer.js';
-import { escapeHtml, getTagId, parseNum, resolveEffectiveLimits, getMasterMap, getTagMap, LIMIT_EPSILON, SELECT_ALL_CAP, RECURRING_ABNORMAL_THRESHOLD, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, DEFAULT_TIME_BREAKDOWN_DAYS, getCanonicalTimesStatus, STAT_DEVIATION_SIGMA_K } from '../shared.js';
+import { escapeHtml, getTagId, parseNum, resolveEffectiveLimits, getMasterMap, getTagMap, LIMIT_EPSILON, SELECT_ALL_CAP, DASHBOARD_RENDER_CAP, RECURRING_ABNORMAL_THRESHOLD, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, DEFAULT_TIME_BREAKDOWN_DAYS, getCanonicalTimesStatus, STAT_DEVIATION_SIGMA_K } from '../shared.js';
 import { APP } from './app.js';
 /* global lucide */
 
@@ -316,7 +316,21 @@ Object.assign(APP, {
                         }
                     });
 
-                    visibleAbs.slice(0, SELECT_ALL_CAP).forEach(r => {
+                    // V29.89 FIX: เดิม slice(0, SELECT_ALL_CAP) ตัดจากหัว list ที่เรียงเก่า→ใหม่ ทำให้ Abnormal
+                    // ที่สะสมเกิน 300 รายการ (เช่นสะสมมาเป็นปี) เห็นแค่ 300 รายการที่เก่าที่สุด รายการล่าสุดไม่
+                    // โผล่เลยแบบเงียบๆ — ตัดจากท้ายแทนให้เหลือ "300 รายการล่าสุด" แล้วแจ้ง notice ให้ไปดูทั้งหมด
+                    // ที่หน้า History แทน (ไม่มี cap นี้)
+                    if (visibleAbs.length > DASHBOARD_RENDER_CAP) {
+                        const notice = UI_RENDERER.createEl('div', 'col-span-full flex flex-wrap items-center justify-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-xl py-2.5 px-3 mb-1');
+                        notice.appendChild(document.createTextNode(`แสดง ${DASHBOARD_RENDER_CAP.toLocaleString()} รายการล่าสุด จากทั้งหมด ${visibleAbs.length.toLocaleString()} รายการ —`));
+                        const gotoBtn = UI_RENDERER.createEl('button', 'underline font-black text-amber-800 hover:text-amber-900');
+                        gotoBtn.textContent = 'ดูทั้งหมดที่หน้า History';
+                        gotoBtn.onclick = () => APP.switchTab('history');
+                        notice.appendChild(gotoBtn);
+                        grid.appendChild(notice);
+                    }
+
+                    visibleAbs.slice(-DASHBOARD_RENDER_CAP).forEach(r => {
                         const tId = getTagId(r);
                         const tagDef = tagMap.get(tId) || {};
                         const master = mTagsMap.get(tId);
