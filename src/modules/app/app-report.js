@@ -270,6 +270,27 @@ Object.assign(APP, {
                     link.click();
                     document.body.removeChild(link);
 
+                    // V29.91 FEAT: copy PNG (broadest ClipboardItem support) alongside the JPG
+                    // download so operators can Ctrl+V straight into Excel without opening the file
+                    let clipboardCopied = false;
+                    if (navigator.clipboard && window.ClipboardItem) {
+                        try {
+                            const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+                            if (pngBlob) {
+                                await navigator.clipboard.write([
+                                    new ClipboardItem({ 'image/png': pngBlob })
+                                ]);
+                                clipboardCopied = true;
+                            }
+                        } catch (clipErr) {
+                            console.warn('Clipboard copy failed:', clipErr);
+                        }
+                    }
+
+                    alert(clipboardCopied
+                        ? 'บันทึกรูปภาพเรียบร้อย และคัดลอกรูปไปยัง Clipboard แล้ว\nไปที่ Excel แล้วกด Ctrl+V หรือคลิกขวา > Paste วางรูปได้เลยค่ะ'
+                        : 'บันทึกรูปภาพเรียบร้อย (เบราว์เซอร์นี้ไม่รองรับการคัดลอกรูปภาพไปยัง Clipboard โดยอัตโนมัติ — เปิดไฟล์ที่ดาวน์โหลดแล้วคัดลอกรูปแทนได้ค่ะ)');
+
                     APP.closeReportModal();
                     STATE.set('selectedForReport', []);
                 } catch (error) {
