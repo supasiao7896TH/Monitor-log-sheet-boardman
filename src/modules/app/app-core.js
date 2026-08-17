@@ -450,9 +450,7 @@ Object.assign(APP, {
                         try {
                             await STORAGE_ENGINE.clearImportedData();
                             STATE.set('timeFilter', 'all');
-                            STATE.set('viewFilter', 'abnormal');
-                            const vf = document.getElementById('view-filter');
-                            if (vf) vf.value = 'abnormal';
+                            STATE.set('viewFilter', 'abnormal'); // V29.93: การ์ด active-state sync ผ่าน renderDashboard เองแล้ว ไม่ต้อง poke DOM แยก
                             await APP.loadLocalData();
                             APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
                         } catch (error) {
@@ -504,7 +502,6 @@ Object.assign(APP, {
                     });
                 }
 
-                assignEvent('view-filter', (e) => STATE.set('viewFilter', e.target.value), 'change');
                 assignEvent('tag-search', (e) => APP.renderTagTable(e.target.value), 'input');
                 assignEvent('master-search', (e) => APP.renderMasterTable(e.target.value), 'input');
                 assignEvent('countermeasure-search', (e) => APP.renderCountermeasureTable(e.target.value), 'input');

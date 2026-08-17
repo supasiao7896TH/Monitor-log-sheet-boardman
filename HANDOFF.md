@@ -170,9 +170,30 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 **การยืนยัน:** เขียน test ใหม่ครบ (`computeCausalStatTrendWarning` describe block ใน `tests/shared.test.js`, ปรับ `_recomputeFlags` integration tests ใน `tests/state.test.js` ให้ตรงกับ opt-out gate ใหม่) แต่ **เครื่องที่เขียน session นี้ไม่มี Node.js/npm ติดตั้งอยู่เลย — ยังไม่เคยรัน `npm test` จริงสักครั้ง** ยืนยันแค่ hand-trace logic เท่านั้น ต้องรัน `npm test` ที่เครื่องที่มี Node.js ก่อนไว้ใจ 100%, และควรทดสอบ UI จริงผ่าน `npm run dev` (import log sheet ตัวอย่าง, เปิด Tag Master ดู checkbox ใหม่, ลองสร้างข้อมูลไต่ระดับ/เบี่ยงเบนซ้ำเพื่อดู Trend Warning card สีฟ้าขึ้นจริง)
 
+**Commit:** `c5aa038` "Auto-enable Statistical Deviation for all tags, add Trend Warning tier (V29.92)" — 15 ไฟล์, +326/-71 — **push ขึ้น `origin/main` แล้ว** (ต่อจาก `7757c1f`)
+
+**สถานะ:** โค้ด+test เขียนเสร็จ, commit+push แล้ว — **`npm test` ยังไม่เคยรันจริง** (เครื่องนี้ไม่มี Node.js/npm) ยังเป็นรายการค้างอยู่
+
+---
+
+## ✅ เรื่องที่ 13 — การ์ดสรุป Dashboard เป็นปุ่มกรองในตัว แทน dropdown `#view-filter` (V29.93)
+
+**บริบท:** หลัง "เรื่องที่ 12" เพิ่ม Trend Warning tier แล้ว พี่ A สังเกตว่าหน้า "รายการพารามิเตอร์ (Log Data)" ที่ filter default `abnormal` รวมทั้ง 3 ประเภท (Abnormal/Stat Deviation/Trend Warning) ไว้ในลิสต์เดียวกันอาจดูปนกันจนแยกยาก — คุยกันหลายไอเดีย (จัดกลุ่ม section header ในลิสต์ / เพิ่มแถบ pill/tab ใหม่ / ทำให้การ์ดสรุปที่มีอยู่แล้วคลิกได้) พี่ A เลือกแบบสุดท้าย: **ให้การ์ดสรุป 5 ใบที่มีอยู่แล้วเหนือรายการทำหน้าที่เป็นปุ่มกรองในตัว** แทนที่จะเพิ่ม UI ใหม่ซ้ำซ้อน
+
+**สิ่งที่ทำ:**
+1. เพิ่ม `viewFilter` ค่าใหม่ `'hard-abnormal'` ใน `STATE._applyFilterSort` (`src/modules/state.js`) — กรองเฉพาะ `isAbnormal===1` แยกจาก filter `'abnormal'` เดิมที่ยังคงความหมาย "รวมทั้ง 3 ประเภท" (ใช้เป็น default เวลาไม่มีการ์ดไหน active)
+2. ลบ `<select id="view-filter">` dropdown ออกจาก `index.html` ทั้งหมด — ตัด option `trend-warning` ที่เพิ่งเพิ่มใน "เรื่องที่ 12" ไปด้วย (ย้ายไปอยู่ที่การ์ดแทน)
+3. การ์ด 4 ใบ (Data Points → `all`, Abnormalities → `hard-abnormal` ใหม่, Statistical Deviation → `stat-deviation`, Trend Warning → `trend-warning`) ได้ `id`/`data-filter`/`cursor-pointer` ใหม่ใน `index.html`; การ์ด Total Tags ไม่คลิกได้ (ไม่มีความหมายเป็น filter)
+4. `APP.renderDashboard` (`src/modules/app/app-dashboard.js`) ผูก `onclick` ให้ทั้ง 4 การ์ดทุกครั้งที่ render, toggle ring highlight (`ring-2 ring-offset-2 ring-indigo-500`) ตามการ์ดที่ active อยู่จริง (`viewFilter` ตรงกับ `data-filter`) — **คลิกการ์ดที่ active ซ้ำ = ยกเลิกกรอง กลับไป `'abnormal'` (default รวม 3 ประเภท)** ทำให้ระบบ reactive เต็มที่ ไม่ต้อง poke DOM ค่า select แบบ manual เหมือนเดิมอีกแล้ว (ลบโค้ด sync ที่ `app-core.js`/`app-import.js` 2 จุดออกไปด้วย)
+5. แก้ empty-state message ใน dashboard ให้ครอบคลุมทุก filter ที่เป็น "ประเภทความผิดปกติ" (`abnormal`/`hard-abnormal`/`stat-deviation`/`trend-warning`) ไม่ใช่เช็คแค่ `'abnormal'` แบบเดิม
+
+**ไฟล์ที่แก้:** `index.html`, `src/modules/state.js`, `src/modules/app/app-dashboard.js`, `src/modules/app/app-core.js`, `src/modules/app/app-import.js`, `tests/state.test.js` — bump เป็น **V29.93**
+
+**การยืนยัน:** เพิ่ม test ใหม่ใน `tests/state.test.js` สำหรับ filter `'hard-abnormal'` (แยกจาก `isStatDeviation` ถูกต้อง) — **`npm test` ยังไม่เคยรันจริงเช่นเดียวกับ "เรื่องที่ 12"** (เครื่องนี้ไม่มี Node.js/npm) ยัง**ไม่เคยทดสอบ UI จริงผ่าน browser เลย** ว่าคลิกการ์ดแล้ว ring highlight/filter ทำงานถูกต้อง โดยเฉพาะ toggle-off (คลิกซ้ำ) ต้องเช็คให้ดีที่เครื่องที่มี Node.js
+
 **Commit:** ยังไม่ commit ณ ตอนเขียน entry นี้ — ให้เติม commit hash ตรงนี้หลัง commit จริง
 
-**สถานะ:** โค้ดเขียนเสร็จ, test เขียนเสร็จแต่ยังไม่ได้รัน, ยังไม่ commit/push
+**สถานะ:** โค้ด+test เขียนเสร็จ, ยังไม่ commit/push, ยังไม่เคยรัน `npm test`/ทดสอบ UI จริง
 
 ---
 
@@ -195,6 +216,8 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 11. **Known limitation ของ Statistical Deviation ที่ตั้งใจไม่แก้ใน v1 (มี comment ในโค้ดแล้ว):** ถ้า process เปลี่ยน setpoint จริงถาวร (ไม่ใช่ fault) จะเกิด false-positive ต่อเนื่องจนกว่า window 120 samples จะเลื่อนผ่านครบ — mitigation ระยะสั้นคือปิด `disableStatDeviation` (เดิมชื่อ `enableStatDeviation` ก่อน V29.92) ชั่วคราวเองผ่าน Tag Master — ยังไม่แก้ใน V29.92 เช่นกัน (ยังเป็น known limitation อยู่)
 12. **V29.85 shared-DB sync (เรื่องที่ 10) — ยังไม่มีข้อมูลยืนยันว่า `tests/excel-sync.test.js` เคยรันผ่าน `npm test` จริงหรือไม่** (entry เขียนย้อนหลังจาก recovery session ที่ไม่มี local clone จึงรันเองไม่ได้ ไม่มีข้อมูลยืนยันจาก commit message) — ควรรัน `npm test` ที่เครื่องบ้าน/เครื่องที่มี Node.js เพื่อยืนยัน พร้อมกับ suite เดิมและ test ของ V29.84
 13. **V29.85 shared-DB sync (เรื่องที่ 10) ยังไม่มีใครยืนยันการใช้งานจริงกับ operator หลายคนบน PC ที่ทำงานหลัง deploy** — commit message ยืนยันแค่ผลทดสอบ round-trip ระหว่าง browser origin 2 ตัว ไม่ใช่การใช้งานจริงกับ Windows account คนละ account บนเครื่อง Office
+14. **V29.92/V29.93 (เรื่องที่ 12-13) — `npm test` ยังไม่เคยรันจริงเลยทั้งสองรอบ** เครื่องที่เขียนไม่มี Node.js/npm ติดตั้งอยู่ ต้องรันที่เครื่องบ้าน/เครื่องที่มี Node.js ก่อนไว้ใจ 100%
+15. **V29.93 (เรื่องที่ 13) — ยังไม่เคยทดสอบ UI จริงผ่าน browser เลย** โดยเฉพาะพฤติกรรมคลิกการ์ด: ring highlight ขึ้นถูกการ์ด, คลิกซ้ำแล้วยกเลิกกรองกลับไป `abnormal` จริง, empty-state message ขึ้นถูกต้องครบทุก filter — ต้องเปิด `npm run dev` ทดสอบก่อนใช้งานจริง
 
 ---
 

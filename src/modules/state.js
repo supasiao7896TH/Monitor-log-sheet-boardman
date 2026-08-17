@@ -147,6 +147,9 @@ export const STATE = {
                     // Warning — operator ดู Web App แทนกระดาษ 100% แล้ว ห้ามพลาดอะไรเพราะ default filter
                     // แคบเกินไป (badge/สีที่แยกกันใน dashboard ทำหน้าที่บอกความต่างของประเภทปัญหาแทน)
                     list = list.filter(r => r.isAbnormal === 1 || r.isStatDeviation === 1 || r.isStatTrendWarning === 1);
+                } else if (STATE.data.viewFilter === 'hard-abnormal') {
+                    // V29.93 FEAT: กดการ์ด "Abnormalities" — เฉพาะหลุด Min/Max จริง แยกจาก Stat Deviation/Trend Warning
+                    list = list.filter(r => r.isAbnormal === 1);
                 } else if (STATE.data.viewFilter === 'stat-deviation') {
                     list = list.filter(r => r.isStatDeviation === 1);
                 } else if (STATE.data.viewFilter === 'trend-warning') {

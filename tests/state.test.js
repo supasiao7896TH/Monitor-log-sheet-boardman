@@ -129,4 +129,17 @@ describe('_recomputeFlags Statistical Deviation integration (V29.84 FEAT, V29.92
         STATE.set('viewFilter', 'trend-warning');
         expect(STATE.data.abnormalRecords.length).toBe(0);
     });
+
+    it('the "hard-abnormal" view filter (V29.93, การ์ด Abnormalities) shows only hard-limit violations, excluding Statistical Deviation', () => {
+        STATE.data.tags = [makeTag(TAG_ID, 'BM2', 'TI-2301', 'PV', 220, 262)];
+        STATE.data.masterTags = [];
+
+        const statDevRecord = makeRecord(25, 238.7);  // in-spec, off-baseline
+        const hardLimitRecord = makeRecord(26, 300);   // หลุด max=262 ตรงๆ
+        STATE.set('records', [...BASELINE, statDevRecord, hardLimitRecord]);
+
+        STATE.set('viewFilter', 'hard-abnormal');
+        expect(STATE.data.abnormalRecords.some(r => r.id === 'rec_26')).toBe(true);
+        expect(STATE.data.abnormalRecords.some(r => r.id === 'rec_25')).toBe(false);
+    });
 });

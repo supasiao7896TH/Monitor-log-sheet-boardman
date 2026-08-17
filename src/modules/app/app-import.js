@@ -180,9 +180,7 @@ Object.assign(APP, {
                     await APP.renderImportHistory();
 
                     STATE.set('timeFilter', 'all');
-                    STATE.set('viewFilter', 'abnormal');
-                    const vfEl = document.getElementById('view-filter');
-                    if (vfEl) vfEl.value = 'abnormal';
+                    STATE.set('viewFilter', 'abnormal'); // V29.93: การ์ด active-state sync ผ่าน renderDashboard เองแล้ว ไม่ต้อง poke DOM แยก
 
                     await APP.loadLocalData();
                     APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget

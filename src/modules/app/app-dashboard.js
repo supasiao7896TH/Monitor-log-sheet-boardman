@@ -293,6 +293,26 @@ Object.assign(APP, {
                 const twPen = document.getElementById('stat-trendwarn-pending');
                 if (twPen) twPen.textContent = totalTrendWarn.length - twAckCount;
 
+                // V29.93 FEAT: การ์ดสรุป 4 ใบ (Data Points/Abnormalities/Statistical Deviation/Trend Warning)
+                // เป็นทั้งตัวโชว์จำนวนและปุ่มกรองในตัว แทน dropdown #view-filter เดิมที่ตัดออกไปแล้ว — Total Tags
+                // ไม่ผูก click เพราะไม่มีความหมายเป็น filter คลิกการ์ดที่ active อยู่ซ้ำ = ยกเลิกกรอง กลับไป
+                // 'abnormal' (รวมทั้ง 3 ประเภท, default)
+                const filterCardIds = {
+                    all: 'card-filter-all',
+                    'hard-abnormal': 'card-filter-hard-abnormal',
+                    'stat-deviation': 'card-filter-stat-deviation',
+                    'trend-warning': 'card-filter-trend-warning',
+                };
+                Object.entries(filterCardIds).forEach(([filterValue, cardId]) => {
+                    const card = document.getElementById(cardId);
+                    if (!card) return;
+                    const isActive = viewFilter === filterValue;
+                    card.classList.toggle('ring-2', isActive);
+                    card.classList.toggle('ring-offset-2', isActive);
+                    card.classList.toggle('ring-indigo-500', isActive);
+                    card.onclick = () => STATE.set('viewFilter', isActive ? 'abnormal' : filterValue);
+                });
+
                 // V29.51 FEAT: ช่องค้นหาใน Dashboard (ค้นหาภายในช่วงเวลา/filter ที่เลือกอยู่)
                 const searchInput = document.getElementById('dashboard-search');
                 const searchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
@@ -312,9 +332,13 @@ Object.assign(APP, {
 
                 if (visibleAbs.length === 0) {
                     const empty = UI_RENDERER.createEl('div', 'col-span-full py-20 flex flex-col items-center justify-center text-slate-400 opacity-70');
+                    // V29.93: ครอบคลุมทุก filter ที่เป็น "ประเภทความผิดปกติ" ไม่ใช่แค่ 'abnormal' รวมเดิม —
+                    // เดี๋ยวนี้กดการ์ดแยกได้ (hard-abnormal/stat-deviation/trend-warning) ต้องขึ้นข้อความ
+                    // ชื่นชมเหมือนกันทุกแบบ ('all' ไม่เข้าเงื่อนไขนี้เพราะหมายถึง "ทุก record จริงๆ" ถ้าว่างคือไม่มีข้อมูลเลย)
+                    const isIssueFilter = ['abnormal', 'hard-abnormal', 'stat-deviation', 'trend-warning'].includes(viewFilter);
                     if (searchQuery) {
                         empty.innerHTML = `<i data-lucide="search-x" class="w-12 h-12 mb-3 text-slate-300"></i><p class="text-sm font-medium text-slate-500">ไม่พบรายการที่ตรงกับคำค้นหา</p>`;
-                    } else if(viewFilter === 'abnormal') {
+                    } else if (isIssueFilter) {
                         empty.innerHTML = `<i data-lucide="check-circle" class="w-12 h-12 mb-3 text-brand-400"></i><p class="text-sm font-medium text-slate-500">เยี่ยมมาก! ไม่พบรายการพารามิเตอร์ผิดปกติในช่วงเวลานี้</p>`;
                     } else {
                         empty.innerHTML = `<i data-lucide="inbox" class="w-12 h-12 mb-3 text-slate-300"></i><p class="text-sm font-medium text-slate-500">ยังไม่มีข้อมูล</p>`;
