@@ -207,9 +207,9 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 **การยืนยัน:** ไม่กระทบ `tests/state.test.js` เดิม (แต่ละ test set `viewFilter` เองผ่าน `beforeEach`/`STATE.set` โดยตรง ไม่พึ่งค่า default จาก `STATE.data`) — **`npm test`/ทดสอบ UI จริงยังไม่เคยทำ** เหมือน "เรื่องที่ 12-13"
 
-**Commit:** ยังไม่ commit ณ ตอนเขียน entry นี้ — ให้เติม commit hash ตรงนี้หลัง commit จริง
+**Commit:** `d124b58` "Default the parameter list to Abnormalities only (V29.94)" — 6 ไฟล์, +23/-6 — **push ขึ้น `origin/main` แล้ว** (ต่อจาก `f277fae`)
 
-**สถานะ:** โค้ดเขียนเสร็จ, ยังไม่ commit/push
+**สถานะ:** โค้ดเขียนเสร็จ, commit+push แล้ว — `npm test`/ทดสอบ UI จริงยังไม่เคยทำเหมือนเดิม
 
 ---
 
