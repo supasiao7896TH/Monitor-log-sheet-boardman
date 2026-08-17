@@ -197,6 +197,22 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 ---
 
+## ✅ เรื่องที่ 14 — เปลี่ยน default view filter เป็น "Abnormalities" เท่านั้น (V29.94)
+
+**บริบท:** หลัง "เรื่องที่ 13" พี่ A เห็นว่า default `'abnormal'` (รวม 3 ประเภท) ไม่ตรงจุดประสงค์หลักของแอป — อยากให้ default เห็นเฉพาะ Abnormalities (หลุด Min/Max จริง) ส่วน Stat Deviation/Trend Warning ให้กดการ์ดดูเองเมื่อสนใจ
+
+**สิ่งที่ทำ:** เปลี่ยนค่า default/reset ทุกจุดจาก `'abnormal'` เป็น `'hard-abnormal'` (filter ที่มีอยู่แล้วจาก V29.93): ค่า default ใน `STATE.data` (`state.js`), ปุ่ม "ล้างฐานข้อมูล" (`app-core.js`), หลัง import สำเร็จ (`app-import.js`), และ toggle-off ตอนคลิกการ์ดที่ active ซ้ำใน `app-dashboard.js` (เดิมกลับไป `'abnormal'` รวม 3 ประเภท ตอนนี้กลับไป `'hard-abnormal'` แทน) — filter `'abnormal'` เดิมยังอยู่ในโค้ด ไม่ได้ลบ แค่ไม่มีจุดไหนตั้งค่าไปที่มันโดยตรงจาก UI แล้ว
+
+**ไฟล์ที่แก้:** `src/modules/state.js`, `src/modules/app/app-dashboard.js`, `src/modules/app/app-core.js`, `src/modules/app/app-import.js`, `index.html` — bump เป็น **V29.94**
+
+**การยืนยัน:** ไม่กระทบ `tests/state.test.js` เดิม (แต่ละ test set `viewFilter` เองผ่าน `beforeEach`/`STATE.set` โดยตรง ไม่พึ่งค่า default จาก `STATE.data`) — **`npm test`/ทดสอบ UI จริงยังไม่เคยทำ** เหมือน "เรื่องที่ 12-13"
+
+**Commit:** ยังไม่ commit ณ ตอนเขียน entry นี้ — ให้เติม commit hash ตรงนี้หลัง commit จริง
+
+**สถานะ:** โค้ดเขียนเสร็จ, ยังไม่ commit/push
+
+---
+
 ## 🚧 ค้างอยู่ตรงไหน
 
 1. **V29.81 fix (เรื่องที่ 5) ยังไม่ได้ยืนยันในสภาพแวดล้อมจริง** — ทดสอบแค่กับ temp folder จำลองที่เครื่องบ้าน ยังไม่เคยทดสอบกับ watch folder จริง (`D:\PTA COMMONT WORK\Log sheet Digital`) บนเครื่องที่มีจริง และยังไม่เคยทดสอบกับ Excel ตัวจริงที่เปิดไฟล์ค้างไว้จริงๆ (จำลองด้วย `FileShare.None` เท่านั้น) — แนะนำให้ยืนยันที่เครื่อง Office (หรือเครื่องไหนก็ตามที่มี watch folder จริง) ว่า auto-import/auto-archive ยังทำงานต่อได้ปกติขณะ log sheet เปิดค้างอยู่ใน Excel เพราะนั่นคือเงื่อนไขที่พังมาก่อน

@@ -310,7 +310,8 @@ Object.assign(APP, {
                     card.classList.toggle('ring-2', isActive);
                     card.classList.toggle('ring-offset-2', isActive);
                     card.classList.toggle('ring-indigo-500', isActive);
-                    card.onclick = () => STATE.set('viewFilter', isActive ? 'abnormal' : filterValue);
+                    // V29.94: toggle-off กลับไป 'hard-abnormal' (default ใหม่) แทน 'abnormal' รวม 3 ประเภท
+                    card.onclick = () => STATE.set('viewFilter', isActive ? 'hard-abnormal' : filterValue);
                 });
 
                 // V29.51 FEAT: ช่องค้นหาใน Dashboard (ค้นหาภายในช่วงเวลา/filter ที่เลือกอยู่)

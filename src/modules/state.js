@@ -10,7 +10,7 @@ export const STATE = {
                 abnormalRecords: [],
                 abnormalHistory: [], // V29.90 FEAT: snapshot ของ record ที่เคย Abnormal/Stat Deviation, sync จาก STORE_ABNORMAL_HISTORY โดย APP.syncAbnormalHistory (app-core.js) — อยู่รอด "ล้างฐานข้อมูล" (ต่างจาก records)
                 timeFilter: 'all',
-                viewFilter: 'abnormal', 
+                viewFilter: 'hard-abnormal', // V29.94: default เฉพาะหลุด Min/Max จริง — จุดประสงค์หลักของแอปคือตรวจจับความผิดปกติที่ออกนอกค่าควบคุม
                 activeRecordId: null,
                 activeMasterId: null,
                 selectedForReport: []
