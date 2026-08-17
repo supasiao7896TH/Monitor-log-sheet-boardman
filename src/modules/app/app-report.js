@@ -35,10 +35,11 @@ Object.assign(APP, {
 
                 const isAbnormal = r.isAbnormal;
                 const isStatDev = r.isStatDeviation === 1; // V29.84 FEAT — mutually exclusive กับ isAbnormal
-                const valColor = isAbnormal ? 'text-red-600' : (isStatDev ? 'text-purple-600' : 'text-emerald-600');
-                const iconColor = isAbnormal ? 'text-red-500' : (isStatDev ? 'text-purple-500' : 'text-emerald-500');
-                const iconName = isAbnormal ? 'alert-triangle' : (isStatDev ? 'activity' : 'check-circle-2');
-                const accentBg = isAbnormal ? 'bg-red-500' : (isStatDev ? 'bg-purple-500' : 'bg-emerald-500');
+                const isTrendWarn = r.isStatTrendWarning === 1; // V29.92 FEAT — เบากว่า isStatDev
+                const valColor = isAbnormal ? 'text-red-600' : (isStatDev ? 'text-purple-600' : (isTrendWarn ? 'text-cyan-600' : 'text-emerald-600'));
+                const iconColor = isAbnormal ? 'text-red-500' : (isStatDev ? 'text-purple-500' : (isTrendWarn ? 'text-cyan-500' : 'text-emerald-500'));
+                const iconName = isAbnormal ? 'alert-triangle' : (isStatDev ? 'activity' : (isTrendWarn ? 'trending-up' : 'check-circle-2'));
+                const accentBg = isAbnormal ? 'bg-red-500' : (isStatDev ? 'bg-purple-500' : (isTrendWarn ? 'bg-cyan-500' : 'bg-emerald-500'));
 
                 return `
                         <div class="info-card p-5 rounded-2xl flex flex-col relative overflow-hidden group">
@@ -95,8 +96,9 @@ Object.assign(APP, {
 
                 const isAbnormal = r.isAbnormal;
                 const isStatDev = r.isStatDeviation === 1; // V29.84 FEAT — mutually exclusive กับ isAbnormal
-                const valColor = isAbnormal ? 'text-red-600' : (isStatDev ? 'text-purple-600' : 'text-emerald-600');
-                const rowBg = isAbnormal ? 'bg-red-50/60' : (isStatDev ? 'bg-purple-50/60' : '');
+                const isTrendWarn = r.isStatTrendWarning === 1; // V29.92 FEAT — เบากว่า isStatDev
+                const valColor = isAbnormal ? 'text-red-600' : (isStatDev ? 'text-purple-600' : (isTrendWarn ? 'text-cyan-600' : 'text-emerald-600'));
+                const rowBg = isAbnormal ? 'bg-red-50/60' : (isStatDev ? 'bg-purple-50/60' : (isTrendWarn ? 'bg-cyan-50/60' : ''));
 
                 return `
                         <tr class="${rowBg} border-b border-slate-200 last:border-b-0">

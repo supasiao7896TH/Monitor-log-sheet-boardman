@@ -141,7 +141,7 @@ Object.assign(APP, {
 
             syncAbnormalHistory: async () => {
                 const records = STATE.get('records') || [];
-                const toUpsert = records.filter(r => r.isAbnormal === 1 || r.isStatDeviation === 1);
+                const toUpsert = records.filter(r => r.isAbnormal === 1 || r.isStatDeviation === 1 || r.isStatTrendWarning === 1);
                 try {
                     if (toUpsert.length > 0) await STORAGE_ENGINE.upsertAbnormalHistoryBatch(toUpsert);
                     // ดึงทั้ง store กลับมาเสมอ (ไม่ใช่แค่ตอน toUpsert.length > 0) — กันเคส records ว่างเปล่า

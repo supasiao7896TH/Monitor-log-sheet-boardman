@@ -148,6 +148,7 @@ Object.assign(APP, {
                         const { eMin, eMax, eExact } = resolveEffectiveLimits(tagDef, master);
                         const isAck = r.actionStatus === 'acknowledged';
                         const isStatDev = r.isStatDeviation === 1;
+                        const isTrendWarn = r.isStatTrendWarning === 1; // V29.92 FEAT
 
                         const tr = UI_RENDERER.createEl('tr', 'hover:bg-sky-50/40 border-b border-slate-50 transition-colors cursor-pointer');
                         tr.onclick = () => APP.openActionModal(r.id);
@@ -159,11 +160,14 @@ Object.assign(APP, {
                         const eDesc = (master && master.description) ? master.description : (tagDef.description || '-');
                         tr.appendChild(UI_RENDERER.createEl('td', 'py-2.5 px-4 text-slate-600 text-[11px] truncate max-w-[220px]', eDesc));
 
-                        tr.appendChild(UI_RENDERER.createEl('td', `py-2.5 px-4 text-center font-black ${isStatDev ? 'text-purple-600' : 'text-red-600'}`, r.value));
+                        const valColorCls = isStatDev ? 'text-purple-600' : (isTrendWarn ? 'text-cyan-600' : 'text-red-600');
+                        tr.appendChild(UI_RENDERER.createEl('td', `py-2.5 px-4 text-center font-black ${valColorCls}`, r.value));
                         tr.appendChild(UI_RENDERER.createEl('td', 'py-2.5 px-4 text-center text-[10px] font-bold text-slate-500', formatLimitText(eMin, eMax, eExact, '-')));
 
+                        const typeBadgeCls = isStatDev ? 'bg-purple-100 text-purple-700' : (isTrendWarn ? 'bg-cyan-100 text-cyan-700' : 'bg-red-100 text-red-700');
+                        const typeLabel = isStatDev ? 'Stat Deviation' : (isTrendWarn ? 'Trend Warning' : 'Abnormal');
                         const tdType = UI_RENDERER.createEl('td', 'py-2.5 px-4 text-center');
-                        tdType.appendChild(UI_RENDERER.createEl('span', `px-2 py-0.5 rounded text-[9px] font-black uppercase ${isStatDev ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'}`, isStatDev ? 'Stat Deviation' : 'Abnormal'));
+                        tdType.appendChild(UI_RENDERER.createEl('span', `px-2 py-0.5 rounded text-[9px] font-black uppercase ${typeBadgeCls}`, typeLabel));
                         tr.appendChild(tdType);
 
                         const tdStatus = UI_RENDERER.createEl('td', 'py-2.5 px-4 text-center');

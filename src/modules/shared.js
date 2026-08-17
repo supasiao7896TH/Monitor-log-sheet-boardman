@@ -108,12 +108,16 @@ export const ZERO_SHIELD_REF_ABS = 1.5;
 export const ZERO_SHIELD_REF_RATIO = 0.03;
 export const NEIGHBOR_COLUMN_VALIDITY_THRESHOLD = 0.1;
 
-// V29.84 FEAT: Statistical Deviation detection (opt-in per-tag via Tag Master) — จับ reading ที่ยัง
+// V29.84 FEAT, V29.92 flip เป็น opt-out: Statistical Deviation detection — จับ reading ที่ยัง
 // อยู่ใน hard-limit spec แต่ผิดปกติเทียบกับ baseline จริงของ tag เอง (เช่น TI-2301 spec กว้าง 220-262
 // แต่ค่าจริงเสถียรแคบมากที่ 253-254 — ค่า 238.7 ยัง "ใน spec" แต่คือสัญญาณ sensor clogging)
+// V29.92: เปิดอัตโนมัติทุก tag ที่ไม่ใช่ exact-value โดย default แล้ว (เดิมเป็น opt-in ผ่าน
+// enableStatDeviation ทำให้ไม่มี tag ไหนเปิดใช้งานจริงเลย) — operator ปิดเฉพาะจุดได้ผ่าน
+// disableStatDeviation ใน Tag Master ถ้า tag ไหนแกว่งกว้างโดยธรรมชาติ (เช่น batch process) แล้ว
+// แจ้งเตือนเกินความจำเป็น
 // Known limitation (v1, ไม่ต้อง auto-fix): ถ้า process เปลี่ยน setpoint จริงถาวร (ไม่ใช่ fault) จะเกิด
 // false-positive ต่อเนื่องจนกว่า window นี้จะเลื่อนผ่าน mean เก่าไปหมด — mitigation ระยะสั้น: operator
-// ปิด enableStatDeviation ชั่วคราวเองผ่าน Tag Master จนกว่า baseline ใหม่จะสะสมพอ
+// ปิด disableStatDeviation ชั่วคราวเองผ่าน Tag Master จนกว่า baseline ใหม่จะสะสมพอ
 // Known limitation #2 (v1, ไม่ต้อง auto-fix): variance คำนวณแบบ sumSq/n - mean² (ไม่ใช่ Welford's online
 // algorithm) มีความเสี่ยง catastrophic cancellation เมื่อ magnitude ค่าจริงสูงแต่ variance เล็กมาก (เช่น
 // mean≈254, variance≈0.006) — float64 ยังพอมี precision เหลือพอในทางปฏิบัติ แต่ถ้า windowSize ใหญ่ขึ้นมาก
@@ -167,6 +171,68 @@ export function computeCausalStatDeviation(samples, opts = {}) {
                 bufStart = (bufStart + 1) % windowSize;
             }
             sum += val; sumSq += val * val;
+        }
+    }
+    return results;
+}
+
+// V29.92 FEAT: Trend Warning — severity tier ที่เบากว่า Statistical Deviation (>3σ) เต็มรูปแบบ จับ
+// สัญญาณ "กำลังจะออกนอก control" ก่อนถึงจุด 3σ โดยใช้ zScore ที่ computeCausalStatDeviation คำนวณไว้แล้ว
+// (ไม่คำนวณ mean/std ซ้ำ) สองเกณฑ์ อย่างใดอย่างหนึ่งพอ:
+//   Rule A (persistent moderate deviation): trailing window 3 จุดล่าสุด (รวมจุดปัจจุบัน) มี >=2 จุดที่
+//     |zScore| > 2 ฝั่งเดียวกับจุดปัจจุบัน — Nelson-rule-style "2 of 3 beyond 2σ, same zone"
+//   Rule B (directional drift): 6 จุดล่าสุด (รวมปัจจุบัน) ค่าเรียงเพิ่มขึ้นหรือลดลง strictly ต่อเนื่อง
+//     ทั้งหมด — Nelson Rule 3 (6 จุดไต่ระดับทิศทางเดียวติดกัน) จับ drift แบบค่อยเป็นค่อยไปแม้ยังไม่เกิน 2σ
+// Causal ล้วนๆ เหมือน computeCausalStatDeviation (มองย้อนหลังเท่านั้น) — record ที่ isStatDeviation===1
+// อยู่แล้วถูกข้าม (mutual exclusivity กับ tier ที่แรงกว่า), cold-start/std=0 sentinel ก็ข้ามเช่นกัน
+// (reuse minSamples guard ของ computeCausalStatDeviation โดยอัตโนมัติผ่าน zScore===null)
+export const STAT_TREND_RULE_A_SIGMA = 2;  // Nelson-style "2 of 3 beyond 2σ, same zone"
+export const STAT_TREND_RULE_A_WINDOW = 3;
+export const STAT_TREND_RULE_A_COUNT = 2;
+export const STAT_TREND_RULE_B_RUN = 6;    // Nelson Rule 3: 6 จุดไต่ระดับทิศทางเดียวติดกัน
+
+export function computeCausalStatTrendWarning(samples, statResults, opts = {}) {
+    const sigmaA = opts.trendSigma ?? STAT_TREND_RULE_A_SIGMA;
+    const windowA = opts.trendWindow ?? STAT_TREND_RULE_A_WINDOW;
+    const countA = opts.trendCount ?? STAT_TREND_RULE_A_COUNT;
+    const runB = opts.trendRun ?? STAT_TREND_RULE_B_RUN;
+
+    const results = new Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+        results[i] = { isStatTrendWarning: 0, trendReason: null };
+
+        if (statResults[i].isStatDeviation === 1) continue; // tier ที่แรงกว่าติดอยู่แล้ว ไม่ต้องซ้ำ
+
+        const z = statResults[i].zScore;
+        if (z === null || z === undefined || !isFinite(z)) continue; // cold-start หรือ std=0 sentinel
+
+        // Rule A: ใน windowA จุดล่าสุด (รวมจุดปัจจุบัน) มี >= countA จุดที่ |z| > sigmaA ฝั่งเดียวกับปัจจุบัน
+        const sign = Math.sign(z);
+        if (sign !== 0) {
+            let sameSideCount = 0;
+            for (let j = Math.max(0, i - windowA + 1); j <= i; j++) {
+                const zj = statResults[j].zScore;
+                if (zj === null || zj === undefined || !isFinite(zj)) continue;
+                if (Math.abs(zj) > sigmaA && Math.sign(zj) === sign) sameSideCount++;
+            }
+            if (sameSideCount >= countA) {
+                results[i] = { isStatTrendWarning: 1, trendReason: 'PERSISTENT_2SIGMA' };
+                continue;
+            }
+        }
+
+        // Rule B: runB ค่าล่าสุด (รวมปัจจุบัน) เรียงเพิ่มขึ้น/ลดลง strictly ต่อเนื่องกันทั้งหมด
+        if (i >= runB - 1) {
+            let up = true, down = true;
+            for (let j = i - runB + 2; j <= i; j++) {
+                const prev = Number(samples[j - 1].value), cur = Number(samples[j].value);
+                if (isNaN(prev) || isNaN(cur)) { up = false; down = false; break; }
+                if (!(cur > prev)) up = false;
+                if (!(cur < prev)) down = false;
+            }
+            if (up || down) {
+                results[i] = { isStatTrendWarning: 1, trendReason: up ? 'MONOTONIC_RUN_UP' : 'MONOTONIC_RUN_DOWN' };
+            }
         }
     }
     return results;

@@ -11,9 +11,10 @@ Object.assign(APP, {
                 const currentVal = STATE.get('timeFilter');
                 
                 let timeFiltered = currentVal === 'all' ? allRecords : allRecords.filter(r => `${r.dateStr} ${r.timeStr}` === currentVal);
-                // V29.84: ครอบคลุม Statistical Deviation ด้วย ไม่งั้น record ประเภทนี้จะไม่ถูกเลือกเข้า
-                // Infographic Report อัตโนมัติเลย เพราะ isAbnormal ของมันเป็น 0 เสมอ (mutually exclusive)
-                let strictlyAbnormal = timeFiltered.filter(r => (r.isAbnormal === 1 || r.isStatDeviation === 1) && !r.isStandby);
+                // V29.84/V29.92: ครอบคลุม Statistical Deviation และ Trend Warning ด้วย ไม่งั้น record
+                // ประเภทนี้จะไม่ถูกเลือกเข้า Infographic Report อัตโนมัติเลย เพราะ isAbnormal ของมันเป็น 0
+                // เสมอ (mutually exclusive)
+                let strictlyAbnormal = timeFiltered.filter(r => (r.isAbnormal === 1 || r.isStatDeviation === 1 || r.isStatTrendWarning === 1) && !r.isStandby);
 
                 if(strictlyAbnormal.length === 0) {
                     alert("ไม่มีข้อมูลพารามิเตอร์ผิดปกติ (ที่ไม่ใช่การหยุดเครื่อง) ในช่วงเวลานี้ครับ");
@@ -40,6 +41,10 @@ Object.assign(APP, {
                         // clamp กัน Infinity (std=0 edge case ใน computeCausalStatDeviation) ทำให้ sort เทียบ
                         // Infinity-Infinity=NaN แล้วลำดับ Top-N ของคู่นั้นไม่ deterministic
                         score = Math.min(Math.abs(r.statZScore) / STAT_DEVIATION_SIGMA_K, 1000);
+                    } else if (r.isStatTrendWarning === 1 && r.statZScore !== null && isFinite(r.statZScore)) {
+                        // V29.92: Trend Warning ต้อง rank ต่ำกว่า full Stat Deviation เสมอ — cap ไว้ที่ 1
+                        // (full stat-dev score เริ่มต้นที่ >=1 เพราะ |z| > STAT_DEVIATION_SIGMA_K เป็นเงื่อนไข)
+                        score = Math.min(Math.abs(r.statZScore) / STAT_DEVIATION_SIGMA_K, 1);
                     } else if (!isNaN(val)) {
                         if (eMax !== null && val > eMax) {
                             score = eMax !== 0 ? Math.abs((val - eMax) / eMax) : Math.abs(val);
@@ -166,10 +171,10 @@ Object.assign(APP, {
                     const key = `${r.dateStr} ${r.timeStr}`;
                     if (!timeGroups[key]) timeGroups[key] = { date: r.dateStr, time: r.timeStr, total: 0, abnormal: 0 };
                     timeGroups[key].total++;
-                    // V29.84 FIX: ต้องนับ Statistical Deviation ด้วย ไม่งั้นปุ่ม time-slot จะโชว์ "OK" (0 ผิดปกติ)
-                    // ทั้งที่รายการด้านล่างมี Statistical Deviation ปรากฏอยู่จริง — ขัดกับเจตนาของฟีเจอร์นี้ที่
-                    // อยากให้ operator ไม่พลาดอะไรเพราะแยกดูแค่ isAbnormal
-                    if (r.isAbnormal === 1 || r.isStatDeviation === 1) timeGroups[key].abnormal++;
+                    // V29.84/V29.92 FIX: ต้องนับ Statistical Deviation และ Trend Warning ด้วย ไม่งั้นปุ่ม
+                    // time-slot จะโชว์ "OK" (0 ผิดปกติ) ทั้งที่รายการด้านล่างมีปรากฏอยู่จริง — ขัดกับเจตนาของ
+                    // ฟีเจอร์นี้ที่อยากให้ operator ไม่พลาดอะไรเพราะแยกดูแค่ isAbnormal
+                    if (r.isAbnormal === 1 || r.isStatDeviation === 1 || r.isStatTrendWarning === 1) timeGroups[key].abnormal++;
                 });
 
                 // V29.78 FEAT: chip แสดงว่าวันล่าสุดมีข้อมูลครบ 4 รอบเวลา (03:00/09:00/15:00/21:00) หรือยัง
@@ -257,6 +262,7 @@ Object.assign(APP, {
                 const currentRecords = currentVal === 'all' ? records : records.filter(r => `${r.dateStr} ${r.timeStr}` === currentVal);
                 const totalAbnormal = currentRecords.filter(r => r.isAbnormal === 1);
                 const totalStatDev = currentRecords.filter(r => r.isStatDeviation === 1); // V29.84 FEAT
+                const totalTrendWarn = currentRecords.filter(r => r.isStatTrendWarning === 1); // V29.92 FEAT
 
                 const st = document.getElementById('stat-tags');
                 if (st) st.textContent = tags.length.toLocaleString();
@@ -278,6 +284,14 @@ Object.assign(APP, {
                 if (sdAck) sdAck.textContent = sdAckCount;
                 const sdPen = document.getElementById('stat-statdev-pending');
                 if (sdPen) sdPen.textContent = totalStatDev.length - sdAckCount;
+
+                const sTw = document.getElementById('stat-trendwarn');
+                if (sTw) sTw.textContent = totalTrendWarn.length.toLocaleString();
+                const twAckCount = totalTrendWarn.filter(r => r.actionStatus === 'acknowledged').length;
+                const twAck = document.getElementById('stat-trendwarn-ack');
+                if (twAck) twAck.textContent = twAckCount;
+                const twPen = document.getElementById('stat-trendwarn-pending');
+                if (twPen) twPen.textContent = totalTrendWarn.length - twAckCount;
 
                 // V29.51 FEAT: ช่องค้นหาใน Dashboard (ค้นหาภายในช่วงเวลา/filter ที่เลือกอยู่)
                 const searchInput = document.getElementById('dashboard-search');
@@ -338,6 +352,7 @@ Object.assign(APP, {
                         const isAbnormal = r.isAbnormal === 1;
                         const isStandby = r.isStandby === true;
                         const isStatDev = r.isStatDeviation === 1; // V29.84 FEAT — mutually exclusive กับ isAbnormal (state.js เช็คแค่ record ที่ isAbnormal===0 เท่านั้น)
+                        const isTrendWarn = r.isStatTrendWarning === 1; // V29.92 FEAT — เบากว่า isStatDev, mutually exclusive กันทั้งคู่
                         const isSelected = selectedForReport.includes(r.id);
 
                         let borderColor = isSelected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-slate-100';
@@ -356,6 +371,10 @@ Object.assign(APP, {
                             if (!isSelected) borderColor = isAck ? 'border-amber-200' : 'border-purple-100 bg-purple-50/10';
                             accentColor = isAck ? 'bg-amber-400' : 'bg-purple-500';
                             valueColor = isAck ? 'text-amber-600' : 'text-purple-600';
+                        } else if (isTrendWarn) {
+                            if (!isSelected) borderColor = isAck ? 'border-amber-200' : 'border-cyan-100 bg-cyan-50/10';
+                            accentColor = isAck ? 'bg-amber-400' : 'bg-cyan-500';
+                            valueColor = isAck ? 'text-amber-600' : 'text-cyan-600';
                         }
                         
                         const card = UI_RENDERER.createEl('div', `p-5 rounded-2xl border bg-white shadow-sm hover:shadow-md relative overflow-hidden flex flex-col min-h-[9rem] transition-all cursor-pointer group ${borderColor}`);
@@ -386,6 +405,9 @@ Object.assign(APP, {
                         } else if (isStatDev) {
                             timeSpan.innerHTML = isAck ? '<i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-amber-500"></i>' : '<i data-lucide="activity" class="w-3.5 h-3.5 text-purple-500"></i>';
                             timeSpan.appendChild(document.createTextNode(` ${r.dateStr || ''} • ${r.timeStr || ''} (STAT DEVIATION)`));
+                        } else if (isTrendWarn) {
+                            timeSpan.innerHTML = isAck ? '<i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-amber-500"></i>' : '<i data-lucide="trending-up" class="w-3.5 h-3.5 text-cyan-500"></i>';
+                            timeSpan.appendChild(document.createTextNode(` ${r.dateStr || ''} • ${r.timeStr || ''} (TREND WARNING)`));
                         } else {
                             timeSpan.innerHTML = '<i data-lucide="check-circle" class="w-3.5 h-3.5 text-brand-500"></i>';
                             timeSpan.appendChild(document.createTextNode(` ${r.dateStr || ''} • ${r.timeStr || ''}`));

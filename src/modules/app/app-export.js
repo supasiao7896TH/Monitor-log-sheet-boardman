@@ -36,7 +36,7 @@ Object.assign(APP, {
                         'Param Type': r.paramType || '',
                         'ค่าที่อ่านได้': r.value,
                         'Limit ที่ใช้': formatLimitText(eMin, eMax, eExact, '-'),
-                        'ประเภทความผิดปกติ': r.isStatDeviation === 1 ? 'Stat Deviation' : 'Abnormal',
+                        'ประเภทความผิดปกติ': r.isStatDeviation === 1 ? 'Stat Deviation' : (r.isStatTrendWarning === 1 ? 'Trend Warning' : 'Abnormal'),
                         'สถานะ': r.actionStatus === 'acknowledged' ? 'รับทราบ' : 'ใหม่',
                         'Resolution Remark': r.remark || '',
                     };

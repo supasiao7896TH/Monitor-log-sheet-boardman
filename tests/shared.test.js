@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getCanonicalTimesStatus, computeCausalStatDeviation, dateStrToKey, isDateInRange } from '../src/modules/shared.js';
+import { getCanonicalTimesStatus, computeCausalStatDeviation, computeCausalStatTrendWarning, dateStrToKey, isDateInRange } from '../src/modules/shared.js';
 
 function rec(dateStr, timeStr) { return { dateStr, timeStr }; }
 
@@ -165,6 +165,67 @@ describe('computeCausalStatDeviation (V29.84 FEAT)', () => {
         // ก่อนประเมิน v4: pool = {v1=20, v2=10, v3=20} → mean = 50/3 ≈ 16.667, std ≈ 4.714
         // z = (10 - 16.667) / 4.714 ≈ -1.4142 (≈ -√2)
         expect(results[4].zScore).toBeCloseTo(-1.4142, 3);
+    });
+});
+
+// statResults ถูกส่งเข้าตรงๆ แบบ fabricated (ไม่ผ่าน computeCausalStatDeviation จริง) เพื่อ isolate การ
+// ทดสอบ logic ของ Rule A/B เองล้วนๆ จาก baseline mean/std ที่คำนวณจริง (ซึ่ง test แยกไว้แล้วข้างบน)
+function statR(zScore, isStatDeviation = 0) { return { isStatDeviation, zScore }; }
+
+describe('computeCausalStatTrendWarning (V29.92 FEAT)', () => {
+    it('Rule A: fires when 2 of the last 3 points exceed 2sigma on the same side', () => {
+        const samples = [s(1), s(2), s(3), s(4)];
+        const statResults = [statR(0.5), statR(2.5), statR(1.0), statR(2.2)];
+        const results = computeCausalStatTrendWarning(samples, statResults);
+        expect(results[3].isStatTrendWarning).toBe(1);
+        expect(results[3].trendReason).toBe('PERSISTENT_2SIGMA');
+    });
+
+    it('Rule A: a single isolated spike beyond 2sigma does not fire on its own (needs 2 of 3)', () => {
+        const samples = [s(1), s(2), s(3), s(4)];
+        const statResults = [statR(0.5), statR(2.5), statR(0.3), statR(0.4)];
+        const results = computeCausalStatTrendWarning(samples, statResults);
+        results.forEach(r => expect(r.isStatTrendWarning).toBe(0));
+    });
+
+    it('Rule B: fires on 6 consecutive strictly-increasing points even while z stays well under 2sigma', () => {
+        const samples = [s(10), s(11), s(12), s(13), s(14), s(15)];
+        const statResults = samples.map(() => statR(0.5));
+        const results = computeCausalStatTrendWarning(samples, statResults);
+        expect(results[5].isStatTrendWarning).toBe(1);
+        expect(results[5].trendReason).toBe('MONOTONIC_RUN_UP');
+    });
+
+    it('Rule B: fires on 6 consecutive strictly-decreasing points', () => {
+        const samples = [s(15), s(14), s(13), s(12), s(11), s(10)];
+        const statResults = samples.map(() => statR(-0.5));
+        const results = computeCausalStatTrendWarning(samples, statResults);
+        expect(results[5].isStatTrendWarning).toBe(1);
+        expect(results[5].trendReason).toBe('MONOTONIC_RUN_DOWN');
+    });
+
+    it('Rule B: does not fire when the monotonic run is interrupted by a non-numeric value', () => {
+        const samples = [s(10), s(11), s(12), s(NaN), s(14), s(15)];
+        const statResults = samples.map(() => statR(0.5));
+        const results = computeCausalStatTrendWarning(samples, statResults);
+        expect(results[5].isStatTrendWarning).toBe(0);
+    });
+
+    it('never fires on a cold-start sample (zScore null)', () => {
+        const samples = [s(1), s(2), s(3)];
+        const statResults = [statR(null), statR(null), statR(null)];
+        const results = computeCausalStatTrendWarning(samples, statResults);
+        results.forEach(r => {
+            expect(r.isStatTrendWarning).toBe(0);
+            expect(r.trendReason).toBeNull();
+        });
+    });
+
+    it('mutual exclusivity: never fires on a sample already flagged isStatDeviation===1, even if it would otherwise satisfy Rule A', () => {
+        const samples = [s(1), s(2), s(3)];
+        const statResults = [statR(2.5), statR(4.0, 1), statR(2.5)];
+        const results = computeCausalStatTrendWarning(samples, statResults);
+        expect(results[1]).toEqual({ isStatTrendWarning: 0, trendReason: null });
     });
 });
 

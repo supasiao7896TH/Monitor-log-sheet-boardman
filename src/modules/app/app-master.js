@@ -80,10 +80,10 @@ Object.assign(APP, {
                     if (master && master.forceStandby) {
                         tdLim.innerHTML += ` <span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black border border-amber-200 text-[9px] ml-1">STANDBY</span>`;
                     }
-                    if (master && master.enableStatDeviation && eExact === null) {
-                        // V29.84 FIX: state.js skip stat-deviation ให้ tag แบบ Exact Value เสมอ (mean/σ ไม่มี
-                        // ความหมาย) — ถ้าโชว์ badge นี้ต่อให้ eExact ตั้งไว้ operator จะเข้าใจผิดว่าฟีเจอร์ทำงานอยู่
-                        tdLim.innerHTML += ` <span class="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-black border border-purple-200 text-[9px] ml-1">σ-BAND</span>`;
+                    if (master && master.disableStatDeviation && eExact === null) {
+                        // V29.92: Statistical Deviation เปิด default ทุก tag ที่ไม่ใช่ Exact Value อยู่แล้ว
+                        // — badge นี้เลยกลับด้าน โชว์เฉพาะข้อยกเว้น (tag ที่ปิดไว้) แทนที่จะโชว์ทุกแถวไร้ความหมาย
+                        tdLim.innerHTML += ` <span class="bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-black border border-slate-300 text-[9px] ml-1">σ-BAND OFF</span>`;
                     }
                     tr.appendChild(tdLim);
 
@@ -139,8 +139,8 @@ Object.assign(APP, {
                 if (eDzs) eDzs.checked = !!(master && master.disableZeroShield);
                 const eFs = document.getElementById('master-edit-force-standby');
                 if (eFs) eFs.checked = !!(master && master.forceStandby);
-                const eSd = document.getElementById('master-edit-enable-statdev');
-                if (eSd) eSd.checked = !!(master && master.enableStatDeviation);
+                const eSd = document.getElementById('master-edit-disable-statdev');
+                if (eSd) eSd.checked = !!(master && master.disableStatDeviation);
 
                 showModal('master-modal');
             },
@@ -162,7 +162,7 @@ Object.assign(APP, {
                 const exEl = document.getElementById('master-edit-exact');
                 const dzsEl = document.getElementById('master-edit-disable-zeroshield');
                 const fsEl = document.getElementById('master-edit-force-standby');
-                const sdEl = document.getElementById('master-edit-enable-statdev');
+                const sdEl = document.getElementById('master-edit-disable-statdev');
 
                 const desc = dEl ? dEl.value.trim() : '';
                 const minV = minEl ? minEl.value.trim() : '';
@@ -190,7 +190,7 @@ Object.assign(APP, {
                     exactNum: exactV !== '' ? parseFloat(exactV) : null,
                     disableZeroShield: dzsEl ? dzsEl.checked : false,
                     forceStandby: fsEl ? fsEl.checked : false,
-                    enableStatDeviation: sdEl ? sdEl.checked : false,
+                    disableStatDeviation: sdEl ? sdEl.checked : false,
                     updatedAt: Date.now()
                 };
 

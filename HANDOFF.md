@@ -155,6 +155,27 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 ---
 
+## ✅ เรื่องที่ 12 — Statistical Deviation เปิดอัตโนมัติทุก Tag + เพิ่ม Trend Warning tier (V29.92)
+
+> ⚠️ **ช่องว่างที่พบก่อนเริ่ม entry นี้:** `git log` พบว่า `origin/main` ไปไกลกว่า "เรื่องที่ 11" (ซึ่งหยุดที่ V29.85) ไปแล้วถึง V29.90 (History view + Excel export สำหรับ abnormal records, persist AbnormalHistory แยก IndexedDB store) และ session นี้เองก็เพิ่งทำ V29.91 (copy infographic image เข้า Clipboard สำหรับวาง Excel ตรงๆ) มาก่อนหน้า entry นี้ — ทั้งสองไม่เคยถูกบันทึกเป็น entry ใน HANDOFF.md เลย มีแค่ commit message ที่เห็นจาก `git log` ถ้าใครมีบริบทเพิ่มเติมของ V29.86-V29.91 ควรเติม entry ย้อนหลังให้ครบ
+
+**บริบท:** พี่ A ต้องการให้ฟีเจอร์ Statistical Deviation (V29.84, "เรื่องที่ 9") ทำงานอัตโนมัติทุก tag โดยไม่ต้องไปติ๊กเลือกทีละ tag เอง (เดิม opt-in ทำให้ในทางปฏิบัติไม่มี tag ไหนเปิดใช้งานจริงเลย — ดู item 10 ที่เพิ่งแก้ใน "ค้างอยู่" ด้านล่าง) และอยากให้ระบบตรวจจับ "แนวโน้มใกล้ออกนอก control" ได้ด้วย ไม่ใช่รอจนถึงจุด >3σ เต็มรูปแบบ
+
+**สิ่งที่ทำ:**
+1. **Flip opt-in → opt-out:** `MasterTags.enableStatDeviation` (opt-in) → field ใหม่ `MasterTags.disableStatDeviation` (opt-out, ตาม pattern `disableZeroShield` เดิม) — ใช้ field ใหม่แทนการ reinterpret field เดิม เพราะทุก Master row ที่มีอยู่จริงมี `enableStatDeviation: false` เขียนไว้ explicit อยู่แล้ว (save ทุกครั้งเขียนเสมอแม้ไม่ติ๊ก) reinterpret ตรงๆ จะพังทันที
+2. **เพิ่ม Trend Warning tier ใหม่** — `isStatTrendWarning` + `trendReason` (`src/modules/shared.js` ฟังก์ชันใหม่ `computeCausalStatTrendWarning`, reuse zScore stream จาก `computeCausalStatDeviation` เดิม ไม่คำนวณ mean/std ซ้ำ) สอง rule เจอข้อใดข้อหนึ่งพอ: Rule A (`'PERSISTENT_2SIGMA'`) 2 ใน 3 จุดล่าสุดเกิน 2σ ฝั่งเดียวกัน, Rule B (`'MONOTONIC_RUN_UP'`/`'MONOTONIC_RUN_DOWN'`) 6 จุดล่าสุดไต่ระดับทิศทางเดียวติดกัน — severity ordering ใหม่: `isAbnormal` > `isStatDeviation` (>3σ) > `isStatTrendWarning` (ใหม่) > ปกติ, mutual exclusivity บังคับโดย construction เหมือนของเดิม
+3. Surface tier ใหม่ครบทุกจุดที่ `isStatDeviation` เคยปรากฏ: dashboard (การ์ดที่ 5 สีฟ้า/cyan, `autoSelectCritical` scoring), Infographic Report (card+table), History view, `syncAbnormalHistory`, Excel-writeback export label, `SMART_AGENT.analyze()` (Thai text ใหม่อธิบาย z-score/trend reason), `#view-filter` เพิ่ม option `trend-warning`
+
+**ไฟล์ที่แก้:** `src/modules/shared.js`, `src/modules/state.js`, `index.html`, `src/modules/app/app-master.js`, `src/modules/app/app-dashboard.js`, `src/modules/app/app-report.js`, `src/modules/app/app-core.js`, `src/modules/app/app-history.js`, `src/modules/app/app-export.js`, `src/modules/smart-agent.js`, `tests/shared.test.js`, `tests/state.test.js`, `CLAUDE.md`, `AGENTS.md` — bump เป็น **V29.92**
+
+**การยืนยัน:** เขียน test ใหม่ครบ (`computeCausalStatTrendWarning` describe block ใน `tests/shared.test.js`, ปรับ `_recomputeFlags` integration tests ใน `tests/state.test.js` ให้ตรงกับ opt-out gate ใหม่) แต่ **เครื่องที่เขียน session นี้ไม่มี Node.js/npm ติดตั้งอยู่เลย — ยังไม่เคยรัน `npm test` จริงสักครั้ง** ยืนยันแค่ hand-trace logic เท่านั้น ต้องรัน `npm test` ที่เครื่องที่มี Node.js ก่อนไว้ใจ 100%, และควรทดสอบ UI จริงผ่าน `npm run dev` (import log sheet ตัวอย่าง, เปิด Tag Master ดู checkbox ใหม่, ลองสร้างข้อมูลไต่ระดับ/เบี่ยงเบนซ้ำเพื่อดู Trend Warning card สีฟ้าขึ้นจริง)
+
+**Commit:** ยังไม่ commit ณ ตอนเขียน entry นี้ — ให้เติม commit hash ตรงนี้หลัง commit จริง
+
+**สถานะ:** โค้ดเขียนเสร็จ, test เขียนเสร็จแต่ยังไม่ได้รัน, ยังไม่ commit/push
+
+---
+
 ## 🚧 ค้างอยู่ตรงไหน
 
 1. **V29.81 fix (เรื่องที่ 5) ยังไม่ได้ยืนยันในสภาพแวดล้อมจริง** — ทดสอบแค่กับ temp folder จำลองที่เครื่องบ้าน ยังไม่เคยทดสอบกับ watch folder จริง (`D:\PTA COMMONT WORK\Log sheet Digital`) บนเครื่องที่มีจริง และยังไม่เคยทดสอบกับ Excel ตัวจริงที่เปิดไฟล์ค้างไว้จริงๆ (จำลองด้วย `FileShare.None` เท่านั้น) — แนะนำให้ยืนยันที่เครื่อง Office (หรือเครื่องไหนก็ตามที่มี watch folder จริง) ว่า auto-import/auto-archive ยังทำงานต่อได้ปกติขณะ log sheet เปิดค้างอยู่ใน Excel เพราะนั่นคือเงื่อนไขที่พังมาก่อน
@@ -170,8 +191,8 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 7. **commit `51ec9d2` (V29.82, canonical-times fix) ไม่เคยมีการบันทึกรายละเอียดใน HANDOFF.md เลย** มีแค่ commit message ที่เห็นจาก `git log`/`git show --stat` — ถ้าใครที่เครื่องบ้านมีบริบทเพิ่มเติมของ session ที่ทำ V29.82 ควรเติม entry ย้อนหลังให้ครบ
 8. **เครื่อง Office (`26007294`) ไม่มี Node.js/npm ติดตั้งอยู่เลย** — ถ้าจะ dev/test ต่อบนเครื่องนี้ในอนาคตต้องติดตั้ง Node.js ก่อน (การตั้ง static server ชั่วคราวแบบที่ทำใน "เรื่องที่ 7"/"เรื่องที่ 9" ใช้ตรวจ UI ได้เท่านั้น ไม่ครอบคลุม Vitest suite)
 9. **V29.84 (เรื่องที่ 9) — ทั้ง test suite เดิม (49 tests) และ test ใหม่ (`tests/shared.test.js` describe ใหม่, `tests/state.test.js` ทั้งไฟล์) ยังไม่มีใคร run จริงเลยด้วย `npm test`** — ต้องรันที่เครื่องบ้านก่อนไว้ใจ 100% ว่า test ใหม่ผ่านและ suite เดิมไม่พัง (ตรวจด้วย hand-trace + browser manual test เท่านั้นใน session นี้)
-10. **Statistical Deviation feature (V29.84) ยังไม่ได้เปิดใช้กับ tag ไหนเลยในข้อมูลจริง** — default ปิดทุก tag ต้องไปติ๊ก `enableStatDeviation` เองผ่าน Tag Master ทีละ tag (เช่น TI-2301) ก่อนฟีเจอร์นี้จะเริ่มทำงาน
-11. **Known limitation ของ Statistical Deviation ที่ตั้งใจไม่แก้ใน v1 (มี comment ในโค้ดแล้ว):** ถ้า process เปลี่ยน setpoint จริงถาวร (ไม่ใช่ fault) จะเกิด false-positive ต่อเนื่องจนกว่า window 120 samples จะเลื่อนผ่านครบ — mitigation ระยะสั้นคือปิด `enableStatDeviation` ชั่วคราวเองผ่าน Tag Master
+10. ~~**Statistical Deviation feature (V29.84) ยังไม่ได้เปิดใช้กับ tag ไหนเลยในข้อมูลจริง** — default ปิดทุก tag ต้องไปติ๊ก `enableStatDeviation` เองผ่าน Tag Master ทีละ tag (เช่น TI-2301) ก่อนฟีเจอร์นี้จะเริ่มทำงาน~~ — **แก้แล้ว** V29.92 (ดู "เรื่องที่ 12" ด้านล่าง) flip เป็น opt-out เปิดอัตโนมัติทุก tag แล้ว
+11. **Known limitation ของ Statistical Deviation ที่ตั้งใจไม่แก้ใน v1 (มี comment ในโค้ดแล้ว):** ถ้า process เปลี่ยน setpoint จริงถาวร (ไม่ใช่ fault) จะเกิด false-positive ต่อเนื่องจนกว่า window 120 samples จะเลื่อนผ่านครบ — mitigation ระยะสั้นคือปิด `disableStatDeviation` (เดิมชื่อ `enableStatDeviation` ก่อน V29.92) ชั่วคราวเองผ่าน Tag Master — ยังไม่แก้ใน V29.92 เช่นกัน (ยังเป็น known limitation อยู่)
 12. **V29.85 shared-DB sync (เรื่องที่ 10) — ยังไม่มีข้อมูลยืนยันว่า `tests/excel-sync.test.js` เคยรันผ่าน `npm test` จริงหรือไม่** (entry เขียนย้อนหลังจาก recovery session ที่ไม่มี local clone จึงรันเองไม่ได้ ไม่มีข้อมูลยืนยันจาก commit message) — ควรรัน `npm test` ที่เครื่องบ้าน/เครื่องที่มี Node.js เพื่อยืนยัน พร้อมกับ suite เดิมและ test ของ V29.84
 13. **V29.85 shared-DB sync (เรื่องที่ 10) ยังไม่มีใครยืนยันการใช้งานจริงกับ operator หลายคนบน PC ที่ทำงานหลัง deploy** — commit message ยืนยันแค่ผลทดสอบ round-trip ระหว่าง browser origin 2 ตัว ไม่ใช่การใช้งานจริงกับ Windows account คนละ account บนเครื่อง Office
 
@@ -188,7 +209,8 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 7. ถ้าจะพัฒนาต่อที่เครื่อง Office ในอนาคต ให้ติดตั้ง Node.js ก่อน
 8. พิจารณาเติม entry ย้อนหลังของ V29.82 (`51ec9d2`) ใน HANDOFF.md ให้ครบถ้วน (ตอนนี้มีแค่ commit message)
 9. **สำคัญที่สุด:** รัน `npm test` ที่เครื่องบ้าน (มี Node.js) เพื่อ confirm ชุด test ใหม่ของ V29.84 (`tests/shared.test.js` describe block ใหม่, `tests/state.test.js` ทั้งไฟล์) **และ** V29.85 (`tests/excel-sync.test.js`) ผ่านจริงและ suite เดิมไม่พัง — ยังไม่มีใคร run จริงเลยตลอดทั้ง 2 session ที่เขียนฟีเจอร์เหล่านี้
-10. เปิดใช้ Statistical Deviation ผ่าน Tag Master ให้ tag ที่ต้องการจริง (เช่น TI-2301) เพราะ default ปิดไว้ทุก tag ฟีเจอร์นี้ยังไม่ทำงานกับ tag ไหนเลยจนกว่าจะไปติ๊กเปิดเอง
+10. ~~เปิดใช้ Statistical Deviation ผ่าน Tag Master ให้ tag ที่ต้องการจริง (เช่น TI-2301) เพราะ default ปิดไว้ทุก tag ฟีเจอร์นี้ยังไม่ทำงานกับ tag ไหนเลยจนกว่าจะไปติ๊กเปิดเอง~~ — **ทำแล้ว** V29.92 flip เป็น opt-out เปิดอัตโนมัติทุก tag แล้ว (ดู "เรื่องที่ 12")
+12. **สำคัญ:** รัน `npm test` เพื่อยืนยัน test ใหม่ของ V29.92 (`tests/shared.test.js` describe block `computeCausalStatTrendWarning`, `tests/state.test.js` ที่แก้ opt-out flip) ผ่านจริงและ suite เดิมไม่พัง — เขียน session นี้ที่เครื่องไม่มี Node.js/npm ติดตั้ง ยืนยันแค่ hand-trace logic เท่านั้น ยังไม่เคยรันจริงเลย
 11. ยืนยันการใช้งานจริงของ shared-DB sync (V29.85) กับ operator หลายคนบน PC ที่ทำงานจริง (login คนละ Windows account) หลัง deploy ขึ้น production แล้ว — ตรวจว่า sidebar sync indicator ขึ้นสถานะถูกต้องและข้อมูล/remark เห็นตรงกันข้ามคน login
 
 ---
