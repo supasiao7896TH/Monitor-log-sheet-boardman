@@ -191,9 +191,9 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 **การยืนยัน:** เพิ่ม test ใหม่ใน `tests/state.test.js` สำหรับ filter `'hard-abnormal'` (แยกจาก `isStatDeviation` ถูกต้อง) — **`npm test` ยังไม่เคยรันจริงเช่นเดียวกับ "เรื่องที่ 12"** (เครื่องนี้ไม่มี Node.js/npm) ยัง**ไม่เคยทดสอบ UI จริงผ่าน browser เลย** ว่าคลิกการ์ดแล้ว ring highlight/filter ทำงานถูกต้อง โดยเฉพาะ toggle-off (คลิกซ้ำ) ต้องเช็คให้ดีที่เครื่องที่มี Node.js
 
-**Commit:** ยังไม่ commit ณ ตอนเขียน entry นี้ — ให้เติม commit hash ตรงนี้หลัง commit จริง
+**Commit:** `afb0593` "Make dashboard summary cards act as click-to-filter controls (V29.93)" — 7 ไฟล์, +75/-24 — **push ขึ้น `origin/main` แล้ว** (ต่อจาก `c5aa038`)
 
-**สถานะ:** โค้ด+test เขียนเสร็จ, ยังไม่ commit/push, ยังไม่เคยรัน `npm test`/ทดสอบ UI จริง
+**สถานะ:** โค้ด+test เขียนเสร็จ, commit+push แล้ว — **`npm test` และทดสอบ UI จริงยังไม่เคยทำเลย** ยังเป็นรายการค้างอยู่ (ดู item 14-15 ใน "ค้างอยู่ตรงไหน")
 
 ---
 
