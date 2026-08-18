@@ -103,6 +103,7 @@ Object.assign(APP, {
                     await APP.loadLocalData();
                     await APP.renderImportHistory();
                     APP.startAutoImportPolling(); // V29.78 FEAT: เริ่ม poll ไฟล์จาก Excel Bridge เบื้องหลัง (เงียบๆ ไม่บล็อก init)
+                    APP.ensureExcelFileOpen(); // V29.99 FEAT: fire-and-forget เช็ค/เปิดไฟล์ log sheet ทันทีตอนเปิดหน้าเว็บ (ปิดช่องว่างตอนเปลี่ยนกะ)
                 } catch (error) {
                     // V29.64 FIX: เดิมถ้า IndexedDB เปิดไม่สำเร็จ (private mode, ถูก block, หรือเปิดแอปนี้ค้าง
                     // ไว้หลาย tab พร้อมกันจน version-upgrade ค้าง) แอปจะค้างเงียบๆ ไม่มี error แจ้ง operator เลย
@@ -369,6 +370,21 @@ Object.assign(APP, {
                     console.info(`[auto-rollover] เปลี่ยนไฟล์ log sheet เป็นวันใหม่แล้ว: ${result.oldFileName} → ${result.newFileName}`, result.warning || '');
                 } else if (result.status === 'error') {
                     console.warn('[auto-rollover] rollover failed:', result.message);
+                }
+                return result;
+            },
+
+            // V29.99 FEAT: เรียกครั้งเดียวตอน init() — ปิดช่องว่างตอนเปลี่ยนกะ (~ทุก 12 ชม.) ที่ operator
+            // คนใหม่ login มาเปิด Web App แต่วันที่ในชื่อไฟล์ยังไม่ข้ามเที่ยงคืน (rollover เห็นว่า
+            // already-current เลยไม่เปิด Excel ให้) — endpoint นี้ไม่สนวันที่เลย เช็คแค่ว่า Excel เปิดไฟล์
+            // อยู่ไหม เงียบๆ เบื้องหลัง ไม่ต้อง block init และไม่มี UI feedback (ต่างจาก rollover ที่มี
+            // banner/alert เพราะเคสนี้ไม่ใช่ error ที่ operator ต้องรู้ แค่ background housekeeping)
+            ensureExcelFileOpen: async () => {
+                const result = await EXCEL_AUTOIMPORT.ensureFileOpen();
+                if (result.status === 'ok') {
+                    console.info(`[ensure-file-open] เปิดไฟล์ log sheet ให้พร้อมแล้ว: ${result.fileName}`);
+                } else if (result.status === 'open-failed') {
+                    console.warn('[ensure-file-open] เปิดไฟล์ log sheet ไม่สำเร็จ:', result.message);
                 }
                 return result;
             },

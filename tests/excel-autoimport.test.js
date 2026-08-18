@@ -125,3 +125,36 @@ describe('EXCEL_AUTOIMPORT.rolloverDailyFileIfNeeded', () => {
         expect(await EXCEL_AUTOIMPORT.rolloverDailyFileIfNeeded()).toEqual({ status: 'bridge-offline' });
     });
 });
+
+describe('EXCEL_AUTOIMPORT.ensureFileOpen', () => {
+    beforeEach(() => {
+        vi.stubGlobal('fetch', vi.fn());
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('returns the full bridge JSON envelope on success', async () => {
+        const payload = { status: 'ok', fileName: 'P1-F-2002-22 (19-08-26) (Digital).xlsm' };
+        fetch.mockResolvedValue({ ok: true, json: async () => payload });
+        const result = await EXCEL_AUTOIMPORT.ensureFileOpen();
+        expect(result).toEqual(payload);
+        expect(fetch).toHaveBeenCalledWith('http://localhost:5175/ensure-file-open', expect.objectContaining({ method: 'POST' }));
+    });
+
+    it('passes through an open-failed status from the bridge unchanged', async () => {
+        const payload = { status: 'open-failed', message: 'เปิดไฟล์ไม่สำเร็จ' };
+        fetch.mockResolvedValue({ ok: true, json: async () => payload });
+        expect(await EXCEL_AUTOIMPORT.ensureFileOpen()).toEqual(payload);
+    });
+
+    it('returns error when the bridge responds with a non-ok HTTP status', async () => {
+        fetch.mockResolvedValue({ ok: false });
+        expect(await EXCEL_AUTOIMPORT.ensureFileOpen()).toEqual({ status: 'error' });
+    });
+
+    it('returns bridge-offline when the bridge is not running (network error)', async () => {
+        fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+        expect(await EXCEL_AUTOIMPORT.ensureFileOpen()).toEqual({ status: 'bridge-offline' });
+    });
+});

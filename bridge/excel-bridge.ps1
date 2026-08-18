@@ -35,6 +35,13 @@
 # เลย โดยไม่ต้องใช้บัญชี Windows เฉพาะ + Task Scheduler ยิงตรงเวลา (พิจารณาแล้วปัดทิ้งเพราะเครื่องจริง
 # หน้างานเป็น PC shared ที่ operator หลายคน login/logout ด้วยบัญชีตัวเองจริง — บัญชีเฉพาะจะครอง port 5175
 # ตลอดเวลาจนทำให้ write-remark ของ operator คนอื่นมองไม่เห็น Excel session ตัวเอง พังทั้งฟีเจอร์)
+#
+# V29.99 FEAT: เพิ่ม /ensure-file-open — แยก concern "Excel เปิดไฟล์อยู่ไหม" ออกจาก "ต้องเปลี่ยนชื่อไฟล์ไหม"
+# ของ /rollover-daily-file เพราะ route เดิม short-circuit เป็น already-current ทันทีถ้าวันที่ตรงกันอยู่แล้ว
+# โดยไม่เช็คว่า Excel ยังเปิดไฟล์อยู่จริงไหม — พลาดเคสเปลี่ยนกะกลางวัน (~ทุก 12 ชม., ยังไม่ข้ามเที่ยงคืน)
+# ที่ operator คนก่อน logout ปิด Excel/bridge session ไปด้วย แล้วคนใหม่ login มาเปิด Web App แต่ไม่มีอะไร
+# เปิด Excel ให้เลย — เรียกจาก 2 จุด: bridge startup (ถ้า rollover ได้ already-current) และ APP.init()
+# ฝั่ง Web App (fire-and-forget ทุกครั้งที่เปิดหน้าเว็บ)
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -477,6 +484,25 @@ function Handle-RolloverDailyFile {
     return @{ status = 'ok'; oldFileName = $file.Name; newFileName = $newFileName }
 }
 
+# V29.99 FEAT: แยก concern "ต้องเปิด Excel ไหม" ออกจาก "ต้องเปลี่ยนชื่อไฟล์ไหม" ของ Handle-RolloverDailyFile
+# ด้านบน — Handle-RolloverDailyFile เช็คแค่วันที่ในชื่อไฟล์ ถ้าตรงกับวันนี้อยู่แล้วจะ return
+# 'already-current' ทันทีโดยไม่เช็คเลยว่า Excel ยังเปิดไฟล์ค้างอยู่จริงไหม — เกิดปัญหาจริงตอนเปลี่ยนกะ
+# (~ทุก 12 ชม.): operator คนก่อน logout ทำให้ Excel/bridge session ของเขาปิดไปด้วย operator คนใหม่
+# login มาเปิด Web App แต่วันที่ในชื่อไฟล์ยังเป็นวันเดียวกัน (ยังไม่ข้ามเที่ยงคืน) ทำให้ Excel ไม่ถูกเปิด
+# ให้เลย ฟังก์ชันนี้ไม่สนใจวันที่เลย ใช้ Find-OrOpenWorkbook ตัวเดิม (V29.97) เช็คแค่ว่าไฟล์เปิดอยู่ไหม
+# ถ้าไม่เปิดก็เปิดให้เฉยๆ ไม่ rename/ไม่เขียน W1
+function Handle-EnsureFileOpen {
+    $resolved = Resolve-SourceFile
+    if ($resolved.status -ne 'ok') { return $resolved }
+    $file = $resolved.file
+
+    $opened = Find-OrOpenWorkbook $file.Name $file.FullName
+    if (-not $opened.wb) {
+        return @{ status = 'open-failed'; message = "เปิดไฟล์ '$($file.Name)' ใน Excel อัตโนมัติไม่สำเร็จ: $($opened.errorMessage)" }
+    }
+    return @{ status = 'ok'; fileName = $file.Name }
+}
+
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:$Port/")
 $listener.Start()
@@ -494,7 +520,19 @@ try {
     $startupRollover = Handle-RolloverDailyFile
     if ($startupRollover.status -eq 'ok') {
         Write-Host "[auto-rollover] เปลี่ยนไฟล์ log sheet เป็นวันใหม่แล้วตอนเริ่ม bridge: $($startupRollover.oldFileName) -> $($startupRollover.newFileName)"
-    } elseif ($startupRollover.status -ne 'already-current') {
+    } elseif ($startupRollover.status -eq 'already-current') {
+        # V29.99 FEAT: rollover ไม่ต้องทำ (วันที่ตรงกับวันนี้อยู่แล้ว) แต่ยังต้องเช็คแยกว่า Excel เปิดไฟล์
+        # อยู่จริงไหม — เคสเปลี่ยนกะกลางวัน (bridge ของ operator คนก่อนถูกปิดไปตอน logout, operator คนใหม่
+        # login มา bridge เริ่มใหม่แต่ยังไม่ข้ามเที่ยงคืน) ถ้าไม่เช็คแยกจุดนี้ Excel จะไม่ถูกเปิดให้เลย
+        try {
+            $startupEnsureOpen = Handle-EnsureFileOpen
+            if ($startupEnsureOpen.status -ne 'ok') {
+                Write-Host "[ensure-file-open] เปิดไฟล์ log sheet ตอนเริ่ม bridge ไม่สำเร็จ: $($startupEnsureOpen.status) $($startupEnsureOpen.message)"
+            }
+        } catch {
+            Write-Host "[ensure-file-open] เปิดไฟล์ log sheet ตอนเริ่ม bridge เกิด error: $($_.Exception.Message)"
+        }
+    } else {
         Write-Host "[auto-rollover] เช็ค rollover ตอนเริ่ม bridge ไม่สำเร็จ: $($startupRollover.status) $($startupRollover.message)"
     }
 } catch {
@@ -578,6 +616,13 @@ try {
             # วันที่ในชื่อไฟล์ตรงกับวันนี้อยู่แล้ว) หรือกดปุ่ม "Rollover เองตอนนี้" ในเว็บก็เรียก route นี้ตรงๆ
             if ($request.Url.AbsolutePath -eq '/rollover-daily-file' -and $request.HttpMethod -eq 'POST') {
                 Send-JsonResponse $response 200 (Handle-RolloverDailyFile)
+                continue
+            }
+
+            # V29.99 FEAT: เช็ค/เปิดไฟล์ log sheet ให้เฉยๆ ไม่สนวันที่ — ดู Handle-EnsureFileOpen ด้านบนสำหรับ
+            # เหตุผลที่แยก route นี้ออกจาก /rollover-daily-file
+            if ($request.Url.AbsolutePath -eq '/ensure-file-open' -and $request.HttpMethod -eq 'POST') {
+                Send-JsonResponse $response 200 (Handle-EnsureFileOpen)
                 continue
             }
 

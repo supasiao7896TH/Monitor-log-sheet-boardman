@@ -84,5 +84,22 @@ export const EXCEL_AUTOIMPORT = {
             console.error('EXCEL_AUTOIMPORT.rolloverDailyFileIfNeeded: bridge unreachable', err);
             return { status: 'bridge-offline' };
         }
+    },
+
+    // V29.99 FEAT: เช็คแค่ "ไฟล์เปิดอยู่ใน Excel ไหม" เฉยๆ ไม่ยุ่งกับวันที่/ชื่อไฟล์เลย (คนละเรื่องกับ
+    // rolloverDailyFileIfNeeded ด้านบน ซึ่งจะ short-circuit เป็น 'already-current' ทันทีถ้าวันที่ตรงกัน
+    // อยู่แล้ว โดยไม่เช็คว่า Excel ยังเปิดไฟล์อยู่จริงหรือเปล่า) — เกิดปัญหาจริงตอนเปลี่ยนกะ (~ทุก 12 ชม.):
+    // bridge/Excel ของ operator คนก่อนถูกปิดไปพร้อม session ตอน logout, operator คนใหม่ login มาเปิด
+    // Web App แต่วันที่ในชื่อไฟล์ยังเป็นวันเดียวกัน (ยังไม่ข้ามเที่ยงคืน) ทำให้ rollover เห็นว่า
+    // already-current แล้วไม่เปิด Excel ให้ — เรียก endpoint นี้แยกต่างหากตอน APP.init() เพื่อปิดช่องว่างนี้
+    ensureFileOpen: async () => {
+        try {
+            const res = await fetchWithTimeout(`${BRIDGE_URL}/ensure-file-open`, { method: 'POST' });
+            if (!res.ok) return { status: 'error' };
+            return await res.json();
+        } catch (err) {
+            console.error('EXCEL_AUTOIMPORT.ensureFileOpen: bridge unreachable', err);
+            return { status: 'bridge-offline' };
+        }
     }
 };
