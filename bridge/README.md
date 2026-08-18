@@ -74,7 +74,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 `excel-bridge.ps1` มีอีก 2 path คงที่ที่ตั้งไว้ในสคริปต์ (ไม่รับ path จากฝั่งเบราว์เซอร์เลย เพื่อกัน endpoint ถูกใช้อ่าน/เขียนไฟล์นอกเหนือจากที่ตั้งใจไว้):
 
 - **`$WatchFolder`** — โฟลเดอร์ที่เก็บไฟล์ log sheet ต้นฉบับที่ PI Datalink เขียนสดอัตโนมัติ (ค่า default: `D:\PTA COMMONT WORK\Log sheet Digital`) Bridge จะหาไฟล์ที่ไม่มีคำว่า `(master)` ในชื่อเป็นไฟล์เป้าหมายเสมอ — ถ้าเจอมากกว่า 1 ไฟล์ที่ไม่ใช่ master จะไม่เดา และตอบ error กลับแทน (ป้องกันดึง/archive ไฟล์ผิด)
-- **`$ArchiveFolder`** — โฟลเดอร์ที่เก็บสำเนา (safety copy) ของไฟล์ log sheet เมื่อ Web App ตรวจพบว่าข้อมูลวันนั้นครบ 4 รอบเวลาแล้ว (ค่า default: `D:\Monitor log sheet boardman` — โฟลเดอร์ repo นี้เอง) — ตั้งแต่ V29.80 ไฟล์จะถูกเก็บใต้โฟลเดอร์ย่อยตามเดือน/ปีปัจจุบันของเครื่องเสมอ (รูปแบบ `Mmm yy` แบบอังกฤษ/ค.ศ. เช่น `$ArchiveFolder\Aug 26\`) ไม่ใช่ root ตรงๆ — อิงปฏิทินของเครื่อง ณ วันที่ archive จริง ไม่ใช่วันที่ในชื่อไฟล์ log sheet
+- **`$ArchiveFolder`** — โฟลเดอร์ที่เก็บสำเนา (safety copy) ของไฟล์ log sheet เมื่อ Web App ตรวจพบว่าข้อมูลวันนั้นครบ 4 รอบเวลาแล้ว (ค่า default ตั้งแต่ V29.95: `D:\PTA COMMONT WORK\Log sheet Digital` — โฟลเดอร์เดียวกับ `$WatchFolder` โดยตั้งใจ archive จะไปอยู่ใต้ subfolder รายเดือนเท่านั้น ไม่ปนกับไฟล์ live ที่ root) — ตั้งแต่ V29.80 ไฟล์จะถูกเก็บใต้โฟลเดอร์ย่อยตามเดือน/ปีปัจจุบันของเครื่องเสมอ (รูปแบบ `Mmm yy` แบบอังกฤษ/ค.ศ. เช่น `$ArchiveFolder\Aug 26\`) ไม่ใช่ root ตรงๆ — อิงปฏิทินของเครื่อง ณ วันที่ archive จริง ไม่ใช่วันที่ในชื่อไฟล์ log sheet
 
 แก้ 2 ตัวแปรนี้ในสคริปต์ถ้าย้ายโฟลเดอร์บนเครื่องจริง
 

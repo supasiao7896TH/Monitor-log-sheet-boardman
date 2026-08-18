@@ -33,7 +33,9 @@ $AppCommentAuthor = 'Plant Log Analyzer (Web App)'
 # ไว้ในสคริปต์นี้เท่านั้น (ไม่รับ path จากฝั่งเบราว์เซอร์เด็ดขาด กัน endpoint ถูกใช้อ่าน/เขียนไฟล์นอกเหนือ
 # จากที่ตั้งใจไว้)
 $WatchFolder = "D:\PTA COMMONT WORK\Log sheet Digital"
-$ArchiveFolder = "D:\Monitor log sheet boardman"
+# V29.95 CONFIG: ย้าย archive มารวมกับ $WatchFolder ตามคำขอ — ยังคง subfolder รายเดือน (เช่น "Aug 26")
+# ไว้เหมือนเดิม กันไฟล์ archive ปนกับไฟล์ live ที่ root ของโฟลเดอร์นี้
+$ArchiveFolder = "D:\PTA COMMONT WORK\Log sheet Digital"
 
 # V29.85 FEAT: path เก็บ shared-db snapshot กลาง (Tags/Records/MasterTags/UserCountermeasures ทั้งหมด)
 # — ไม่ผูกกับ Windows account คนใดคนหนึ่ง แก้ปัญหา operator login คนละ account บนเครื่อง shared แล้วเห็น
