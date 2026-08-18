@@ -87,6 +87,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 | `/archive-source-file` | POST | คัดลอกไฟล์ต้นฉบับไปเก็บที่ `$ArchiveFolder` — Web App เรียกอัตโนมัติเมื่อเช็คแล้วว่าข้อมูลวันนั้นครบ 4 เวลา (03:00/09:00/15:00/21:00) |
 | `/save-shared-db` | POST | รับ JSON snapshot ทั้งหมด (Tags/Records/MasterTags/UserCountermeasures) จาก browser แล้วเขียนทับ `$SharedDbPath` แบบ atomic — เรียกทุกครั้งที่มีการแก้ไขข้อมูลใน Web App (fire-and-forget, ดูหัวข้อ `$SharedDbPath` ด้านล่าง) |
 | `/load-shared-db` | GET | คืน snapshot ล่าสุดจาก `$SharedDbPath` — Web App ดึงมา `importAll` เข้า IndexedDB ตอนเปิดแอปครั้งเดียว (`status:'not-found'` ถ้ายังไม่มีใคร push มาก่อนเลย ไม่ใช่ error) |
+| `/rollover-daily-file` | POST | เปลี่ยนชื่อไฟล์ log sheet ให้เป็นวันปัจจุบัน (แพทเทิร์นวันที่ `(DD-MM-YY)` ในชื่อไฟล์) และเขียนวันที่ใหม่ลง cell `W1` ของชีต `BM 1` — Web App เรียกทุก poll (idempotent, no-op ถ้าวันที่ในชื่อไฟล์ตรงกับวันนี้อยู่แล้ว) ตั้งแต่ V29.97 route นี้ **เปิดไฟล์ให้เองอัตโนมัติผ่าน COM ถ้ายังไม่มีใครเปิดไว้ใน Excel** (ต่างจาก `/write-remark` ที่ยังต้องเปิดไฟล์เองก่อนเสมอ) — ถ้าเปิดไฟล์ไม่สำเร็จจริงๆ (ไฟล์เสีย/ถูกล็อกโดยเครื่องอื่น) จะตอบ `{status:'open-failed'}` |
 
 ทั้งสาม route แรก (source-file*, archive-source-file) ไม่ต้องเปิด Excel ไฟล์ต้นฉบับไว้ก็ทำงานได้ (อ่านไฟล์ดิบจาก disk ตรงๆ ไม่ผ่าน COM) — ถ้า Excel/PI Datalink กำลังเขียนไฟล์อยู่พอดี (ช่วงสั้นๆ ตอน refresh 4 รอบ/วัน) จะตอบ `{status:'file-locked'}` แทนที่จะ error รอบ poll ถัดไปจะลองใหม่เองอัตโนมัติ ไม่ต้องทำอะไรเพิ่ม (`/save-shared-db`/`/load-shared-db` ก็ใช้หลักการเดียวกัน — ดูหัวข้อถัดไป)
 
@@ -103,7 +104,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 | อาการ | สาเหตุที่เป็นไปได้ |
 |---|---|
 | Web App ขึ้น "ไม่พบ Local Bridge" | ยังไม่ได้เปิดสคริปต์นี้ หรือหน้าต่างถูกปิดไปแล้ว — เปิดใหม่ |
-| Web App ขึ้น "ไม่พบไฟล์นี้เปิดอยู่ใน Excel" | ยังไม่ได้เปิดไฟล์ log sheet ต้นฉบับใน Excel ค้างไว้ หรือชื่อไฟล์ไม่ตรงกับที่ import เข้า Web App |
+| Web App ขึ้น "ไม่พบไฟล์นี้เปิดอยู่ใน Excel" | ยังไม่ได้เปิดไฟล์ log sheet ต้นฉบับใน Excel ค้างไว้ หรือชื่อไฟล์ไม่ตรงกับที่ import เข้า Web App (เฉพาะ `/write-remark` — `/rollover-daily-file` เปิดไฟล์ให้เองอัตโนมัติตั้งแต่ V29.97 ไม่ต้องเปิดเองล่วงหน้าแล้ว) |
+| Rollover ข้ามคืนไม่สำเร็จ ขึ้น "เปิดไฟล์ ... ใน Excel อัตโนมัติไม่สำเร็จ" (`open-failed`) | ไฟล์ log sheet เสีย/ถูกล็อกโดยเครื่องอื่นอยู่ หรือ path ผิด — เช็ค `errorMessage`/`message` ที่ตอบกลับมา แล้วลองเปิดไฟล์เองใน Excel บนเครื่อง Bridge ดูว่า error เดียวกันไหม |
 | ขึ้น "พบ Comment ที่มีคนพิมพ์ไว้แล้ว" | มีคนเคยพิมพ์ comment เองตรงๆ ใน Excel cell นั้น ระบบไม่เขียนทับให้อัตโนมัติ ต้องแก้ในไฟล์เอง |
 | หน้าต่าง bridge ปิดตัวทันทีตอนเปิด | เปิด PowerShell รันแบบ manual (ดูข้างบน) เพื่อดู error message ที่แท้จริง — สาเหตุที่พบบ่อยคือ port 5175 ถูกโปรแกรมอื่นใช้อยู่แล้ว |
 | กด Hyperlink ใน Excel แล้วขึ้นเตือนความปลอดภัย | ปกติของการเปิดไฟล์ local (`.bat`) ผ่าน hyperlink — กด Allow/Yes ได้ตามปกติ |

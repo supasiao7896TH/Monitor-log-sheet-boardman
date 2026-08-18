@@ -263,14 +263,17 @@ Object.assign(APP, {
                 const rollover = await APP.rolloverDailyFileIfNeeded();
 
                 const info = await EXCEL_AUTOIMPORT.getSourceFileInfo();
-                // V29.96 FEAT: ถ้า rollover เจอว่าถึงเวลาต้องเปลี่ยนวันแล้วแต่ยังไม่พบไฟล์เปิดอยู่ใน Excel
+                // V29.96 FEAT: ถ้า rollover เจอว่าถึงเวลาต้องเปลี่ยนวันแล้วแต่เปิดไฟล์อัตโนมัติไม่สำเร็จ
                 // ให้ banner เดิมของ V29.88 (ปกติไว้เตือน info.status==='error') โชว์ปัญหานี้แทน — สำคัญ
                 // กว่าสถานะปกติของ info (ไฟล์เดิมยังอ่านได้ปกติ แค่ยังไม่ถูกเปลี่ยนชื่อ) ต้อง merge ก่อนเรียก
                 // ครั้งเดียว ไม่ใช่เรียกซ้อนสองครั้งแยกกัน ไม่งั้นการเรียกครั้งหลังจะไปเคลียร์ banner ที่เพิ่ง
                 // โชว์จากรอบแรกทิ้งทันที
+                // V29.97 FEAT: bridge เปิดไฟล์ log sheet ให้เองอัตโนมัติแล้ว (ไม่ต้องรอ operator เปิดเอง) —
+                // เหลือแค่ status 'open-failed' (COM เปิดไฟล์จริงๆ ไม่สำเร็จ เช่นไฟล์เสีย/ถูกล็อก) ที่ยังต้อง
+                // แจ้งเตือน operator ให้ไปเช็คที่เครื่อง Bridge เอง
                 APP.renderAutoImportWarningBanner(
-                    rollover.status === 'no-file-open'
-                        ? { status: 'error', message: 'ถึงเวลาต้องเปลี่ยนไฟล์ log sheet เป็นวันใหม่แล้ว แต่ยังไม่พบไฟล์เปิดอยู่ใน Excel — กรุณาเปิดไฟล์ log sheet ค้างไว้' }
+                    rollover.status === 'open-failed'
+                        ? { status: 'error', message: `ถึงเวลาต้องเปลี่ยนไฟล์ log sheet เป็นวันใหม่แล้ว แต่เปิดไฟล์ใน Excel อัตโนมัติไม่สำเร็จ — กรุณาตรวจสอบไฟล์/Excel บนเครื่อง Bridge (${rollover.message || ''})` }
                         : info
                 ); // V29.88 FEAT: โชว์/ซ่อน banner ตามสถานะล่าสุดทุกรอบ poll
 
@@ -380,8 +383,10 @@ Object.assign(APP, {
                     alert(`เปลี่ยนไฟล์ log sheet เป็นวันใหม่สำเร็จ\n${result.oldFileName}\n→ ${result.newFileName}${result.warning ? `\n\n⚠️ ${result.warning}` : ''}`);
                 } else if (result.status === 'already-current') {
                     alert('ไฟล์ log sheet เป็นวันปัจจุบันอยู่แล้ว ไม่ต้องเปลี่ยน');
-                } else if (result.status === 'no-file-open') {
-                    alert(`${result.message || 'ไม่พบไฟล์ log sheet เปิดอยู่ใน Excel'}\n\nกรุณาเปิดไฟล์ log sheet ต้นฉบับค้างไว้ใน Excel ก่อนกดปุ่มนี้`);
+                } else if (result.status === 'open-failed') {
+                    // V29.97 FEAT: bridge พยายามเปิดไฟล์ให้เองอัตโนมัติแล้วแต่ล้มเหลวจริงๆ (ไฟล์เสีย/ถูกล็อก)
+                    // — ไม่ใช่เคส "operator ยังไม่เปิด" อีกต่อไป จึงไม่บอกให้เปิดไฟล์เองแบบเดิม
+                    alert(`${result.message || 'เปิดไฟล์ log sheet ใน Excel อัตโนมัติไม่สำเร็จ'}\n\nกรุณาตรวจสอบไฟล์/Excel บนเครื่อง Bridge`);
                 } else if (result.status === 'bridge-offline') {
                     alert('ไม่พบ Local Bridge — กรุณาเปิด excel-bridge.ps1 ก่อน');
                 } else {

@@ -24,6 +24,11 @@
 # V29.96 FEAT: เพิ่ม /rollover-daily-file — เปลี่ยนชื่อไฟล์ log sheet (แพทเทิร์นวันที่ "(DD-MM-YY)" ในชื่อ
 # ไฟล์) และเขียนวันที่ใหม่ลง cell W1 ของชีต "BM 1" อัตโนมัติทุกวัน แทนที่ operator ต้องทำเองทุกเช้า —
 # เรียกซ้ำได้ทุก poll แบบ idempotent (no-op ถ้าวันที่ในชื่อไฟล์ตรงกับวันนี้อยู่แล้ว)
+#
+# V29.97 FEAT: /rollover-daily-file เปิดไฟล์ log sheet ใน Excel ให้เองอัตโนมัติถ้ายังไม่มีใครเปิดไว้ (เดิม
+# ต้อง operator เปิดไฟล์ค้างไว้ก่อนเสมอ ไม่งั้น rollover ข้ามคืนจะ error ทิ้งไว้จนกว่าจะมีคนมาเปิดตอนเช้า) —
+# ดู Find-OrOpenWorkbook ด้านล่าง ใช้เฉพาะ route นี้ ไม่กระทบ Handle-WriteRemark ซึ่งยังต้องการให้ operator
+# เปิดไฟล์เองก่อนเหมือนเดิม (เขียน Resolution Remark เป็น manual flow ระหว่างเปิดไฟล์ดูอยู่แล้ว)
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -258,6 +263,40 @@ function Find-OpenWorkbook($fileName) {
     return $excel, $null
 }
 
+# V29.97 FEAT: ใช้เฉพาะ Handle-RolloverDailyFile — ต่างจาก Find-OpenWorkbook ตรงที่ "เปิดไฟล์ให้เองถ้ายัง
+# ไม่มีใครเปิดไว้" แทนที่จะแค่หาแล้วคืน $null ถ้าไม่เจอ ให้ rollover กลางดึกทำงานจบได้เองแม้ operator ยังไม่
+# ได้เปิด Excel เลยก็ตาม (ต่างจาก Handle-WriteRemark ที่ยังคง requirement เดิมไว้โดยเจตนา — ดู comment
+# header ด้านบนของไฟล์)
+function Find-OrOpenWorkbook($fileName, $fullPath) {
+    try {
+        $excel = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
+    } catch {
+        $excel = New-Object -ComObject Excel.Application
+    }
+    # ตั้ง Visible เสมอไม่ว่าจะ attach ของเดิมหรือสร้างใหม่ — กัน instance ที่ถูกสร้างแบบซ่อนอยู่เบื้องหลัง
+    # (ทั้งจากสคริปต์นี้เองตอนไม่มี Excel รันอยู่ หรือจาก process อื่นที่เคยสร้างไว้แบบ invisible) ให้
+    # operator เห็นไฟล์เปิดอยู่จริงเมื่อมาถึงเครื่อง
+    $excel.Visible = $true
+
+    foreach ($wb in $excel.Workbooks) {
+        if ($wb.Name -eq $fileName) { return @{ excel = $excel; wb = $wb } }
+    }
+
+    $originalDisplayAlerts = $excel.DisplayAlerts
+    $excel.DisplayAlerts = $false
+    try {
+        # UpdateLinks=0: ไม่ต้อง prompt/auto-refresh สูตร PI Datalink ตอนเปิดไฟล์ (เลี่ยง dialog ที่จะค้าง
+        # สคริปต์ไว้รอ operator กดตอบ ซึ่งไม่มีใครอยู่หน้าเครื่องตอนกลางดึก) — ReadOnly=$false เพราะต้อง
+        # SaveAs/Save ต่อทันทีหลังเปิด
+        $wb = $excel.Workbooks.Open($fullPath, 0, $false)
+        return @{ excel = $excel; wb = $wb }
+    } catch {
+        return @{ excel = $excel; wb = $null; errorMessage = $_.Exception.Message }
+    } finally {
+        $excel.DisplayAlerts = $originalDisplayAlerts
+    }
+}
+
 function Handle-WriteRemark($payload) {
     if (-not $payload.fileName -or -not $payload.machine -or -not $payload.cellRef) {
         return @{ status = 'error'; message = 'missing fileName/machine/cellRef' }
@@ -382,12 +421,13 @@ function Handle-RolloverDailyFile {
         return @{ status = 'error'; message = "สำรองไฟล์เดิมก่อน rollover ไม่สำเร็จ: $($archiveResult.message)" }
     }
 
-    $excel, $wb = Find-OpenWorkbook $file.Name
-    if (-not $excel) {
-        return @{ status = 'no-file-open'; message = 'ไม่พบ Excel ที่กำลังรันอยู่บนเครื่องนี้' }
-    }
+    # V29.97 FEAT: เปิดไฟล์ให้เองอัตโนมัติถ้ายังไม่มีใครเปิดไว้ (ต่างจาก Handle-WriteRemark ที่ยังใช้
+    # Find-OpenWorkbook เดิม — ดู comment เหนือ Find-OrOpenWorkbook)
+    $opened = Find-OrOpenWorkbook $file.Name $file.FullName
+    $excel = $opened.excel
+    $wb = $opened.wb
     if (-not $wb) {
-        return @{ status = 'no-file-open'; message = "ไม่พบไฟล์ '$($file.Name)' เปิดอยู่ใน Excel — กรุณาเปิดไฟล์ต้นฉบับค้างไว้ก่อน" }
+        return @{ status = 'open-failed'; message = "เปิดไฟล์ '$($file.Name)' ใน Excel อัตโนมัติไม่สำเร็จ: $($opened.errorMessage)" }
     }
 
     $newFileName = $file.Name.Replace($dateInfo.matchText, "($($today.ToString('dd-MM-yy')))")
