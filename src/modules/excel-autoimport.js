@@ -56,8 +56,9 @@ export const EXCEL_AUTOIMPORT = {
         }
     },
 
-    // คัดลอกไฟล์ต้นฉบับไปเก็บ safety copy ที่โฟลเดอร์ archive (D:\Monitor log sheet boardman) — เรียกตอน
-    // Web App เช็คแล้วว่าข้อมูลครบ 4 เวลาของวันนั้น (ดู getCanonicalTimesStatus ใน shared.js)
+    // คัดลอกไฟล์ต้นฉบับไปเก็บ safety copy ที่โฟลเดอร์ archive (D:\PTA COMMONT WORK\Log sheet Digital,
+    // ตั้งแต่ V29.95 — subfolder รายเดือนใต้ $WatchFolder เอง) — เรียกตอน Web App เช็คแล้วว่าข้อมูลครบ
+    // 4 เวลาของวันนั้น (ดู getCanonicalTimesStatus ใน shared.js)
     archiveSourceFile: async () => {
         try {
             const res = await fetchWithTimeout(`${BRIDGE_URL}/archive-source-file`, { method: 'POST' });
@@ -67,6 +68,21 @@ export const EXCEL_AUTOIMPORT = {
         } catch (err) {
             console.error('EXCEL_AUTOIMPORT.archiveSourceFile: bridge unreachable', err);
             return 'bridge-offline';
+        }
+    },
+
+    // V29.96 FEAT: เปลี่ยนชื่อไฟล์ log sheet + เขียนวันที่ใหม่ลง cell W1 ของชีต "BM 1" อัตโนมัติ แทนที่
+    // operator ต้องทำเองทุกวัน — idempotent ฝั่ง bridge เอง (no-op ถ้าวันที่ในชื่อไฟล์ตรงกับวันนี้อยู่
+    // แล้ว) จึงเรียกซ้ำได้ทุก poll cycle อย่างปลอดภัย คืนเป็น object เต็ม (ไม่ใช่แค่ status string) เพราะ
+    // ต้องใช้ oldFileName/newFileName/warning ไปแสดงผลให้ operator เห็นตอนสำเร็จ
+    rolloverDailyFileIfNeeded: async () => {
+        try {
+            const res = await fetchWithTimeout(`${BRIDGE_URL}/rollover-daily-file`, { method: 'POST' });
+            if (!res.ok) return { status: 'error' };
+            return await res.json();
+        } catch (err) {
+            console.error('EXCEL_AUTOIMPORT.rolloverDailyFileIfNeeded: bridge unreachable', err);
+            return { status: 'bridge-offline' };
         }
     }
 };

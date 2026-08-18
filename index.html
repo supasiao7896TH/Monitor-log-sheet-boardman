@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.95)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.96)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -485,6 +485,21 @@
                     </h3>
                     <div id="import-history-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
                 </div>
+
+                <!-- V29.96 FEAT: ปุ่ม rollover ไฟล์ log sheet วันใหม่ด้วยมือ — ระบบทำอัตโนมัติทุกคืนอยู่แล้ว
+                     (ดู APP.pollAutoImport) ปุ่มนี้ไว้ทดสอบตอน deploy ครั้งแรก หรือเป็นทางสำรองถ้า bridge
+                     ดันไม่ออนไลน์พอดีตอนเที่ยงคืน -->
+                <div class="mt-6 w-full max-w-2xl glass-card rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center justify-between gap-4 flex-wrap">
+                    <div>
+                        <h3 class="text-sm font-black text-slate-700 uppercase tracking-wide flex items-center gap-2 mb-1">
+                            <i data-lucide="calendar-clock" class="w-4 h-4 text-slate-400"></i> เปลี่ยนไฟล์ log sheet เป็นวันใหม่
+                        </h3>
+                        <p class="text-xs text-slate-500 font-medium">ระบบเปลี่ยนชื่อไฟล์และวันที่ใน W1 ให้อัตโนมัติทุกคืนอยู่แล้ว กดปุ่มนี้ได้ถ้าต้องการทดสอบหรือสั่งเองตอนนี้</p>
+                    </div>
+                    <button id="btn-rollover-daily-file" class="flex items-center justify-center px-4 py-2.5 text-slate-500 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all font-bold text-xs border border-slate-200 hover:border-brand-100 shrink-0">
+                        <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i> Rollover เองตอนนี้
+                    </button>
+                </div>
             </div>
 
             <div id="view-tags" class="view-panel hidden absolute inset-0 flex flex-col p-6 md:p-8 animate-fade-in">
@@ -782,7 +797,7 @@
                     </div>
 
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.95 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.96 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by A(i)CODER</p>
                     </div>
                 </div>

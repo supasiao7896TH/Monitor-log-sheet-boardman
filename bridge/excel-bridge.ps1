@@ -20,6 +20,10 @@
 # V29.85 FEAT: เพิ่ม /save-shared-db + /load-shared-db ให้ browser sync ข้อมูลทั้งหมด (Tags/Records/
 # MasterTags/UserCountermeasures) ผ่าน $SharedDbPath — แก้ปัญหา operator login คนละ Windows account บน
 # เครื่อง shared เห็น IndexedDB คนละก้อน (IndexedDB ผูกกับ browser profile ต่อ account เสมอ)
+#
+# V29.96 FEAT: เพิ่ม /rollover-daily-file — เปลี่ยนชื่อไฟล์ log sheet (แพทเทิร์นวันที่ "(DD-MM-YY)" ในชื่อ
+# ไฟล์) และเขียนวันที่ใหม่ลง cell W1 ของชีต "BM 1" อัตโนมัติทุกวัน แทนที่ operator ต้องทำเองทุกเช้า —
+# เรียกซ้ำได้ทุก poll แบบ idempotent (no-op ถ้าวันที่ในชื่อไฟล์ตรงกับวันนี้อยู่แล้ว)
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -122,6 +126,25 @@ function Test-IsSharingViolation($exception) {
         $e = $e.InnerException
     }
     return $false
+}
+
+# V29.96 FEAT: parse วันที่แบบ "(DD-MM-YY)" จากชื่อไฟล์ log sheet (เช่น "P1-F-2002-22 (18-08-26) (Digital)")
+# ใช้เทียบกับวันที่ปัจจุบันของเครื่องใน Handle-RolloverDailyFile ด้านล่าง — คืน $null ถ้าไม่เจอ pattern
+# หรือ parse ไม่ได้เป็นวันที่จริง ไม่เดา (เหมือนปรัชญาของ Resolve-SourceFile ด้านบน)
+function Get-FileNameDateInfo($fileName) {
+    if ($fileName -notmatch '\((\d{2})-(\d{2})-(\d{2})\)') {
+        return $null
+    }
+    $matchText = $Matches[0]
+    $day = [int]$Matches[1]
+    $month = [int]$Matches[2]
+    $year = 2000 + [int]$Matches[3]
+    try {
+        $date = Get-Date -Year $year -Month $month -Day $day
+    } catch {
+        return $null
+    }
+    return @{ date = $date.Date; matchText = $matchText }
 }
 
 function Handle-SourceFileInfo {
@@ -328,6 +351,86 @@ function Handle-WriteRemark($payload) {
     return @{ status = 'ok' }
 }
 
+# V29.96 FEAT: ทุกวัน operator ต้องเปลี่ยนชื่อไฟล์ log sheet เอง (เช่น "(18-08-26)" -> "(19-08-26)") และ
+# เขียนวันที่ใหม่ลง cell W1 ของชีต "BM 1" เอง (เป็นตัวขับสูตร PI Datalink ให้ดึงข้อมูลของวันนั้น) — route
+# นี้ทำแทนอัตโนมัติ ออกแบบให้ idempotent เรียกซ้ำได้ทุก poll (ทุก 5 นาที) ตลอด 24 ชม. โดยไม่มีผลข้างเคียง
+# ถ้าวันที่ในชื่อไฟล์ตรงกับวันนี้อยู่แล้ว (เคสปกติเกือบทุกครั้งที่เช็ค) — จะ rename+เขียนจริงเฉพาะตอนเลย
+# เที่ยงคืนมาแล้วเท่านั้น (วันที่ในชื่อไฟล์ < วันนี้) ตัดปัญหาเรื่องต้อง trigger ให้ตรงเที่ยงคืนเป๊ะออกไปทั้งหมด
+function Handle-RolloverDailyFile {
+    $resolved = Resolve-SourceFile
+    if ($resolved.status -ne 'ok') { return $resolved }
+    $file = $resolved.file
+
+    $dateInfo = Get-FileNameDateInfo $file.Name
+    if (-not $dateInfo) {
+        return @{ status = 'error'; message = "ไม่พบรูปแบบวันที่ (DD-MM-YY) ในชื่อไฟล์: $($file.Name)" }
+    }
+
+    $today = (Get-Date).Date
+    if ($dateInfo.date -eq $today) {
+        return @{ status = 'already-current' }
+    }
+    if ($dateInfo.date -gt $today) {
+        return @{ status = 'error'; message = "วันที่ในชื่อไฟล์ ($($dateInfo.date.ToString('dd-MM-yy'))) ล้ำหน้าวันที่ปัจจุบันของเครื่อง กรุณาตรวจสอบเอง" }
+    }
+
+    # สำรองไฟล์เดิม (วันก่อนหน้า) ไปเก็บ archive ก่อนเสมอ ไม่ว่า auto-archive-on-4-times จะเคยรันมาก่อน
+    # หรือยัง (Handle-ArchiveSourceFile ใช้ Copy-Item -Force เขียนทับได้ ไม่ error ถ้ามีสำเนาอยู่แล้ว) —
+    # กันข้อมูลของวันก่อนหน้าหายถ้าวันนั้นไม่เคยครบ 4 เวลา แล้วโดนลบไฟล์ต้นฉบับทิ้งด้านล่าง
+    $archiveResult = Handle-ArchiveSourceFile
+    if ($archiveResult.status -ne 'ok') {
+        return @{ status = 'error'; message = "สำรองไฟล์เดิมก่อน rollover ไม่สำเร็จ: $($archiveResult.message)" }
+    }
+
+    $excel, $wb = Find-OpenWorkbook $file.Name
+    if (-not $excel) {
+        return @{ status = 'no-file-open'; message = 'ไม่พบ Excel ที่กำลังรันอยู่บนเครื่องนี้' }
+    }
+    if (-not $wb) {
+        return @{ status = 'no-file-open'; message = "ไม่พบไฟล์ '$($file.Name)' เปิดอยู่ใน Excel — กรุณาเปิดไฟล์ต้นฉบับค้างไว้ก่อน" }
+    }
+
+    $newFileName = $file.Name.Replace($dateInfo.matchText, "($($today.ToString('dd-MM-yy')))")
+    $newFullPath = Join-Path $WatchFolder $newFileName
+
+    # ปิด DisplayAlerts ชั่วคราวกัน Excel เด้ง dialog ถามยืนยันฟอร์แมตไฟล์ (เช่น "Keep Current Format?")
+    # ค้างสคริปต์ — ต้องส่ง $wb.FileFormat เดิมไปด้วยเสมอ ไม่งั้น SaveAs อาจเปลี่ยนฟอร์แมตไฟล์ (เช่น
+    # .xlsm ตัด macro กลายเป็น .xlsx) ทั้งที่ path ปลายทางยังเป็นนามสกุลเดิม
+    $originalDisplayAlerts = $excel.DisplayAlerts
+    $excel.DisplayAlerts = $false
+    try {
+        $wb.SaveAs($newFullPath, $wb.FileFormat)
+    } catch {
+        return @{ status = 'error'; message = "เปลี่ยนชื่อไฟล์ (SaveAs) ไม่สำเร็จ: $($_.Exception.Message)" }
+    } finally {
+        $excel.DisplayAlerts = $originalDisplayAlerts
+    }
+
+    $sheet = $null
+    foreach ($s in $wb.Sheets) {
+        if ($s.Name -eq 'BM 1') { $sheet = $s; break }
+    }
+    if (-not $sheet) {
+        return @{ status = 'error'; message = "เปลี่ยนชื่อไฟล์เป็น '$newFileName' สำเร็จแล้ว แต่ไม่พบชีต 'BM 1' เพื่อเขียนวันที่ใหม่ — กรุณาแก้ W1 เองในไฟล์" }
+    }
+
+    try {
+        $range = $sheet.Range('W1')
+        $range.Value2 = $today
+        $wb.Save()
+    } catch {
+        return @{ status = 'error'; message = "เปลี่ยนชื่อไฟล์เป็น '$newFileName' สำเร็จแล้ว แต่เขียนวันที่ลง W1 ไม่สำเร็จ: $($_.Exception.Message) — กรุณาแก้เองในไฟล์" }
+    }
+
+    try {
+        Remove-Item -LiteralPath $file.FullName -Force
+    } catch {
+        return @{ status = 'ok'; oldFileName = $file.Name; newFileName = $newFileName; warning = "ลบไฟล์ชื่อเดิม ($($file.Name)) ไม่สำเร็จ กรุณาลบเองด้วยมือ ไม่งั้นระบบ auto-import จะ error รอบถัดไป (พบไฟล์มากกว่า 1 ไฟล์)" }
+    }
+
+    return @{ status = 'ok'; oldFileName = $file.Name; newFileName = $newFileName }
+}
+
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:$Port/")
 $listener.Start()
@@ -402,6 +505,14 @@ try {
             # แล้วว่าข้อมูลครบ 4 เวลาของวันนั้น (คู่ขนานกับที่ operator อัปโหลด SharePoint เองด้วยมือตามปกติ)
             if ($request.Url.AbsolutePath -eq '/archive-source-file' -and $request.HttpMethod -eq 'POST') {
                 Send-JsonResponse $response 200 (Handle-ArchiveSourceFile)
+                continue
+            }
+
+            # V29.96 FEAT: rollover ไฟล์ log sheet วันใหม่อัตโนมัติ — เปลี่ยนชื่อไฟล์ + เขียนวันที่ใหม่ลง
+            # W1 ของชีต "BM 1" แทนที่ operator ต้องทำเองทุกวัน เรียกได้ทุก poll (idempotent, no-op ถ้า
+            # วันที่ในชื่อไฟล์ตรงกับวันนี้อยู่แล้ว) หรือกดปุ่ม "Rollover เองตอนนี้" ในเว็บก็เรียก route นี้ตรงๆ
+            if ($request.Url.AbsolutePath -eq '/rollover-daily-file' -and $request.HttpMethod -eq 'POST') {
+                Send-JsonResponse $response 200 (Handle-RolloverDailyFile)
                 continue
             }
 

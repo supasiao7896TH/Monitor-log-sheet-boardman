@@ -93,3 +93,35 @@ describe('EXCEL_AUTOIMPORT.archiveSourceFile', () => {
         expect(await EXCEL_AUTOIMPORT.archiveSourceFile()).toBe('bridge-offline');
     });
 });
+
+describe('EXCEL_AUTOIMPORT.rolloverDailyFileIfNeeded', () => {
+    beforeEach(() => {
+        vi.stubGlobal('fetch', vi.fn());
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('returns the full bridge JSON envelope on a successful rollover', async () => {
+        const payload = { status: 'ok', oldFileName: 'P1-F-2002-22 (18-08-26) (Digital).xlsm', newFileName: 'P1-F-2002-22 (19-08-26) (Digital).xlsm' };
+        fetch.mockResolvedValue({ ok: true, json: async () => payload });
+        const result = await EXCEL_AUTOIMPORT.rolloverDailyFileIfNeeded();
+        expect(result).toEqual(payload);
+        expect(fetch).toHaveBeenCalledWith('http://localhost:5175/rollover-daily-file', expect.objectContaining({ method: 'POST' }));
+    });
+
+    it('passes through already-current/no-file-open/error statuses from the bridge unchanged', async () => {
+        fetch.mockResolvedValue({ ok: true, json: async () => ({ status: 'already-current' }) });
+        expect(await EXCEL_AUTOIMPORT.rolloverDailyFileIfNeeded()).toEqual({ status: 'already-current' });
+    });
+
+    it('returns error when the bridge responds with a non-ok HTTP status', async () => {
+        fetch.mockResolvedValue({ ok: false });
+        expect(await EXCEL_AUTOIMPORT.rolloverDailyFileIfNeeded()).toEqual({ status: 'error' });
+    });
+
+    it('returns bridge-offline when the bridge is not running (network error)', async () => {
+        fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+        expect(await EXCEL_AUTOIMPORT.rolloverDailyFileIfNeeded()).toEqual({ status: 'bridge-offline' });
+    });
+});

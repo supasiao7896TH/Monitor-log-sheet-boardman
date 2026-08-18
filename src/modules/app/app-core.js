@@ -256,8 +256,23 @@ Object.assign(APP, {
             },
 
             pollAutoImport: async () => {
+                // V29.96 FEAT: เช็ค/ทำ rollover ไฟล์ log sheet วันใหม่เป็นก้าวแรกสุดของทุก poll (idempotent
+                // ฝั่ง bridge เอง — no-op ถ้าวันที่ในชื่อไฟล์ตรงกับวันนี้อยู่แล้ว) ก่อนเช็ค getSourceFileInfo
+                // เพื่อให้ถ้ามี rename เกิดขึ้นพอดีรอบนี้ ส่วนที่เหลือของ poll เดียวกันเห็นไฟล์ใหม่ทันที
+                // ไม่ต้องรอ poll รอบถัดไปอีก 5 นาที
+                const rollover = await APP.rolloverDailyFileIfNeeded();
+
                 const info = await EXCEL_AUTOIMPORT.getSourceFileInfo();
-                APP.renderAutoImportWarningBanner(info); // V29.88 FEAT: โชว์/ซ่อน banner ตามสถานะล่าสุดทุกรอบ poll
+                // V29.96 FEAT: ถ้า rollover เจอว่าถึงเวลาต้องเปลี่ยนวันแล้วแต่ยังไม่พบไฟล์เปิดอยู่ใน Excel
+                // ให้ banner เดิมของ V29.88 (ปกติไว้เตือน info.status==='error') โชว์ปัญหานี้แทน — สำคัญ
+                // กว่าสถานะปกติของ info (ไฟล์เดิมยังอ่านได้ปกติ แค่ยังไม่ถูกเปลี่ยนชื่อ) ต้อง merge ก่อนเรียก
+                // ครั้งเดียว ไม่ใช่เรียกซ้อนสองครั้งแยกกัน ไม่งั้นการเรียกครั้งหลังจะไปเคลียร์ banner ที่เพิ่ง
+                // โชว์จากรอบแรกทิ้งทันที
+                APP.renderAutoImportWarningBanner(
+                    rollover.status === 'no-file-open'
+                        ? { status: 'error', message: 'ถึงเวลาต้องเปลี่ยนไฟล์ log sheet เป็นวันใหม่แล้ว แต่ยังไม่พบไฟล์เปิดอยู่ใน Excel — กรุณาเปิดไฟล์ log sheet ค้างไว้' }
+                        : info
+                ); // V29.88 FEAT: โชว์/ซ่อน banner ตามสถานะล่าสุดทุกรอบ poll
 
                 if (info.status !== 'ok') {
                     // bridge-offline / not-found — สถานะปกติ ไม่ต้องรบกวน operator (เหมือนเดิม)
@@ -338,6 +353,39 @@ Object.assign(APP, {
                     lastArchivedMtime = currentMtime;
                 } else {
                     console.warn('[auto-archive] archive failed, will retry next poll:', archiveStatus);
+                }
+            },
+
+            // V29.96 FEAT: เรียกทุก poll cycle (ทุก 5 นาที ดู pollAutoImport ด้านบน) — idempotent ฝั่ง
+            // bridge เอง ปกติจะได้ 'already-current' เกือบทุกครั้ง (no-op เงียบๆ) จะ rename+เขียนวันที่ใหม่
+            // จริงแค่ตอนเลยเที่ยงคืนมาแล้วเท่านั้น คืนผลลัพธ์กลับให้ caller ตัดสินใจเรื่อง banner เอง (ดู
+            // การ merge กับ getSourceFileInfo ใน pollAutoImport) — ใช้ร่วมกับปุ่ม "Rollover เองตอนนี้" ได้ด้วย
+            rolloverDailyFileIfNeeded: async () => {
+                const result = await EXCEL_AUTOIMPORT.rolloverDailyFileIfNeeded();
+                if (result.status === 'ok') {
+                    console.info(`[auto-rollover] เปลี่ยนไฟล์ log sheet เป็นวันใหม่แล้ว: ${result.oldFileName} → ${result.newFileName}`, result.warning || '');
+                } else if (result.status === 'error') {
+                    console.warn('[auto-rollover] rollover failed:', result.message);
+                }
+                return result;
+            },
+
+            // V29.96 FEAT: ปุ่ม "Rollover เองตอนนี้" (view-import) — เรียก logic เดียวกับที่ poll อัตโนมัติ
+            // ใช้ทุก 5 นาที มีไว้ทดสอบตอน deploy ครั้งแรก หรือเป็นทางสำรองถ้า bridge ดันไม่ออนไลน์พอดีตอน
+            // เที่ยงคืน ต่างจาก poll ตรงที่ต้องมี feedback ให้เห็นทันที (alert ตาม pattern เดียวกับ backup/
+            // restore ในไฟล์นี้) เพราะเป็น manual user action ไม่ใช่ background sync เงียบๆ
+            rolloverDailyFileNow: async () => {
+                const result = await APP.rolloverDailyFileIfNeeded();
+                if (result.status === 'ok') {
+                    alert(`เปลี่ยนไฟล์ log sheet เป็นวันใหม่สำเร็จ\n${result.oldFileName}\n→ ${result.newFileName}${result.warning ? `\n\n⚠️ ${result.warning}` : ''}`);
+                } else if (result.status === 'already-current') {
+                    alert('ไฟล์ log sheet เป็นวันปัจจุบันอยู่แล้ว ไม่ต้องเปลี่ยน');
+                } else if (result.status === 'no-file-open') {
+                    alert(`${result.message || 'ไม่พบไฟล์ log sheet เปิดอยู่ใน Excel'}\n\nกรุณาเปิดไฟล์ log sheet ต้นฉบับค้างไว้ใน Excel ก่อนกดปุ่มนี้`);
+                } else if (result.status === 'bridge-offline') {
+                    alert('ไม่พบ Local Bridge — กรุณาเปิด excel-bridge.ps1 ก่อน');
+                } else {
+                    alert(`เปลี่ยนวันไม่สำเร็จ: ${result.message || result.status}`);
                 }
             },
 
@@ -465,6 +513,9 @@ Object.assign(APP, {
 
                 // V29.88 FEAT: Auto-import config error banner dismiss (ปิดชั่วคราวต่อ session เดียว)
                 assignEvent('btn-autoimport-warning-dismiss', () => APP.dismissAutoImportWarning());
+
+                // V29.96 FEAT: ปุ่ม "Rollover เองตอนนี้" (view-import) — ทดสอบ/สำรองคู่กับ auto-rollover
+                assignEvent('btn-rollover-daily-file', APP.rolloverDailyFileNow);
 
                 // V29.51 FEAT: สำรอง/กู้คืนข้อมูล (Backup/Restore)
                 assignEvent('btn-backup-db', APP.backupData);
