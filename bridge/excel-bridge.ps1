@@ -29,6 +29,12 @@
 # ต้อง operator เปิดไฟล์ค้างไว้ก่อนเสมอ ไม่งั้น rollover ข้ามคืนจะ error ทิ้งไว้จนกว่าจะมีคนมาเปิดตอนเช้า) —
 # ดู Find-OrOpenWorkbook ด้านล่าง ใช้เฉพาะ route นี้ ไม่กระทบ Handle-WriteRemark ซึ่งยังต้องการให้ operator
 # เปิดไฟล์เองก่อนเหมือนเดิม (เขียน Resolution Remark เป็น manual flow ระหว่างเปิดไฟล์ดูอยู่แล้ว)
+#
+# V29.98 FEAT: เพิ่ม rollover check ทันทีตอน bridge เริ่มทำงาน (ดูโค้ดก่อน main loop ด้านล่างสุดของไฟล์)
+# แทนที่จะพึ่ง Web App เปิด/poll ทุก 5 นาทีอย่างเดียว — เจตนาคือให้ rollover เกิดได้แม้ไม่มีใครเปิดหน้าเว็บ
+# เลย โดยไม่ต้องใช้บัญชี Windows เฉพาะ + Task Scheduler ยิงตรงเวลา (พิจารณาแล้วปัดทิ้งเพราะเครื่องจริง
+# หน้างานเป็น PC shared ที่ operator หลายคน login/logout ด้วยบัญชีตัวเองจริง — บัญชีเฉพาะจะครอง port 5175
+# ตลอดเวลาจนทำให้ write-remark ของ operator คนอื่นมองไม่เห็น Excel session ตัวเอง พังทั้งฟีเจอร์)
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -475,6 +481,25 @@ $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:$Port/")
 $listener.Start()
 Write-Host "Excel Bridge กำลังทำงานที่ http://localhost:$Port/ (กด Ctrl+C เพื่อหยุด)"
+
+# V29.98 FEAT: เช็ค rollover ทันทีตอน bridge เริ่มทำงาน — ไม่ต้องรอ Web App เปิด/poll ทุก 5 นาทีอีกแล้ว
+# เครื่องจริงหน้างานเป็น PC shared ที่ operator หลายคน login/logout ด้วยบัญชีตัวเองจริง (ไม่ใช่บัญชีเดียว
+# ค้างไว้ 24 ชม.) จึงเลือกวิธีนี้แทนบัญชีเฉพาะ + Task Scheduler ยิงตรงเวลา เพราะ COM GetActiveObject ผูกกับ
+# Windows session ที่ script รันอยู่เท่านั้น (ข้าม session อื่นไม่ได้) และ port 5175 มีได้แค่ 1 process —
+# ถ้าใช้บัญชีเฉพาะครอง port ไว้ตลอด operator ที่ login บัญชีตัวเองแล้วเปิด Excel ของตัวเองจะโดน bridge
+# มองไม่เห็น (คนละ session) ทำให้ write-remark พังทันที วิธีนี้แก้ปัญหาได้เพราะ operator คนแรกที่ login
+# เข้ามาแล้วเปิด bridge เอง (Task Scheduler "At log on" ของตัวเอง หรือกด HYPERLINK start-bridge.bat) จะ
+# trigger rollover ด้วย Excel session ของตัวเอง ไม่มีปัญหาข้าม session เลย
+try {
+    $startupRollover = Handle-RolloverDailyFile
+    if ($startupRollover.status -eq 'ok') {
+        Write-Host "[auto-rollover] เปลี่ยนไฟล์ log sheet เป็นวันใหม่แล้วตอนเริ่ม bridge: $($startupRollover.oldFileName) -> $($startupRollover.newFileName)"
+    } elseif ($startupRollover.status -ne 'already-current') {
+        Write-Host "[auto-rollover] เช็ค rollover ตอนเริ่ม bridge ไม่สำเร็จ: $($startupRollover.status) $($startupRollover.message)"
+    }
+} catch {
+    Write-Host "[auto-rollover] เช็ค rollover ตอนเริ่ม bridge เกิด error: $($_.Exception.Message)"
+}
 
 try {
     while ($listener.IsListening) {
