@@ -137,13 +137,29 @@ function Resolve-SourceFile {
 # Length ตรงกันเท่านั้น (ไฟล์ log sheet ขนาด ~200KB คิด hash เร็วมาก ไม่กระทบ performance ของ poll ทุก 5 นาที)
 # fail-open เสมอ (คืน $false) ถ้าอ่านไฟล์ไม่ได้ (เช่นชนจังหวะ Excel/PI กำลังเขียนพอดี) — เป็นแค่ signal
 # เสริมให้ operator ระวัง ไม่ควรทำให้ route หลักที่พึ่ง Resolve-SourceFile ล้มเหลวไปด้วย
+function Get-FileSha256Shared($path) {
+    # V29.101 FIX: Get-FileHash เปิดไฟล์เอง (ไม่ใช่ FileShare.ReadWrite) — พังจริงกับ "The process cannot
+    # access the file" ทุกครั้งที่ไฟล์ log sheet เปิดค้างอยู่ใน Excel (สถานะปกติของ feature นี้เกือบตลอดเวลา
+    # ที่ใช้งานจริง) ทำให้ Test-FileLooksLikeMasterTemplate ด้านล่าง fail-open เป็น $false เงียบๆ ทุกครั้งที่
+    # ไฟล์เปิดอยู่ — ตรงข้ามกับตอนที่ควรจะเตือนที่สุด ใช้ Read-FileBytesShared ตัวเดิม (FileShare.ReadWrite)
+    # ที่ไฟล์นี้ใช้อ่านไฟล์ที่อาจเปิดอยู่ใน Excel อยู่แล้วทุกจุด แล้วคิด hash จาก byte ในหน่วยความจำแทน
+    $bytes = Read-FileBytesShared $path
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hashBytes = $sha256.ComputeHash($bytes)
+        return [System.BitConverter]::ToString($hashBytes) -replace '-', ''
+    } finally {
+        $sha256.Dispose()
+    }
+}
+
 function Test-FileLooksLikeMasterTemplate($file) {
     $master = Get-ChildItem -LiteralPath $WatchFolder -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '\(master\)' } | Select-Object -First 1
     if (-not $master) { return $false }
     if ($file.Length -ne $master.Length) { return $false }
     try {
-        $fileHash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
-        $masterHash = (Get-FileHash -LiteralPath $master.FullName -Algorithm SHA256).Hash
+        $fileHash = Get-FileSha256Shared $file.FullName
+        $masterHash = Get-FileSha256Shared $master.FullName
         return $fileHash -eq $masterHash
     } catch {
         return $false
