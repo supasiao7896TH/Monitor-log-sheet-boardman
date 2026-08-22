@@ -272,15 +272,26 @@ Object.assign(APP, {
                 // V29.97 FEAT: bridge เปิดไฟล์ log sheet ให้เองอัตโนมัติแล้ว (ไม่ต้องรอ operator เปิดเอง) —
                 // เหลือแค่ status 'open-failed' (COM เปิดไฟล์จริงๆ ไม่สำเร็จ เช่นไฟล์เสีย/ถูกล็อก) ที่ยังต้อง
                 // แจ้งเตือน operator ให้ไปเช็คที่เครื่อง Bridge เอง
-                APP.renderAutoImportWarningBanner(
-                    rollover.status === 'open-failed'
-                        ? { status: 'error', message: `ถึงเวลาต้องเปลี่ยนไฟล์ log sheet เป็นวันใหม่แล้ว แต่เปิดไฟล์ใน Excel อัตโนมัติไม่สำเร็จ — กรุณาตรวจสอบไฟล์/Excel บนเครื่อง Bridge (${rollover.message || ''})` }
-                        : info
-                ); // V29.88 FEAT: โชว์/ซ่อน banner ตามสถานะล่าสุดทุกรอบ poll
+                // V29.101 FEAT: เพิ่มเคส 'stale-template' (rollover เห็นว่าชื่อไฟล์ตรงวันนี้แล้วเลยไม่ทำอะไร
+                // แต่เนื้อหาจริงเหมือนไฟล์ (master) เป๊ะ — ดู Test-FileLooksLikeMasterTemplate ใน
+                // excel-bridge.ps1) และ info.looksLikeTemplate (เจอผ่าน /source-file-info ตามปกติ แม้
+                // rollover จะไม่ได้ถูกเรียกหรือคืนสถานะอื่น) — ทั้งสองเคสคือไฟล์ที่ Web App/operator เห็น
+                // "เปิดสำเร็จ" แต่จริงๆ ไม่มีข้อมูลจริงอยู่ข้างในเลย ต้องแจ้งเตือนแทนที่จะเงียบเหมือนเดิม
+                let bannerInfo = info;
+                if (rollover.status === 'open-failed') {
+                    bannerInfo = { status: 'error', message: `ถึงเวลาต้องเปลี่ยนไฟล์ log sheet เป็นวันใหม่แล้ว แต่เปิดไฟล์ใน Excel อัตโนมัติไม่สำเร็จ — กรุณาตรวจสอบไฟล์/Excel บนเครื่อง Bridge (${rollover.message || ''})` };
+                } else if (rollover.status === 'stale-template') {
+                    bannerInfo = { status: 'error', message: rollover.message || `ไฟล์ log sheet '${rollover.fileName || ''}' ชื่อเป็นวันนี้แล้ว แต่เนื้อหายังเป็นไฟล์ (master) เปล่าอยู่ — กรุณาตรวจสอบไฟล์เอง` };
+                } else if (info.status === 'ok' && info.looksLikeTemplate) {
+                    bannerInfo = { status: 'error', message: `ไฟล์ log sheet '${info.fileName}' เนื้อหาเหมือนไฟล์ (master) เป๊ะ (ไม่มีข้อมูลจริงอยู่ข้างใน) — กรุณาตรวจสอบไฟล์เอง` };
+                }
+                APP.renderAutoImportWarningBanner(bannerInfo); // V29.88 FEAT: โชว์/ซ่อน banner ตามสถานะล่าสุดทุกรอบ poll
 
-                if (info.status !== 'ok') {
+                if (info.status !== 'ok' || info.looksLikeTemplate) {
                     // bridge-offline / not-found — สถานะปกติ ไม่ต้องรบกวน operator (เหมือนเดิม)
                     // 'error' (เจอไฟล์ซ้ำ/หา WatchFolder ไม่เจอ) โชว์ผ่าน banner ข้างบนไปแล้ว
+                    // V29.101 FEAT: looksLikeTemplate — ไฟล์อ่านได้ปกติแต่เนื้อหาเป็น (master) เปล่า ห้าม
+                    // import เนื้อหานี้เข้า Records เด็ดขาด (จะสร้าง reading ปลอมทั้งชุดจากไฟล์ template)
                     return;
                 }
 
@@ -370,6 +381,10 @@ Object.assign(APP, {
                     console.info(`[auto-rollover] เปลี่ยนไฟล์ log sheet เป็นวันใหม่แล้ว: ${result.oldFileName} → ${result.newFileName}`, result.warning || '');
                 } else if (result.status === 'error') {
                     console.warn('[auto-rollover] rollover failed:', result.message);
+                } else if (result.status === 'stale-template') {
+                    // V29.101 FEAT: banner แสดงจริงถูก merge ไว้ที่ pollAutoImport (caller) แล้ว — log ไว้ที่
+                    // นี้เพื่อ debug เท่านั้น
+                    console.warn('[auto-rollover] stale-template detected:', result.message);
                 }
                 return result;
             },
@@ -383,6 +398,14 @@ Object.assign(APP, {
                 const result = await EXCEL_AUTOIMPORT.ensureFileOpen();
                 if (result.status === 'ok') {
                     console.info(`[ensure-file-open] เปิดไฟล์ log sheet ให้พร้อมแล้ว: ${result.fileName}`);
+                    // V29.101 FEAT: ต่างจาก comment เดิมด้านบน (V29.99 — "ไม่ใช่ error ที่ operator ต้องรู้")
+                    // — เคสนี้คือไฟล์เปิดสำเร็จจริง แต่เนื้อหาข้างในเหมือนไฟล์ (master) เป๊ะ (ไม่มีข้อมูลจริง)
+                    // ซึ่งเป็นสาเหตุตรงของเหตุการณ์จริงที่ operator เจอ (2026-08-22) — ต้องแจ้งทันทีตอนเปิดหน้า
+                    // เว็บ ไม่รอ poll รอบถัดไปอีก 5 นาที
+                    if (result.warning) {
+                        console.warn('[ensure-file-open] warning:', result.warning);
+                        APP.renderAutoImportWarningBanner({ status: 'error', message: result.warning });
+                    }
                 } else if (result.status === 'open-failed') {
                     console.warn('[ensure-file-open] เปิดไฟล์ log sheet ไม่สำเร็จ:', result.message);
                 }
@@ -399,6 +422,10 @@ Object.assign(APP, {
                     alert(`เปลี่ยนไฟล์ log sheet เป็นวันใหม่สำเร็จ\n${result.oldFileName}\n→ ${result.newFileName}${result.warning ? `\n\n⚠️ ${result.warning}` : ''}`);
                 } else if (result.status === 'already-current') {
                     alert('ไฟล์ log sheet เป็นวันปัจจุบันอยู่แล้ว ไม่ต้องเปลี่ยน');
+                } else if (result.status === 'stale-template') {
+                    // V29.101 FEAT: ชื่อไฟล์ตรงวันนี้แล้ว (rollover จึงไม่ทำอะไรต่อ) แต่เนื้อหาข้างในเหมือน
+                    // ไฟล์ (master) เป๊ะ — ดู Test-FileLooksLikeMasterTemplate ใน excel-bridge.ps1
+                    alert(`⚠️ ${result.message || 'ไฟล์เป็นวันปัจจุบันแล้ว แต่เนื้อหาเหมือนไฟล์ (master) เป๊ะ กรุณาตรวจสอบไฟล์เอง'}`);
                 } else if (result.status === 'open-failed') {
                     // V29.97 FEAT: bridge พยายามเปิดไฟล์ให้เองอัตโนมัติแล้วแต่ล้มเหลวจริงๆ (ไฟล์เสีย/ถูกล็อก)
                     // — ไม่ใช่เคส "operator ยังไม่เปิด" อีกต่อไป จึงไม่บอกให้เปิดไฟล์เองแบบเดิม

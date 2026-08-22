@@ -117,7 +117,31 @@ function Resolve-SourceFile {
     if ($candidates.Count -gt 1) {
         return @{ status = 'error'; message = 'พบไฟล์มากกว่า 1 ไฟล์ในโฟลเดอร์ (ไม่นับไฟล์ master) — ระบบรองรับเฉพาะกรณีมีไฟล์เดียว กรุณาตรวจสอบโฟลเดอร์' }
     }
-    return @{ status = 'ok'; file = $candidates[0] }
+    return @{ status = 'ok'; file = $candidates[0]; looksLikeTemplate = (Test-FileLooksLikeMasterTemplate $candidates[0]) }
+}
+
+# V29.101 FEAT: ตรวจจับกรณีไฟล์ live ที่ผ่าน Resolve-SourceFile มา (ชื่อไฟล์ถูกต้อง ไม่ใช่ (master)) แต่
+# เนื้อหาจริงข้างในเป็นสำเนา (master) แบบ byte-ต่อ-byte ที่ไม่เคยถูกแก้เลย — เกิดจากเหตุการณ์จริง
+# (2026-08-22): rollover คืนก่อนหน้า SaveAs สร้างไฟล์วันใหม่สำเร็จถูกต้องแล้ว แต่มีบางอย่างภายนอกสคริปต์นี้
+# (ไม่พบใน Task Scheduler ตอนตรวจสอบ) เขียนทับไฟล์นั้นด้วยสำเนา (master) เก่าอีกที ทำให้ไฟล์ชื่อเป็นวันนี้
+# ถูกต้อง แต่เนื้อหาข้างในย้อนกลับไปเป็นไฟล์เปล่า — ทุก route เดิม (source-file-info/rollover/
+# ensure-file-open) เช็คแค่ "ชื่อไฟล์ตรงวันนี้ไหม" ไม่เคยเช็คเนื้อหาเลย ทำให้ operator เห็น Excel เปิดไฟล์
+# ขึ้นมาแต่ข้อมูลเก่า/เปล่า โดยไม่มี warning ใดๆ ทั้งฝั่ง bridge และ Web App
+# เทียบ Length ก่อน (เร็ว, กรองเคสส่วนใหญ่ทิ้งได้ทันทีโดยไม่ต้องอ่านไฟล์) แล้วค่อยเทียบ hash จริงเฉพาะตอน
+# Length ตรงกันเท่านั้น (ไฟล์ log sheet ขนาด ~200KB คิด hash เร็วมาก ไม่กระทบ performance ของ poll ทุก 5 นาที)
+# fail-open เสมอ (คืน $false) ถ้าอ่านไฟล์ไม่ได้ (เช่นชนจังหวะ Excel/PI กำลังเขียนพอดี) — เป็นแค่ signal
+# เสริมให้ operator ระวัง ไม่ควรทำให้ route หลักที่พึ่ง Resolve-SourceFile ล้มเหลวไปด้วย
+function Test-FileLooksLikeMasterTemplate($file) {
+    $master = Get-ChildItem -LiteralPath $WatchFolder -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '\(master\)' } | Select-Object -First 1
+    if (-not $master) { return $false }
+    if ($file.Length -ne $master.Length) { return $false }
+    try {
+        $fileHash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+        $masterHash = (Get-FileHash -LiteralPath $master.FullName -Algorithm SHA256).Hash
+        return $fileHash -eq $masterHash
+    } catch {
+        return $false
+    }
 }
 
 # V29.78 FEAT: เปิดไฟล์แบบ FileShare.ReadWrite (แทน Get-Content/ReadAllBytes ที่เลือก sharing mode เองไม่
@@ -169,7 +193,7 @@ function Handle-SourceFileInfo {
     $resolved = Resolve-SourceFile
     if ($resolved.status -ne 'ok') { return $resolved }
     $f = $resolved.file
-    return @{ status = 'ok'; fileName = $f.Name; sizeBytes = $f.Length; lastWriteTimeUtc = $f.LastWriteTimeUtc.ToString('o') }
+    return @{ status = 'ok'; fileName = $f.Name; sizeBytes = $f.Length; lastWriteTimeUtc = $f.LastWriteTimeUtc.ToString('o'); looksLikeTemplate = $resolved.looksLikeTemplate }
 }
 
 function Handle-ArchiveSourceFile {
@@ -420,6 +444,12 @@ function Handle-RolloverDailyFile {
 
     $today = (Get-Date).Date
     if ($dateInfo.date -eq $today) {
+        # V29.101 FEAT: ปกติ "ตรงกับวันนี้แล้ว" คือ no-op เงียบๆ — แต่ถ้าเนื้อหาจริงเหมือนไฟล์ (master) เป๊ะ
+        # แปลว่ามีบางอย่างเขียนทับไฟล์ที่ rollover ตั้งชื่อไว้ถูกต้องแล้วด้วยของเปล่า ต้องแจ้ง operator แทนที่
+        # จะปล่อยผ่านแบบเดิม (ดู Test-FileLooksLikeMasterTemplate ด้านบนสำหรับที่มา)
+        if ($resolved.looksLikeTemplate) {
+            return @{ status = 'stale-template'; fileName = $file.Name; message = "ไฟล์ '$($file.Name)' ชื่อเป็นวันปัจจุบันแล้ว แต่เนื้อหาข้างในเหมือนไฟล์ (master) เป๊ะ (ไม่เคยถูกแก้เลย) — น่าจะมีอะไรเขียนทับไฟล์นี้หลัง rollover สำเร็จ กรุณาตรวจสอบเนื้อหาในไฟล์เอง" }
+        }
         return @{ status = 'already-current' }
     }
     if ($dateInfo.date -gt $today) {
@@ -499,6 +529,12 @@ function Handle-EnsureFileOpen {
     $opened = Find-OrOpenWorkbook $file.Name $file.FullName
     if (-not $opened.wb) {
         return @{ status = 'open-failed'; message = "เปิดไฟล์ '$($file.Name)' ใน Excel อัตโนมัติไม่สำเร็จ: $($opened.errorMessage)" }
+    }
+    # V29.101 FEAT: แนบ warning เดียวกับ Handle-RolloverDailyFile ถ้าไฟล์ที่เพิ่งเปิดให้ดูเหมือนสำเนา
+    # (master) เปล่าๆ — เคสนี้สำคัญกว่าปกติเพราะ ensureFileOpen ถูกเรียกตอน APP.init() ทุกครั้งที่เปิดหน้าเว็บ
+    # เป็นจุดแรกสุดที่จะจับความผิดปกตินี้ได้ก่อน operator เห็นไฟล์เปล่าใน Excel เอง
+    if ($resolved.looksLikeTemplate) {
+        return @{ status = 'ok'; fileName = $file.Name; warning = "ไฟล์ '$($file.Name)' เปิดสำเร็จ แต่เนื้อหาข้างในเหมือนไฟล์ (master) เป๊ะ (ไม่เคยถูกแก้เลย) — น่าจะมีอะไรเขียนทับไฟล์นี้หลัง rollover สำเร็จ กรุณาตรวจสอบเนื้อหาในไฟล์เอง" }
     }
     return @{ status = 'ok'; fileName = $file.Name }
 }
