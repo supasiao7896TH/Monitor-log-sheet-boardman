@@ -42,6 +42,12 @@
 # ที่ operator คนก่อน logout ปิด Excel/bridge session ไปด้วย แล้วคนใหม่ login มาเปิด Web App แต่ไม่มีอะไร
 # เปิด Excel ให้เลย — เรียกจาก 2 จุด: bridge startup (ถ้า rollover ได้ already-current) และ APP.init()
 # ฝั่ง Web App (fire-and-forget ทุกครั้งที่เปิดหน้าเว็บ)
+#
+# V29.100 FIX: Handle-RolloverDailyFile เดิมใช้ SaveAs เปลี่ยนแค่ชื่อไฟล์กับวันที่ใน W1 แต่ comment
+# (Resolution Remark) ที่แอปเคยเขียนไว้ผ่าน Handle-WriteRemark ยังติดอยู่กับ cell เดิมข้ามวันไปด้วย — เพราะ
+# layout ของ log sheet ใช้แถว/คอลัมน์เดิมซ้ำทุกวัน มีแค่สูตร PI Datalink ที่ดึงค่าของวันใหม่มาแทน ทำให้
+# comment ของเมื่อวานค้างโผล่อยู่บนแถวเดียวกันของวันนี้ (ตามที่ operator รายงานเข้ามา) เพิ่ม Clear-AppComments
+# ลบ comment ที่ Author เป็นแอปเองออกทั้งไฟล์ทันทีหลัง SaveAs ไม่แตะ comment ที่ operator พิมพ์เอง
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -334,6 +340,25 @@ function Find-OrOpenWorkbook($fileName, $fullPath) {
     }
 }
 
+# V29.100 FIX: ใช้เฉพาะใน Handle-RolloverDailyFile — ลบ comment (Resolution Remark) ที่แอปเคยเขียนไว้เอง
+# ทั้งหมดในไฟล์ตอน rollover ข้ามวัน ก่อน fix นี้ SaveAs เปลี่ยนแค่ชื่อไฟล์กับวันที่ใน W1 แต่ตัว comment ยัง
+# ผูกติดกับ cell เดิมเหมือนเดิม เพราะ layout ของ log sheet ใช้แถว/คอลัมน์เดิมซ้ำทุกวัน (มีแค่สูตร PI
+# Datalink ที่ดึงค่าของวันใหม่มาแทนค่าเดิม) ทำให้ Resolution Remark ของเมื่อวานค้างโผล่อยู่บนแถวเดียวกันของ
+# วันนี้ทั้งที่ค่า reading เป็นของวันใหม่แล้ว (ตามที่ operator แจ้งปัญหานี้เข้ามา) — ลบเฉพาะ comment ที่
+# Author ตรงกับ $AppCommentAuthor เท่านั้น (เหมือนตรรกะ conflict-detection ใน Handle-WriteRemark) ไม่แตะ
+# comment ที่ operator พิมพ์เองใน Excel เด็ดขาด ต้อง snapshot ด้วย @() ก่อน foreach เพราะลบสมาชิกออกจาก COM
+# collection ระหว่างวนอยู่จะทำให้ index เลื่อนและข้ามบางตัวไป
+function Clear-AppComments($wb) {
+    foreach ($sheet in $wb.Sheets) {
+        $comments = @($sheet.Comments)
+        foreach ($comment in $comments) {
+            if ($comment.Author -eq $AppCommentAuthor) {
+                $comment.Delete()
+            }
+        }
+    }
+}
+
 function Handle-WriteRemark($payload) {
     if (-not $payload.fileName -or -not $payload.machine -or -not $payload.cellRef) {
         return @{ status = 'error'; message = 'missing fileName/machine/cellRef' }
@@ -489,6 +514,15 @@ function Handle-RolloverDailyFile {
         $excel.DisplayAlerts = $originalDisplayAlerts
     }
 
+    # V29.100 FIX: ลบ comment ของแอปเมื่อวานทิ้งตอนนี้ (หลัง rename แต่ก่อน save) — ไม่ fatal ถ้าพลาด เพราะ
+    # ส่วนสำคัญ (rename + วันที่ W1) สำเร็จไปแล้ว แค่แจ้งเตือนกลับไปให้ operator ไปลบเองในไฟล์แทน
+    $commentClearWarning = $null
+    try {
+        Clear-AppComments $wb
+    } catch {
+        $commentClearWarning = "ลบ comment (Resolution Remark) ของเมื่อวานไม่สำเร็จ: $($_.Exception.Message) — comment เก่าจะยังค้างอยู่บน cell เดิมของวันนี้ กรุณาตรวจสอบ/ลบเองในไฟล์"
+    }
+
     $sheet = $null
     foreach ($s in $wb.Sheets) {
         if ($s.Name -eq 'BM 1') { $sheet = $s; break }
@@ -508,9 +542,14 @@ function Handle-RolloverDailyFile {
     try {
         Remove-Item -LiteralPath $file.FullName -Force
     } catch {
-        return @{ status = 'ok'; oldFileName = $file.Name; newFileName = $newFileName; warning = "ลบไฟล์ชื่อเดิม ($($file.Name)) ไม่สำเร็จ กรุณาลบเองด้วยมือ ไม่งั้นระบบ auto-import จะ error รอบถัดไป (พบไฟล์มากกว่า 1 ไฟล์)" }
+        $removeWarning = "ลบไฟล์ชื่อเดิม ($($file.Name)) ไม่สำเร็จ กรุณาลบเองด้วยมือ ไม่งั้นระบบ auto-import จะ error รอบถัดไป (พบไฟล์มากกว่า 1 ไฟล์)"
+        $combinedWarning = if ($commentClearWarning) { "$removeWarning; $commentClearWarning" } else { $removeWarning }
+        return @{ status = 'ok'; oldFileName = $file.Name; newFileName = $newFileName; warning = $combinedWarning }
     }
 
+    if ($commentClearWarning) {
+        return @{ status = 'ok'; oldFileName = $file.Name; newFileName = $newFileName; warning = $commentClearWarning }
+    }
     return @{ status = 'ok'; oldFileName = $file.Name; newFileName = $newFileName }
 }
 
