@@ -1,9 +1,9 @@
 # HANDOFF — Plant Log Analyzer
 
 ## 📅 อัปเดตล่าสุด
-2026-08-23 — เพิ่ม "เรื่องที่ 22" (V29.107, fix autosave gate ที่พึ่ง `$wb.Saved` ไม่ได้) ต่อจาก session ก่อนหน้าที่บันทึกย้อนหลัง **V29.95–V29.106** (12 เวอร์ชัน) ไว้แล้ว — **ยังไม่ commit** โค้ดแก้เสร็จในเครื่องนี้เท่านั้น (`git status` จะไม่ clean จนกว่าจะ commit)
-Branch: `main` | Commit ล่าสุดบน `origin/main`: `50eedbf` "Record notable feature decisions from V29.78 through V29.106 in context.md" — **push แล้ว** (ยังไม่รวมงาน V29.107 ที่เพิ่งแก้ในเครื่องนี้)
-เวอร์ชันแอปปัจจุบัน: **V29.107** (ยังไม่ commit/push)
+2026-08-23 — เพิ่ม "เรื่องที่ 22" (V29.107, fix autosave gate ที่พึ่ง `$wb.Saved` ไม่ได้) ต่อจาก session ก่อนหน้าที่บันทึกย้อนหลัง **V29.95–V29.106** (12 เวอร์ชัน) ไว้แล้ว — commit และ push แล้ว **แต่ยังไม่ได้ทดสอบกับ PI Datalink จริงหน้างาน** (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 20)
+Branch: `main` | Commit ล่าสุดบน `origin/main`: `accf5a5` "Remove unverified $wb.Saved gate from Bridge autosave (V29.107)" — **push แล้ว** (`git status` ตอนเขียนส่วนนี้: working tree clean)
+เวอร์ชันแอปปัจจุบัน: **V29.107**
 URL production จริง: **https://monitor-log-sheet-boardman.supasiao.workers.dev** (ยืนยันจาก `AllowedOrigins` ใน `bridge/excel-bridge.ps1` + output จริงของ Cloudflare deploy job ล่าสุด commit `3d4792a` — ลิงก์นี้ถูก embed ไว้ใน Excel log sheet ของโรงงานผ่านสูตร `HYPERLINK` ให้ operator กดเปิดแอป ห้ามเปลี่ยนชื่อ worker ใน `wrangler.jsonc` เด็ดขาดเพราะจะทำให้ลิงก์เดิมใน Excel ใช้ไม่ได้)
 สูตร Hyperlink ที่ใช้งานจริงตอนนี้ในไฟล์ Excel log sheet (พี่ A ยืนยันเอง 2026-08-13):
 ```
@@ -345,9 +345,9 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 **⚠️ ยังไม่ได้ทดสอบกับ PI Datalink จริง** — dev sandbox นี้ไม่มี Excel COM + PI Datalink ให้ทดสอบ (มีแค่ `npm test` ยืนยันว่า JS-side pass-through logic เดิม (`tests/excel-autoimport.test.js`) ไม่พัง — ผ่าน 140/140 เหมือนเดิม, ไม่มี test ใหม่เพราะ logic ที่เปลี่ยนอยู่ฝั่ง PowerShell/COM ล้วนๆ ซึ่งอยู่นอกขอบเขตที่ Vitest แตะถึง) **ต้องให้พี่ A ยืนยันหน้างานจริงตาม `bridge/README.md`** ก่อนถือว่าจบ — ดู "🚧 ค้างอยู่ตรงไหน" ข้อใหม่ด้านล่างสำหรับ steps การ verify
 
-**Commit:** ยังไม่ commit ณ ตอนเขียน entry นี้ (รอพี่ A ยืนยัน/สั่ง commit)
+**Commit:** `accf5a5` "Remove unverified $wb.Saved gate from Bridge autosave (V29.107)" — **push ขึ้น `origin/main` แล้ว** (พี่ A สั่ง commit ก่อนยืนยันหน้างานจริง)
 
-**สถานะ:** โค้ดแก้เสร็จแล้ว รอทดสอบหน้างานจริง + รอ commit
+**สถานะ:** shipped + push แล้ว — **ยังไม่ได้ทดสอบกับ PI Datalink จริงหน้างาน** (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 20 สำหรับ steps การ verify)
 
 ---
 
@@ -384,7 +384,7 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 17. **(ใหม่) V29.95-101 rollover subsystem (เรื่องที่ 15) — ยืนยันสดกับ bridge จริงแล้วอย่างน้อย 1 รอบสำหรับ V29.101 (stale-template) แต่ยังไม่มีการเฝ้าสังเกตระยะยาวต่อเนื่องหลายวัน/หลายรอบเที่ยงคืน** ว่า rollover ทำงานถูกต้อง 100% ทุกวันโดยไม่มี edge case ใหม่โผล่มา — โดยเฉพาะยังไม่ทราบแน่ชัดว่าอะไร "นอกเหนือโค้ด repo นี้" เป็นตัวเขียนทับไฟล์ด้วย (master) template ในเคสที่ V29.101 ไปเจอและแก้อาการปลายทาง ไม่ใช่ต้นตอ — ควรเฝ้าดูต่อว่าจะเกิดซ้ำไหม
 18. **(ใหม่) V29.103 custom protocol handler (`plantlogbridge://`) ลงทะเบียนไว้ที่ `HKCU` ของ user ที่ทดสอบบนเครื่องนี้ในเซสชันนี้เท่านั้น** — เครื่อง Office เป็น shared PC ที่ operator แต่ละคน login คนละ Windows account จริง (`HKCU` เป็น per-user registry hive) ยังไม่มีข้อมูลยืนยันว่า operator คนอื่นต้อง double-click `bridge/register-protocol.reg` เองก่อนปุ่ม "เปิด Excel Bridge" จะใช้งานได้ในเครื่องเดียวกันหรือไม่ — ควรทดสอบข้าม account จริงก่อนบอกว่าใช้ได้กับทุกคน
 19. **(ใหม่) V29.105 default time filter (`getDefaultTimeFilter`) ทดสอบจริงแค่ 1 เคส** (11:01 น. → เลือกรอบ 09:00 ให้ถูกต้อง) — ยังไม่ครอบคลุม edge case เช่น เวลาก่อนรอบ 03:00 แรกของวัน (ยังไม่มีรอบไหน "ผ่านไปแล้ว" เลยในวันนั้น) หรือกรณีไม่มี record ใดๆ อยู่เลย — มี test ใน `tests/shared.test.js` แล้วแต่ยังไม่ได้ตรวจ manual ผ่าน UI ในทุก edge case
-20. **(ใหม่, สำคัญ) V29.107 autosave gate fix (เรื่องที่ 22) ยังไม่ได้ทดสอบกับ PI Datalink จริงเลย** — dev sandbox ไม่มี Excel COM + PI Datalink ให้ทดสอบ มีแค่ `npm test` ยืนยันว่า JS-side ไม่พัง (140/140) ต้อง verify หน้างานจริงตาม steps นี้ก่อนถือว่าจบ: (1) รัน `bridge/excel-bridge.ps1` บนเครื่องจริงที่เปิดไฟล์ log sheet ค้างไว้ใน Excel พร้อม PI Datalink ทำงานอยู่ (2) **ห้ามกด Ctrl+S เอง** ปล่อยให้ PI Datalink refresh ตามรอบปกติ (3) รอครบ 1 รอบ poll (5 นาที) (4) เช็คว่า reading ใหม่เข้า dashboard อัตโนมัติโดยไม่มีใครกด save เอง + เช็คไฟล์ไม่มีข้อมูลเสีย/`#NAME?` โผล่มา (5) ถ้าเป็นไปได้ลองทิ้งไว้เกินครึ่งกะดูว่า save ถี่ทุก 5 นาทีไม่ทำให้ Excel/PI มีปัญหาสะสม — ยังไม่ commit จนกว่าจะยืนยันหรือพี่ A สั่งให้ commit ไปก่อน
+20. **(ใหม่, สำคัญ) V29.107 autosave gate fix (เรื่องที่ 22) ยังไม่ได้ทดสอบกับ PI Datalink จริงเลย** — dev sandbox ไม่มี Excel COM + PI Datalink ให้ทดสอบ มีแค่ `npm test` ยืนยันว่า JS-side ไม่พัง (140/140) ต้อง verify หน้างานจริงตาม steps นี้ก่อนถือว่าจบ: (1) รัน `bridge/excel-bridge.ps1` บนเครื่องจริงที่เปิดไฟล์ log sheet ค้างไว้ใน Excel พร้อม PI Datalink ทำงานอยู่ (2) **ห้ามกด Ctrl+S เอง** ปล่อยให้ PI Datalink refresh ตามรอบปกติ (3) รอครบ 1 รอบ poll (5 นาที) (4) เช็คว่า reading ใหม่เข้า dashboard อัตโนมัติโดยไม่มีใครกด save เอง + เช็คไฟล์ไม่มีข้อมูลเสีย/`#NAME?` โผล่มา (5) ถ้าเป็นไปได้ลองทิ้งไว้เกินครึ่งกะดูว่า save ถี่ทุก 5 นาทีไม่ทำให้ Excel/PI มีปัญหาสะสม — **commit/push ไปแล้ว** (`accf5a5`, พี่ A สั่งก่อนยืนยันหน้างาน) ถ้าทดสอบแล้วเจอปัญหาต้องแก้เพิ่ม ให้เปิด commit ใหม่ทับ ไม่ใช่ amend
 
 ---
 
@@ -406,7 +406,7 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 14. **(ใหม่)** ถ้าจะให้ operator คนอื่นบนเครื่อง Office ใช้ปุ่ม "เปิด Excel Bridge" (V29.103) ได้ ให้แต่ละคน double-click `bridge/register-protocol.reg` เองครั้งเดียวตอน login ด้วย Windows account ของตัวเอง (เพราะ `HKCU` เป็น per-user) — ยังไม่ได้ทดสอบว่าจำเป็นจริงหรือไม่ ควรทดสอบข้าม account ก่อน
 15. **(ใหม่)** เฝ้าสังเกตระบบ rollover รายวัน (V29.95-101) ต่อเนื่องอีกสักพักว่าไม่มี edge case ใหม่ โดยเฉพาะเคส stale-template ที่ยังไม่ทราบ root cause ที่แท้จริงว่าอะไรนอกเหนือโค้ด repo นี้เขียนทับไฟล์ด้วย template
 16. พิจารณาว่าจะเดินหน้าเรื่อง SQL/Cloud Database ต่อไหม (ดู "เรื่องที่ 21" ท้ายไฟล์) — ถามพี่ A ก่อนว่าคิดออกหรือยัง
-17. **(ใหม่, สำคัญที่สุด) ทดสอบ V29.107 autosave gate fix (เรื่องที่ 22) หน้างานจริงตาม steps ใน "🚧 ค้างอยู่ตรงไหน" ข้อ 20** แล้วค่อย commit — นี่คือฟีเจอร์ที่พี่ A รอใช้งานจริงอยู่ ห้ามข้ามขั้นตอนนี้ไปสั่ง commit เลยโดยไม่ยืนยัน
+17. **(ใหม่, สำคัญที่สุด) ทดสอบ V29.107 autosave gate fix (เรื่องที่ 22, commit `accf5a5` push แล้ว) หน้างานจริงตาม steps ใน "🚧 ค้างอยู่ตรงไหน" ข้อ 20** — พี่ A สั่งให้ commit/push ไปก่อนแล้วโดยยังไม่ทดสอบหน้างาน ถ้าเจอว่ายังไม่แก้ปัญหา Ctrl+S ได้จริง ต้องสืบสวนต่อ (เช่น `.Saved` อาจไม่ใช่สาเหตุเดียว หรือมีปัจจัยอื่นที่ COM Save() เจอ) แล้วเปิด commit ใหม่ ไม่ใช่ amend
 
 ---
 
