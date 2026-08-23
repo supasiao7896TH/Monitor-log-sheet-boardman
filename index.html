@@ -783,9 +783,23 @@
                     </div>
 
                     <!-- Step 8 -->
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-cyan-300 transition-colors">
+                        <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
+                            <span class="bg-cyan-100 text-cyan-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">8</span>
+                            <i data-lucide="refresh-ccw-dot" class="w-5 h-5 text-cyan-500"></i> นำเข้าข้อมูลอัตโนมัติจาก Excel (Auto-Import)
+                        </h3>
+                        <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
+                            <li>เมื่อรัน <strong>Local Bridge</strong> ค้างไว้ (ดูข้อกำหนดใน Step 7) และเปิดไฟล์ log sheet ต้นฉบับค้างไว้ใน Excel ตามปกติ ระบบจะ <strong>ดึงข้อมูลจากไฟล์เข้า Web App ให้เองอัตโนมัติทุก ~5 นาที</strong> ไม่ต้องลากไฟล์เข้าหน้า "นำเข้าข้อมูล" ซ้ำเองอีก</li>
+                            <li><strong>สั่ง Save ให้เองก่อนดึงข้อมูลทุกรอบ (V29.102):</strong> สูตร PI Datalink ในไฟล์คำนวณค่าล่าสุดแสดงบนจอ Excel แบบสดได้เอง แต่ค่านั้นจะยังไม่ถูกเขียนลงไฟล์จริงจนกว่าจะมีการ Save — ตั้งแต่ V29.102 Bridge จะสั่ง Excel บันทึกไฟล์ให้เองก่อนทุกรอบที่เช็คข้อมูลใหม่ <strong>ไม่ต้องกด Ctrl+S เองอีกต่อไป</strong> ค่าตามเวลาที่ควรมี (เช่น 03:00/09:00/15:00/21:00) จะขึ้นในแดชบอร์ดให้เองภายในไม่กี่นาที</li>
+                            <li><strong>เปลี่ยนไฟล์วันใหม่ให้เองทุกเที่ยงคืน:</strong> ไม่ต้องเปลี่ยนชื่อไฟล์หรือแก้วันที่ในชีตเองทุกเช้า ระบบจัดการให้อัตโนมัติ (รวมถึงเปิดไฟล์ให้เองถ้ายังไม่มีใครเปิดไว้ตอนเปลี่ยนกะ)</li>
+                            <li>ถ้ามีปัญหา (เช่น เจอไฟล์มากกว่า 1 ไฟล์ในโฟลเดอร์ที่ Bridge เฝ้าดูอยู่ หรือไฟล์ที่เปิดยังเป็นไฟล์ template เปล่า) จะมี<strong>แบนเนอร์แจ้งเตือนสีเหลือง/แดง</strong>ขึ้นด้านบนของ Dashboard บอกสาเหตุให้ตรวจสอบ</li>
+                        </ul>
+                    </div>
+
+                    <!-- Step 9 -->
                     <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-rose-300 transition-colors">
                         <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
-                            <span class="bg-rose-100 text-rose-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">8</span>
+                            <span class="bg-rose-100 text-rose-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">9</span>
                             <i data-lucide="database-backup" class="w-5 h-5 text-rose-500"></i> สำรอง/กู้คืนข้อมูล & ประวัติการนำเข้า
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
