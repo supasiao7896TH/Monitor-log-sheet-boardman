@@ -31,6 +31,10 @@ let syncWarningDismissed = false;
 let autoImportErrorMessage = null; // ข้อความล่าสุดจาก Bridge ตอน status === 'error', null = ไม่มีปัญหา
 let autoImportWarningDismissed = false;
 
+// V29.104 FEAT: กันกดปุ่ม "เปิด Excel Bridge" รัวๆ แล้วมี retry loop (APP.retryConnectAfterOpenBridge)
+// หลายอันวิ่งซ้อนกันพร้อมกัน — true ระหว่างกำลัง poll อยู่เท่านั้น
+let isConnectingToBridge = false;
+
 Object.assign(APP, {
             // V29.78 FEAT: ขอให้เบราว์เซอร์ mark storage ของแอปนี้เป็น "persistent" กันเบราว์เซอร์ auto-evict
             // (ลบ IndexedDB ทิ้งเงียบๆ) ตอนดิสก์เครื่องตึง — เกิดได้แม้มีข้อมูลแค่วันเดียว ไม่เกี่ยวกับปริมาณ
@@ -179,6 +183,32 @@ Object.assign(APP, {
                 } catch (err) {
                     console.error('pushSharedDb failed:', err);
                     APP.setSyncIndicator('local');
+                }
+            },
+
+            // V29.104 FEAT: หลังกดปุ่ม "เปิด Excel Bridge" (index.html, ยิง custom protocol
+            // plantlogbridge:// ให้ OS เปิด process ใหม่) หน้าเว็บไม่รู้ตัวว่า bridge เพิ่งเปิดสำเร็จเมื่อไหร่
+            // — เดิมต้องรอ pollAutoImport รอบถัดไป (สูงสุด 5 นาที) หรือ operator กด refresh หน้าเว็บเองถึงจะ
+            // sync ให้ ฟังก์ชันนี้ poll ถี่ๆ ระยะสั้นแทน (ทุก 1 วิ, สูงสุด 15 ครั้ง — จากการทดสอบจริงตอนทำ
+            // V29.103 bridge ตอบ /ping ได้ภายใน ~2-3 วิหลัง process เริ่ม จึงเผื่อเกินพอ) พอเจอว่า bridge
+            // ตอบแล้วให้ sync ทันทีทั้ง indicator (pushSharedDb) และข้อมูลจริง (pollAutoImport) ในจังหวะ
+            // เดียวกันเลย ไม่ต้องรอ operator ทำอะไรต่อ
+            retryConnectAfterOpenBridge: async () => {
+                if (isConnectingToBridge) return; // กันกดปุ่มรัวๆ แล้วมี loop ซ้อนกันหลายอัน
+                isConnectingToBridge = true;
+                try {
+                    const maxAttempts = 15;
+                    for (let i = 0; i < maxAttempts; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        const info = await EXCEL_AUTOIMPORT.getSourceFileInfo();
+                        if (info.status !== 'bridge-offline') {
+                            await APP.pushSharedDb();
+                            await APP.pollAutoImport();
+                            return;
+                        }
+                    }
+                } finally {
+                    isConnectingToBridge = false;
                 }
             },
 
@@ -579,6 +609,10 @@ Object.assign(APP, {
 
                 // V29.96 FEAT: ปุ่ม "Rollover เองตอนนี้" (view-import) — ทดสอบ/สำรองคู่กับ auto-rollover
                 assignEvent('btn-rollover-daily-file', APP.rolloverDailyFileNow);
+
+                // V29.104 FEAT: ปุ่ม "เปิด Excel Bridge" — ไม่ preventDefault เพราะยังต้องปล่อยให้ href
+                // (plantlogbridge://start) ทำงานเปิด protocol ตามปกติควบคู่ไปกับ retry loop นี้
+                assignEvent('btn-open-bridge', () => APP.retryConnectAfterOpenBridge());
 
                 // V29.51 FEAT: สำรอง/กู้คืนข้อมูล (Backup/Restore)
                 assignEvent('btn-backup-db', APP.backupData);
