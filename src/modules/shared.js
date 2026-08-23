@@ -301,6 +301,18 @@ export function getCanonicalTimesStatus(records, now = new Date()) {
     return { dateStr: latestDateStr, missingTimes, isComplete: missingTimes.length === 0 };
 }
 
+// V29.105 FEAT: หา timeFilter key (`"${dateStr} ${timeStr}"`) ของรอบเวลาล่าสุดที่ "ผ่านไปแล้วจริง" — ใช้เป็น
+// ค่า default ของ Dashboard แทน 'all' (แสดงทุกวันทุกเวลารวมกัน) ตอนเปิดแอป/import/กู้คืนข้อมูล reuse
+// getCanonicalTimesStatus ทั้งหมด (ไม่คำนวณ gating เองซ้ำ) เพื่อให้ edge case เดิม (เช่น V29.82 FIX: record
+// รอบท้ายที่มีค่าเก่าค้างมาก่อนเวลาจริง ต้องไม่นับว่า "มาแล้ว") ยังใช้ได้ถูกต้องเหมือนเดิมทุกจุด
+export function getDefaultTimeFilter(records, now = new Date()) {
+    const { dateStr, missingTimes } = getCanonicalTimesStatus(records, now);
+    if (!dateStr) return 'all'; // ไม่มีข้อมูลเลย
+    const presentTimes = CANONICAL_TIMES.filter(t => !missingTimes.includes(t));
+    if (presentTimes.length === 0) return 'all'; // มีข้อมูลแต่ยังไม่ถึงรอบไหนที่มาแล้วจริงเลย
+    return `${dateStr} ${presentTimes[presentTimes.length - 1]}`; // CANONICAL_TIMES เรียงตามเวลาอยู่แล้ว ตัวท้ายสุดคือรอบล่าสุด
+}
+
 // V29.89 FEAT: History view (app-history.js) + Export (app-export.js) — เปรียบเทียบ dateStr (รูปแบบ
 // DD/MM/YYYY จาก excelSerialToDateStr หรือ import อื่นๆ) กับ date-range ที่ operator เลือกผ่าน
 // <input type="date"> (รูปแบบ YYYY-MM-DD ของ HTML เอง ไม่มีขีดหลัง .replace(/-/g,'')) โดยแปลงทั้งคู่เป็น

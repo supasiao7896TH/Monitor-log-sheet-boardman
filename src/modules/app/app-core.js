@@ -3,7 +3,7 @@ import { STORAGE_ENGINE } from '../storage-engine.js';
 import { UI_RENDERER } from '../ui-renderer.js';
 import { EXCEL_AUTOIMPORT, LEGACY_UNKNOWN_FILENAME } from '../excel-autoimport.js';
 import { EXCEL_SYNC } from '../excel-sync.js';
-import { autoResizeTextarea, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES, STORE_ABNORMAL_HISTORY, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, AUTOIMPORT_POLL_INTERVAL_MS, LS_AUTOIMPORT_LAST_MTIME_KEY, LS_SYNC_DIRTY_KEY, getCanonicalTimesStatus } from '../shared.js';
+import { autoResizeTextarea, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES, STORE_ABNORMAL_HISTORY, BACKUP_REMINDER_STALE_DAYS, LS_LAST_BACKUP_KEY, LS_BACKUP_SNOOZE_KEY, AUTOIMPORT_POLL_INTERVAL_MS, LS_AUTOIMPORT_LAST_MTIME_KEY, LS_SYNC_DIRTY_KEY, getCanonicalTimesStatus, getDefaultTimeFilter } from '../shared.js';
 import { APP } from './app.js';
 
 // V29.86 FIX: เก็บ mtime ของไฟล์ต้นฉบับ ณ ตอนที่ archive สำเร็จล่าสุด (แทน boolean เดิมที่เคยยิง archive
@@ -105,6 +105,11 @@ Object.assign(APP, {
                     // ผ่าน STATE.set('records'/'masterTags', ...) อยู่แล้วทั้งหมด (ดู APP.syncAbnormalHistory)
                     STATE.subscribe(APP.syncAbnormalHistoryOnChange);
                     await APP.loadLocalData();
+                    // V29.105 FEAT: default Dashboard ไปที่รอบเวลาล่าสุดที่ผ่านไปแล้วจริง (เช่น ตอนนี้ 10:54
+                    // → เลือกรอบ 09:00 ให้เอง) แทน 'all' — คำนวณครั้งเดียวตอนเปิดแอปเท่านั้น ไม่ re-apply ทุก
+                    // ครั้งที่ loadLocalData() ถูกเรียกจากจุดอื่น (เช่น หลังบันทึก remark) กันไม่ให้ไปแย่งรอบ
+                    // เวลาที่ operator เลือกดูเองอยู่ระหว่างกะ
+                    STATE.set('timeFilter', getDefaultTimeFilter(STATE.get('records')));
                     await APP.renderImportHistory();
                     APP.startAutoImportPolling(); // V29.78 FEAT: เริ่ม poll ไฟล์จาก Excel Bridge เบื้องหลัง (เงียบๆ ไม่บล็อก init)
                     APP.ensureExcelFileOpen(); // V29.99 FEAT: fire-and-forget เช็ค/เปิดไฟล์ log sheet ทันทีตอนเปิดหน้าเว็บ (ปิดช่องว่างตอนเปลี่ยนกะ)
@@ -524,7 +529,7 @@ Object.assign(APP, {
                     try {
                         await STORAGE_ENGINE.importAll(payload);
                         await APP.loadLocalData();
-                        STATE.set('timeFilter', 'all');
+                        STATE.set('timeFilter', getDefaultTimeFilter(STATE.get('records'))); // V29.105 FEAT: default ไปรอบเวลาล่าสุด แทน 'all'
                         APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget — sync restore ที่เพิ่ง import ไปทับ D: ด้วย
                         alert("กู้คืนข้อมูลสำเร็จ");
                     } catch (error) {

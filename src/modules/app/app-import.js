@@ -2,7 +2,7 @@ import { STATE } from '../state.js';
 import { STORAGE_ENGINE } from '../storage-engine.js';
 import { UI_RENDERER } from '../ui-renderer.js';
 import { EXCEL_WORKER } from '../excel-worker.js';
-import { getTagId } from '../shared.js';
+import { getTagId, getDefaultTimeFilter } from '../shared.js';
 import { APP } from './app.js';
 /* global lucide, XLSX */
 
@@ -179,10 +179,10 @@ Object.assign(APP, {
                     await Promise.all(fileLogEntries.map(entry => STORAGE_ENGINE.logImport(entry)));
                     await APP.renderImportHistory();
 
-                    STATE.set('timeFilter', 'all');
                     STATE.set('viewFilter', 'hard-abnormal'); // V29.94: default ใหม่ = เฉพาะ Abnormalities (การ์ด active-state sync ผ่าน renderDashboard เองแล้ว ไม่ต้อง poke DOM แยก)
 
                     await APP.loadLocalData();
+                    STATE.set('timeFilter', getDefaultTimeFilter(STATE.get('records'))); // V29.105 FEAT: default ไปรอบเวลาล่าสุดของข้อมูลที่เพิ่ง import แทน 'all' — ต้องอยู่หลัง loadLocalData() เพื่อเห็น records ใหม่
                     APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
                 } catch (error) {
                     console.error("Save Import Failed: ", error);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getCanonicalTimesStatus, computeCausalStatDeviation, computeCausalStatTrendWarning, dateStrToKey, isDateInRange } from '../src/modules/shared.js';
+import { getCanonicalTimesStatus, getDefaultTimeFilter, computeCausalStatDeviation, computeCausalStatTrendWarning, dateStrToKey, isDateInRange } from '../src/modules/shared.js';
 
 function rec(dateStr, timeStr) { return { dateStr, timeStr }; }
 
@@ -107,6 +107,63 @@ describe('getCanonicalTimesStatus (V29.78 FEAT)', () => {
             expect(status.isComplete).toBe(false);
             expect(status.missingTimes).toEqual(['03:00', '09:00', '15:00', '21:00']);
         });
+    });
+});
+
+// V29.105 FEAT: reuse getCanonicalTimesStatus ทั้งหมด (ไม่คำนวณ gating เองซ้ำ) เพื่อหา timeFilter key ของ
+// รอบเวลาล่าสุดที่ผ่านไปแล้วจริง — ใช้เป็นค่า default ของ Dashboard แทน 'all'
+describe('getDefaultTimeFilter (V29.105 FEAT)', () => {
+    it('returns "all" when there are no records', () => {
+        expect(getDefaultTimeFilter([])).toBe('all');
+    });
+
+    it('picks the latest canonical time that has actually occurred (10:54 -> 09:00, 15:00 not reached yet)', () => {
+        const records = [
+            rec('11/08/2026', '03:00'),
+            rec('11/08/2026', '09:00'),
+        ];
+        expect(getDefaultTimeFilter(records, at(10, 54))).toBe('11/08/2026 09:00');
+    });
+
+    it('returns the last of all 4 canonical times once the day is complete', () => {
+        const records = [
+            rec('11/08/2026', '03:00'),
+            rec('11/08/2026', '09:00'),
+            rec('11/08/2026', '15:00'),
+            rec('11/08/2026', '21:00'),
+        ];
+        expect(getDefaultTimeFilter(records, at(21, 30))).toBe('11/08/2026 21:00');
+    });
+
+    it('past dates are never time-gated — defaults to the last present time of that day regardless of current clock time', () => {
+        const records = [
+            rec('10/08/2026', '03:00'),
+            rec('10/08/2026', '09:00'),
+            rec('10/08/2026', '15:00'),
+            rec('10/08/2026', '21:00'),
+        ];
+        // "now" is the 11th at 02:00 — well before today's own 03:00 round — but the latest data is from
+        // the 10th (a past, already-complete day), so it isn't gated by today's clock at all.
+        expect(getDefaultTimeFilter(records, at(2, 0))).toBe('10/08/2026 21:00');
+    });
+
+    it('does not default to a premature canonical-time record before the clock actually reaches it (reuses V29.82 FIX)', () => {
+        const records = [
+            rec('11/08/2026', '03:00'),
+            rec('11/08/2026', '09:00'),
+            rec('11/08/2026', '15:00'),
+            rec('11/08/2026', '21:00'), // premature — e.g. a stale/placeholder 0 written before the real 21:00 refresh
+        ];
+        // real time is only 17:00 — 21:00 hasn't happened yet, so it must not be treated as "present"
+        expect(getDefaultTimeFilter(records, at(17, 0))).toBe('11/08/2026 15:00');
+    });
+
+    it('returns "all" when the latest date is in the future relative to the clock (no round counts as having occurred yet)', () => {
+        const records = [
+            rec('12/08/2026', '03:00'),
+            rec('12/08/2026', '09:00'),
+        ];
+        expect(getDefaultTimeFilter(records, at(12, 0))).toBe('all'); // "now" is still the 11th
     });
 });
 
