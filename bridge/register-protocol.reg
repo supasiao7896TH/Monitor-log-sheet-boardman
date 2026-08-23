@@ -1,0 +1,12 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Classes\plantlogbridge]
+@="URL:Plant Log Bridge Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\plantlogbridge\shell]
+
+[HKEY_CURRENT_USER\Software\Classes\plantlogbridge\shell\open]
+
+[HKEY_CURRENT_USER\Software\Classes\plantlogbridge\shell\open\command]
+@="\"C:\\Windows\\System32\\cmd.exe\" /c start \"\" \"D:\\Monitor log sheet boardman\\bridge\\start-bridge.bat\""

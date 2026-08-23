@@ -204,6 +204,11 @@ Object.assign(APP, {
                         label.textContent = 'LOCAL MODE';
                     }
                 }
+                // V29.103 FEAT: โชว์ปุ่ม "เปิด Excel Bridge" เฉพาะตอนยังไม่ synced (Bridge อาจยังไม่ได้เปิด) —
+                // ซ่อนทันทีที่ synced สำเร็จ กันกดซ้ำเปิด instance ที่สองไปชน port 5175 ที่จองอยู่แล้ว
+                const openBridgeBtn = document.getElementById('btn-open-bridge');
+                if (openBridgeBtn) openBridgeBtn.classList.toggle('hidden', state === 'synced');
+
                 APP.renderSyncWarningBanner();
             },
 

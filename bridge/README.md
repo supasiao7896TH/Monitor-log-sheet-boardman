@@ -65,6 +65,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 
 **หมายเหตุ:** ครั้งแรกที่กด Excel อาจขึ้น dialog เตือนความปลอดภัยเรื่องเปิดไฟล์ในเครื่อง (ปกติของ HYPERLINK ไปยังไฟล์ local) กด Allow/Yes ได้ตามปกติ
 
+## เปิด Bridge จากปุ่มในหน้า Web App (V29.103 — Custom Protocol Handler)
+
+Web App มีปุ่ม **"เปิด Excel Bridge"** อยู่ข้าง sync status indicator (มุมล่างซ้าย, โผล่เฉพาะตอนสถานะเป็น "LOCAL MODE" สีเหลือง) ให้กดเปิด Bridge ได้โดยไม่ต้องสลับไปที่ไฟล์ Excel ก่อน
+
+**ทำไมต้องตั้งค่าเพิ่ม:** เว็บเบราว์เซอร์ (JS/HTML ธรรมดา) ไม่มีสิทธิ์สั่งเปิดไฟล์ `.bat`/`.exe` ในเครื่องได้เลยตามหลักความปลอดภัยของ browser sandbox (คนละกรณีกับ HYPERLINK ใน Excel ที่ Excel มีสิทธิ์เรียกโปรแกรมภายนอกได้) ปุ่มนี้จึงทำงานผ่าน **Custom URI Protocol** (`plantlogbridge://`) แทน — ต้องลงทะเบียน protocol นี้ในเครื่อง (และในแต่ละ Windows account ถ้าเป็นเครื่อง shared) ก่อนใช้งานครั้งแรก
+
+**วิธีตั้งค่า (ทำครั้งเดียวต่อเครื่อง/ต่อ account):**
+
+1. เปิดโฟลเดอร์ `bridge` ในเครื่อง แล้ว double-click `register-protocol.reg`
+2. ยืนยัน dialog ของ Registry Editor ("Are you sure you want to continue?") → Yes — **ไม่ต้องใช้สิทธิ์ Administrator** (ลงทะเบียนไว้ที่ `HKEY_CURRENT_USER` ผูกกับ account ที่ login อยู่เท่านั้น)
+3. กลับไปที่หน้า Web App แล้วลองกดปุ่ม "เปิด Excel Bridge" — เบราว์เซอร์จะเด้ง dialog ถามยืนยันว่าจะเปิดแอปภายนอกไหม (ครั้งแรกที่กด) ติ๊ก **"Always allow..."** ไว้ด้วยจะได้ไม่ต้องเจอ dialog นี้ทุกครั้งที่กด แล้วกด Open
+4. ต้องเห็นหน้าต่างดำ `Excel Bridge กำลังทำงานที่ http://localhost:5175/` เปิดขึ้นมาเหมือน double-click `start-bridge.bat` เอง
+
+**ยกเลิกการตั้งค่า:** double-click `unregister-protocol.reg` (ลบ registry key ทิ้ง — ไม่ต้อง Administrator เช่นกัน)
+
+**ข้อควรรู้:** path ของ `start-bridge.bat` ถูก hardcode ไว้ใน `register-protocol.reg` (เหมือน `$WatchFolder`/`$ArchiveFolder`/`$SharedDbPath` ใน `excel-bridge.ps1`) — ถ้าย้าย repo ไปที่อื่นบนเครื่อง ต้องแก้ path ในไฟล์นี้แล้ว import ใหม่ด้วย
+
 ## ตั้งค่า $AllowedOrigins
 
 `excel-bridge.ps1` เช็ค request's `Origin` header กับ allow-list ก่อนประมวลผลทุกครั้ง (กันเว็บอื่นแอบยิง request มาที่ bridge) — ตอนนี้ครอบคลุมทั้ง dev (`http://localhost:5173`) และ production (`https://monitor-log-sheet-boardman.supasiao.workers.dev`) แล้ว ถ้าเปลี่ยนโดเมน deploy ในอนาคต ต้องมาแก้ `$AllowedOrigins` ในสคริปต์นี้ให้ตรงด้วย ไม่งั้น bridge จะปฏิเสธ request จากเว็บที่ deploy จริง
@@ -115,3 +132,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 | ไม่มีไฟล์ archive โผล่ที่ `$ArchiveFolder` | archive จะเกิดเฉพาะตอนข้อมูลวันนั้นครบ 4 เวลา (03:00/09:00/15:00/21:00) แล้วเท่านั้น — เช็ค chip สถานะข้าง "Time Breakdown" บน Dashboard ว่าขึ้น "✓ ครบ 4 รอบเวลา" หรือยัง และอย่าลืมเช็คใน**โฟลเดอร์ย่อยตามเดือน** (เช่น `$ArchiveFolder\Aug 26\`) ไม่ใช่แค่ root ของ `$ArchiveFolder` เฉยๆ |
 | Dashboard เห็นข้อมูล/remark ไม่ตรงกับเพื่อนร่วมกะที่ login คนละ account | เช็คว่า bridge รันอยู่ไหม (`/ping`) ทั้งสองเครื่อง/สอง session แล้ว **reload หน้าเว็บใหม่** — pull จาก `$SharedDbPath` เกิดแค่ตอนเปิดแอป (init) เท่านั้น ไม่มี periodic re-pull ระหว่างใช้งาน |
 | Sidebar indicator ค้างที่ "LOCAL MODE" สีเหลืองทั้งที่ bridge เปิดอยู่ | เช็คสิทธิ์เขียนไฟล์ที่โฟลเดอร์ `shared-data` ใต้ `$SharedDbPath` (NTFS permission บนเครื่อง shared) หรือดู error ใน console ของ browser (`EXCEL_SYNC.pushSharedDb`/`pullSharedDb`) |
+| กดปุ่ม "เปิด Excel Bridge" ในหน้า Web App แล้วไม่มีอะไรเกิดขึ้น / เบราว์เซอร์บอก "ไม่รู้จักลิงก์นี้" | ยังไม่ได้ import `register-protocol.reg` บนเครื่อง/account นี้ — ดูหัวข้อ "เปิด Bridge จากปุ่มในหน้า Web App" ด้านบน |
+| กดปุ่ม "เปิด Excel Bridge" แล้วขึ้นหน้าต่างดำแวบเดียวแล้วปิด | Bridge instance เดิมเปิดอยู่แล้ว (จองพอร์ต 5175 ไว้) instance ใหม่เปิดซ้ำจะ error ทันที — ปกติ ไม่กระทบ instance เดิม เช็คว่า sync indicator ขึ้น SYNCED หรือยัง |
