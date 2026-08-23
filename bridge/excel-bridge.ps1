@@ -54,9 +54,7 @@
 # ใหม่บนจอ Excel แบบ live ได้เอง แต่ค่านั้นอยู่แค่ใน memory ของ Excel ไม่ถูกเขียนกลับลงไฟล์บนดิสก์จนกว่าจะมี
 # การ Save จริง ในขณะที่ auto-import (pollAutoImport ฝั่ง Web App) เช็คแค่ LastWriteTimeUtc ของไฟล์บนดิสก์
 # เท่านั้น (ดู Handle-SourceFileInfo) — route นี้ให้ bridge สั่ง Excel save ไฟล์ให้เองเป็นระยะแทนที่จะรอ
-# operator กด Save เอง ใช้ Find-OpenWorkbook ตัวเดิม (เหมือน Handle-WriteRemark) แล้วเช็ค $wb.Saved ก่อน
-# เรียก .Save() จริง (ประหยัด disk write ตอนไม่มีอะไรเปลี่ยน) — Web App เรียก route นี้เป็นก้าวแรกสุดของทุก
-# poll cycle (ทุก 5 นาที) ก่อนเช็ค /source-file-info เสมอ ให้ mtime ที่เช็คหลังจากนั้นเห็นค่าล่าสุดจริง
+# operator กด Save เอง ใช้ Find-OpenWorkbook ตัวเดิม (เหมือน Handle-WriteRemark)
 #
 # V29.106 FIX: $listener.Start() เดิมไม่มี try/catch — เจอ port 5175 ถูก instance อื่นจองอยู่แล้ว (เช่นตอนกด
 # ปุ่ม "เปิด Excel Bridge" ในเว็บขณะ bridge ตัวเดิมยังทำงานอยู่ แต่ sync indicator ยังไม่ทันอัปเดต) จะ throw
@@ -65,6 +63,16 @@
 # ตัวเดิมยังทำงานปกติ) จับ exception แล้วโชว์ข้อความไทยที่บอกตรงๆ แทน (ดู try/catch รอบ $listener.Start()
 # ด้านล่าง) คู่กับฝั่ง Web App ที่เช็คก่อนแล้วว่า bridge ตอบอยู่หรือยังก่อนสั่งเปิดใหม่ (APP.retryConnectAfter
 # OpenBridge ใน app-core.js) เพื่อไม่ให้ต้องพึ่งแค่ข้อความที่เป็นมิตรใน bridge ฝั่งเดียว
+#
+# V29.107 FIX: Handle-AutosaveSourceFile เดิมเช็ค $wb.Saved ก่อนเสมอแล้วข้าม .Save() ถ้าเป็น $true — ตั้ง
+# สมมติฐานไว้ (ไม่เคยทดสอบยืนยันจริง) ว่า Excel จะ set .Saved = $false เองเมื่อสูตร PI Datalink refresh แล้ว
+# ค่าเปลี่ยน แต่ operator ยังรายงานว่าต้องกด Ctrl+S เองอยู่ดีแม้มี V29.102 แล้ว — ตรวจสอบพบว่า external-data
+# refresh ของ PI Datalink ไม่ได้ trigger COM dirty-flag แบบเดียวกับ manual cell edit เสมอไป ทำให้ .Saved ค้าง
+# เป็น $true ทั้งที่จอ Excel โชว์ค่าใหม่แล้ว → .Save() ไม่เคยถูกเรียก → mtime ไฟล์ไม่ขยับ → pollAutoImport
+# ฝั่ง Web App เห็นว่าไฟล์ "ไม่เปลี่ยน" ทุกรอบ ไม่มีวันเข้าไป fetchSourceFile เลย แก้โดยถอด gate ทิ้ง เรียก
+# $wb.Save() แบบไม่มีเงื่อนไขทุกรอบ poll (ทุก 5 นาที) แทน — ยอมแลก disk write ที่บางรอบไม่มีอะไรเปลี่ยนจริง
+# เพื่อไม่ต้องพึ่ง COM property ที่พิสูจน์แล้วว่าเชื่อไม่ได้กับเคสนี้ (Save() ก็แค่ flush memory ลงดิสก์เหมือน
+# Ctrl+S เป๊ะ ไม่มีความเสี่ยงข้อมูลหาย)
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -611,12 +619,13 @@ function Handle-EnsureFileOpen {
     return @{ status = 'ok'; fileName = $file.Name }
 }
 
-# V29.102 FEAT: สั่ง Excel save ไฟล์ log sheet ที่เปิดอยู่ให้เอง (ถ้ามีอะไรเปลี่ยนที่ยังไม่บันทึกจริง) —
-# ดู comment header ด้านบนของไฟล์สำหรับที่มา ใช้ Find-OpenWorkbook ตัวเดิม (ไม่ auto-open เหมือน
-# Find-OrOpenWorkbook เพราะถ้ายังไม่มีใครเปิดไฟล์เลยก็ไม่มีอะไรให้ save — /ensure-file-open จัดการเปิดไฟล์
-# ให้อยู่แล้วจากอีกจุดใน poll cycle เดียวกันฝั่ง Web App) เช็ค $wb.Saved ก่อนเสมอ (เป็น $false เมื่อมีการ
-# เปลี่ยนแปลงที่ยังไม่บันทึก — Excel ตั้งค่านี้เองตอนสูตร/ค่าเซลล์เปลี่ยนจริง รวมถึงตอน external link เช่น
-# PI Datalink refresh แล้วค่าเปลี่ยน) กัน .Save() เขียนไฟล์ทุก 5 นาทีทั้งที่ไม่มีอะไรเปลี่ยนเลย
+# V29.102 FEAT: สั่ง Excel save ไฟล์ log sheet ที่เปิดอยู่ให้เอง — ดู comment header ด้านบนของไฟล์สำหรับ
+# ที่มา ใช้ Find-OpenWorkbook ตัวเดิม (ไม่ auto-open เหมือน Find-OrOpenWorkbook เพราะถ้ายังไม่มีใครเปิดไฟล์
+# เลยก็ไม่มีอะไรให้ save — /ensure-file-open จัดการเปิดไฟล์ให้อยู่แล้วจากอีกจุดใน poll cycle เดียวกันฝั่ง
+# Web App)
+# V29.107 FIX: เดิมเช็ค $wb.Saved ก่อนแล้วข้าม .Save() ถ้าเป็น $true (สมมติว่า Excel จะ set เป็น $false เอง
+# ตอน PI Datalink refresh) — พิสูจน์แล้วว่าเชื่อไม่ได้ (ดู comment header ด้านบนของไฟล์) เรียก .Save() แบบ
+# ไม่มีเงื่อนไขทุกครั้งแทน
 function Handle-AutosaveSourceFile {
     $resolved = Resolve-SourceFile
     if ($resolved.status -ne 'ok') { return $resolved }
@@ -625,10 +634,6 @@ function Handle-AutosaveSourceFile {
     $excel, $wb = Find-OpenWorkbook $file.Name
     if (-not $excel -or -not $wb) {
         return @{ status = 'no-file-open'; message = "ไม่พบไฟล์ '$($file.Name)' เปิดอยู่ใน Excel" }
-    }
-
-    if ($wb.Saved) {
-        return @{ status = 'ok'; saved = $false }
     }
 
     try {
@@ -779,8 +784,9 @@ try {
                 continue
             }
 
-            # V29.102 FEAT: สั่ง Excel save ไฟล์ log sheet ที่เปิดอยู่ให้เอง (ถ้ามีอะไรเปลี่ยนจริง) — ดู
-            # Handle-AutosaveSourceFile ด้านบนสำหรับที่มา (แก้ปัญหาต้องกด Ctrl+S เองก่อนข้อมูลจะ sync)
+            # V29.102 FEAT (แก้เพิ่ม V29.107): สั่ง Excel save ไฟล์ log sheet ที่เปิดอยู่ให้เองแบบไม่มี
+            # เงื่อนไขทุกรอบ poll — ดู Handle-AutosaveSourceFile ด้านบนสำหรับที่มา (แก้ปัญหาต้องกด Ctrl+S
+            # เองก่อนข้อมูลจะ sync)
             if ($request.Url.AbsolutePath -eq '/autosave-source-file' -and $request.HttpMethod -eq 'POST') {
                 Send-JsonResponse $response 200 (Handle-AutosaveSourceFile)
                 continue

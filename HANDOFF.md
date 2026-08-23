@@ -1,9 +1,9 @@
 # HANDOFF — Plant Log Analyzer
 
 ## 📅 อัปเดตล่าสุด
-2026-08-23 — อัปเดตโดย sa-handoff (โหมดปิดงาน) บันทึกย้อนหลัง **V29.95–V29.106** (12 เวอร์ชัน) ที่ค้างมาตั้งแต่ "เรื่องที่ 14" (V29.94) — ไม่มีการบันทึก entry ใหม่ใน HANDOFF.md เลยในช่วงนี้ แม้ `git log` จะแสดงว่ามีการทำงานต่อเนื่อง
-Branch: `main` | Commit ล่าสุดบน `origin/main`: `50eedbf` "Record notable feature decisions from V29.78 through V29.106 in context.md" — **push แล้ว** (`git status` ตอนเขียน entry นี้: working tree clean, branch up to date กับ `origin/main`)
-เวอร์ชันแอปปัจจุบัน: **V29.106**
+2026-08-23 — เพิ่ม "เรื่องที่ 22" (V29.107, fix autosave gate ที่พึ่ง `$wb.Saved` ไม่ได้) ต่อจาก session ก่อนหน้าที่บันทึกย้อนหลัง **V29.95–V29.106** (12 เวอร์ชัน) ไว้แล้ว — **ยังไม่ commit** โค้ดแก้เสร็จในเครื่องนี้เท่านั้น (`git status` จะไม่ clean จนกว่าจะ commit)
+Branch: `main` | Commit ล่าสุดบน `origin/main`: `50eedbf` "Record notable feature decisions from V29.78 through V29.106 in context.md" — **push แล้ว** (ยังไม่รวมงาน V29.107 ที่เพิ่งแก้ในเครื่องนี้)
+เวอร์ชันแอปปัจจุบัน: **V29.107** (ยังไม่ commit/push)
 URL production จริง: **https://monitor-log-sheet-boardman.supasiao.workers.dev** (ยืนยันจาก `AllowedOrigins` ใน `bridge/excel-bridge.ps1` + output จริงของ Cloudflare deploy job ล่าสุด commit `3d4792a` — ลิงก์นี้ถูก embed ไว้ใน Excel log sheet ของโรงงานผ่านสูตร `HYPERLINK` ให้ operator กดเปิดแอป ห้ามเปลี่ยนชื่อ worker ใน `wrangler.jsonc` เด็ดขาดเพราะจะทำให้ลิงก์เดิมใน Excel ใช้ไม่ได้)
 สูตร Hyperlink ที่ใช้งานจริงตอนนี้ในไฟล์ Excel log sheet (พี่ A ยืนยันเอง 2026-08-13):
 ```
@@ -331,6 +331,26 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 ---
 
+## ✅ เรื่องที่ 22 — Fix autosave gate ที่พึ่ง `$wb.Saved` ซึ่งเชื่อไม่ได้กับ PI Datalink (V29.107) — บันทึกจาก session นี้ (dev sandbox ไม่มี Excel/PI Datalink จริง)
+
+**ปัญหา (พี่ A รายงานเข้ามา 2026-08-23):** หลังใช้งานจริงต่อจาก V29.102 (autosave) พี่ A ยังต้องกดปุ่ม Save เองในหน้าไฟล์ Excel อยู่ดี ข้อมูลถึงจะเข้า Web App — ทั้งที่ V29.102 ทำมาเพื่อแก้ปัญหานี้โดยเฉพาะ
+
+**Root cause ที่ตรวจพบ:** `Handle-AutosaveSourceFile` ใน `bridge/excel-bridge.ps1` เดิมเช็ค `if ($wb.Saved) { skip .Save() }` — โค้ดตั้งสมมติฐานไว้ว่า Excel จะ set `.Saved = $false` เองเมื่อสูตร PI Datalink refresh แล้วค่าเปลี่ยน แต่สมมติฐานนี้**ไม่เคยถูกทดสอบยืนยันจริง** (entry ของ V29.102 เองก็ไม่มี section "การทดสอบ" ต่างจาก entry อื่นๆ) — PI Datalink refresh ผ่าน external-data-link มักไม่ trigger COM dirty-flag แบบเดียวกับ manual cell edit ทำให้ `.Saved` ค้างเป็น `$true` ทั้งที่จอ Excel โชว์ค่าใหม่แล้ว → `.Save()` ไม่เคยถูกเรียกจริง → mtime ไฟล์ไม่ขยับ → `pollAutoImport` ฝั่ง Web App เห็นว่าไฟล์ "ไม่เปลี่ยน" ทุกรอบ ไม่เข้า `fetchSourceFile` เลย
+
+**Fix:**
+1. `bridge/excel-bridge.ps1` (`Handle-AutosaveSourceFile`): ถอด gate `$wb.Saved` ออก เรียก `$wb.Save()` แบบไม่มีเงื่อนไขทุกรอบ poll (ทุก ~5 นาที) แทน — ยอมแลก disk write ที่บางรอบไม่มีอะไรเปลี่ยนจริง เพื่อไม่ต้องพึ่ง COM property ที่พิสูจน์แล้วว่าเชื่อไม่ได้กับเคสนี้ (`.Save()` แค่ flush memory ลงดิสก์เหมือน Ctrl+S เป๊ะ ไม่มีความเสี่ยงข้อมูลหาย)
+2. `src/modules/app/app-core.js` (`pollAutoImport`): เอา whitelist ที่กันไม่ให้ log สถานะ `'no-file-open'` ออก (log ทุก status ที่ไม่ใช่ `'ok'` แล้ว) + เพิ่ม banner แจ้ง operator ตรงๆ ถ้า bridge หาไฟล์เปิดอยู่ใน Excel ไม่เจอเลย — กันไม่ให้เกิดปัญหาแบบนี้ซ้ำแบบเงียบๆ วินิจฉัยไม่ได้อีก
+
+**ไฟล์ที่แก้:** `bridge/excel-bridge.ps1`, `src/modules/app/app-core.js`, `index.html`, `HANDOFF.md`, `context.md` — bump เป็น **V29.107**
+
+**⚠️ ยังไม่ได้ทดสอบกับ PI Datalink จริง** — dev sandbox นี้ไม่มี Excel COM + PI Datalink ให้ทดสอบ (มีแค่ `npm test` ยืนยันว่า JS-side pass-through logic เดิม (`tests/excel-autoimport.test.js`) ไม่พัง — ผ่าน 140/140 เหมือนเดิม, ไม่มี test ใหม่เพราะ logic ที่เปลี่ยนอยู่ฝั่ง PowerShell/COM ล้วนๆ ซึ่งอยู่นอกขอบเขตที่ Vitest แตะถึง) **ต้องให้พี่ A ยืนยันหน้างานจริงตาม `bridge/README.md`** ก่อนถือว่าจบ — ดู "🚧 ค้างอยู่ตรงไหน" ข้อใหม่ด้านล่างสำหรับ steps การ verify
+
+**Commit:** ยังไม่ commit ณ ตอนเขียน entry นี้ (รอพี่ A ยืนยัน/สั่ง commit)
+
+**สถานะ:** โค้ดแก้เสร็จแล้ว รอทดสอบหน้างานจริง + รอ commit
+
+---
+
 ### 📚 เอกสารที่อัปเดตไปแล้วในช่วง V29.95-106 (ไม่ใช่งานค้าง แค่บันทึกว่าทำแล้ว)
 
 หลัง V29.106 มีอีก 2 commit doc-only ปิดท้าย session นี้ ไม่ bump เวอร์ชันแอป:
@@ -364,6 +384,7 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 17. **(ใหม่) V29.95-101 rollover subsystem (เรื่องที่ 15) — ยืนยันสดกับ bridge จริงแล้วอย่างน้อย 1 รอบสำหรับ V29.101 (stale-template) แต่ยังไม่มีการเฝ้าสังเกตระยะยาวต่อเนื่องหลายวัน/หลายรอบเที่ยงคืน** ว่า rollover ทำงานถูกต้อง 100% ทุกวันโดยไม่มี edge case ใหม่โผล่มา — โดยเฉพาะยังไม่ทราบแน่ชัดว่าอะไร "นอกเหนือโค้ด repo นี้" เป็นตัวเขียนทับไฟล์ด้วย (master) template ในเคสที่ V29.101 ไปเจอและแก้อาการปลายทาง ไม่ใช่ต้นตอ — ควรเฝ้าดูต่อว่าจะเกิดซ้ำไหม
 18. **(ใหม่) V29.103 custom protocol handler (`plantlogbridge://`) ลงทะเบียนไว้ที่ `HKCU` ของ user ที่ทดสอบบนเครื่องนี้ในเซสชันนี้เท่านั้น** — เครื่อง Office เป็น shared PC ที่ operator แต่ละคน login คนละ Windows account จริง (`HKCU` เป็น per-user registry hive) ยังไม่มีข้อมูลยืนยันว่า operator คนอื่นต้อง double-click `bridge/register-protocol.reg` เองก่อนปุ่ม "เปิด Excel Bridge" จะใช้งานได้ในเครื่องเดียวกันหรือไม่ — ควรทดสอบข้าม account จริงก่อนบอกว่าใช้ได้กับทุกคน
 19. **(ใหม่) V29.105 default time filter (`getDefaultTimeFilter`) ทดสอบจริงแค่ 1 เคส** (11:01 น. → เลือกรอบ 09:00 ให้ถูกต้อง) — ยังไม่ครอบคลุม edge case เช่น เวลาก่อนรอบ 03:00 แรกของวัน (ยังไม่มีรอบไหน "ผ่านไปแล้ว" เลยในวันนั้น) หรือกรณีไม่มี record ใดๆ อยู่เลย — มี test ใน `tests/shared.test.js` แล้วแต่ยังไม่ได้ตรวจ manual ผ่าน UI ในทุก edge case
+20. **(ใหม่, สำคัญ) V29.107 autosave gate fix (เรื่องที่ 22) ยังไม่ได้ทดสอบกับ PI Datalink จริงเลย** — dev sandbox ไม่มี Excel COM + PI Datalink ให้ทดสอบ มีแค่ `npm test` ยืนยันว่า JS-side ไม่พัง (140/140) ต้อง verify หน้างานจริงตาม steps นี้ก่อนถือว่าจบ: (1) รัน `bridge/excel-bridge.ps1` บนเครื่องจริงที่เปิดไฟล์ log sheet ค้างไว้ใน Excel พร้อม PI Datalink ทำงานอยู่ (2) **ห้ามกด Ctrl+S เอง** ปล่อยให้ PI Datalink refresh ตามรอบปกติ (3) รอครบ 1 รอบ poll (5 นาที) (4) เช็คว่า reading ใหม่เข้า dashboard อัตโนมัติโดยไม่มีใครกด save เอง + เช็คไฟล์ไม่มีข้อมูลเสีย/`#NAME?` โผล่มา (5) ถ้าเป็นไปได้ลองทิ้งไว้เกินครึ่งกะดูว่า save ถี่ทุก 5 นาทีไม่ทำให้ Excel/PI มีปัญหาสะสม — ยังไม่ commit จนกว่าจะยืนยันหรือพี่ A สั่งให้ commit ไปก่อน
 
 ---
 
@@ -385,6 +406,7 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 14. **(ใหม่)** ถ้าจะให้ operator คนอื่นบนเครื่อง Office ใช้ปุ่ม "เปิด Excel Bridge" (V29.103) ได้ ให้แต่ละคน double-click `bridge/register-protocol.reg` เองครั้งเดียวตอน login ด้วย Windows account ของตัวเอง (เพราะ `HKCU` เป็น per-user) — ยังไม่ได้ทดสอบว่าจำเป็นจริงหรือไม่ ควรทดสอบข้าม account ก่อน
 15. **(ใหม่)** เฝ้าสังเกตระบบ rollover รายวัน (V29.95-101) ต่อเนื่องอีกสักพักว่าไม่มี edge case ใหม่ โดยเฉพาะเคส stale-template ที่ยังไม่ทราบ root cause ที่แท้จริงว่าอะไรนอกเหนือโค้ด repo นี้เขียนทับไฟล์ด้วย template
 16. พิจารณาว่าจะเดินหน้าเรื่อง SQL/Cloud Database ต่อไหม (ดู "เรื่องที่ 21" ท้ายไฟล์) — ถามพี่ A ก่อนว่าคิดออกหรือยัง
+17. **(ใหม่, สำคัญที่สุด) ทดสอบ V29.107 autosave gate fix (เรื่องที่ 22) หน้างานจริงตาม steps ใน "🚧 ค้างอยู่ตรงไหน" ข้อ 20** แล้วค่อย commit — นี่คือฟีเจอร์ที่พี่ A รอใช้งานจริงอยู่ ห้ามข้ามขั้นตอนนี้ไปสั่ง commit เลยโดยไม่ยืนยัน
 
 ---
 
@@ -404,7 +426,7 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 - **หลัง V29.93/94:** ไม่มี `<select id="view-filter">` dropdown แล้ว — filter ตอนนี้ควบคุมจากการคลิกการ์ดสรุป 4 ใบเหนือ dashboard เท่านั้น (`data-filter` attribute) ค่า default/reset คือ `'hard-abnormal'` (เฉพาะ Abnormalities จริง หลุด min/max) ไม่ใช่ `'abnormal'` (รวม 3 ประเภท) อีกต่อไป — ถ้าจะเพิ่ม filter ใหม่ในอนาคต ต้องผูก onclick ในการ์ดใหม่เอง ไม่มี dropdown ให้เพิ่ม option แล้ว
 - **หลัง V29.95-99 (ระบบ Rollover):** log sheet จะถูก **rename ไฟล์อัตโนมัติ** (ชื่อไฟล์มีวันที่ฝังอยู่แบบ "(DD-MM-YY)") ทุกครั้งที่วันที่ในเครื่องเลยวันที่ในชื่อไฟล์ — ถ้าเห็นไฟล์ log sheet เปลี่ยนชื่อเองข้ามคืนโดยไม่มีใครทำ **นี่คือพฤติกรรมปกติที่ตั้งใจ ไม่ใช่บั๊ก** (แทนที่การ rename+แก้ cell `"BM 1"!W1` ด้วยมือของ operator เดิม) — bridge จะ archive สำเนาไฟล์เก่าไว้ที่ `$WatchFolder\<Mmm yy>\` ก่อนเสมอ (ตั้งแต่ V29.95 ย้ายมาอยู่ใต้ share `D:\PTA COMMONT WORK\Log sheet Digital` ไม่ใช่ใต้ repo แล้ว) และลบเฉพาะคอมเมนต์ที่แอปเขียนเองก่อนวันใหม่เริ่ม (V29.100)
 - **หลัง V29.101:** ถ้าเห็น warning banner ใน Web App บอกว่าไฟล์ log sheet "ดูเหมือนเป็น template เปล่า" (stale-template) **อย่าเพิกเฉย** — แปลว่าเนื้อหาไฟล์บนดิสก์ถูกเขียนทับด้วยสำเนา (master) template จริง (ตรวจจากขนาดไฟล์ + SHA256 เทียบกับ master) แม้ชื่อไฟล์จะถูกต้องตามวันที่ก็ตาม แอปจะไม่ import เนื้อหานั้นเป็นค่าจริงให้ — ต้นตอที่แท้จริงว่าอะไรไปเขียนทับยังไม่ทราบแน่ชัด (นอกเหนือโค้ด repo นี้) ถ้าเจอซ้ำควรรายงานรายละเอียดให้ครบเพื่อสืบต่อ
-- **หลัง V29.102:** bridge auto-save workbook เองทุกรอบ poll (ทุก ~5 นาที) เมื่อมี unsaved changes — operator ไม่ต้องกด Ctrl+S เองอีกต่อไปเพื่อให้ auto-import เห็นค่าล่าสุด แต่หมายความว่า **ไฟล์จะถูกเซฟเองเป็นระยะโดยไม่มีใครสั่ง** ถ้าเห็น Excel เด้ง/save indicator ขึ้นเองโดยไม่มีใครกด นี่คือ bridge ทำงานปกติ ไม่ใช่บั๊ก
+- **หลัง V29.102 (แก้เพิ่ม V29.107):** bridge auto-save workbook เองทุกรอบ poll (ทุก ~5 นาที) **แบบไม่มีเงื่อนไข** (V29.102 เดิมเช็ค `$wb.Saved` ก่อนแล้วข้าม save ถ้าไม่มีอะไรเปลี่ยน — พบว่าเชื่อไม่ได้กับ PI Datalink ถอดออกแล้วที่ V29.107 ดู "เรื่องที่ 22") — operator ไม่ต้องกด Ctrl+S เองอีกต่อไปเพื่อให้ auto-import เห็นค่าล่าสุด แต่หมายความว่า **ไฟล์จะถูกเซฟเองทุก ~5 นาทีเสมอโดยไม่มีใครสั่ง แม้ไม่มีอะไรเปลี่ยนจริง** ถ้าเห็น Excel เด้ง/save indicator ขึ้นเองโดยไม่มีใครกด นี่คือ bridge ทำงานปกติ ไม่ใช่บั๊ก — **ยังไม่ได้ยืนยันหน้างานจริงว่าแก้ปัญหา Ctrl+S ได้จริง** (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 20)
 - **หลัง V29.103/104:** ปุ่ม "เปิด Excel Bridge" ในหน้าเว็บใช้ custom protocol `plantlogbridge://` ซึ่ง**ต้อง register ผ่าน `bridge/register-protocol.reg` ก่อนครั้งแรกต่อ 1 Windows user account** (ลงทะเบียนที่ `HKCU`) — ถ้า operator คนใหม่ (login คนละ account) กดปุ่มแล้วไม่มีอะไรเกิดขึ้นเลย ให้ตรวจสอบว่า register ให้ user นั้นแล้วหรือยัง (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 18 — ยังไม่เคยทดสอบข้าม account จริง)
 - **หลัง V29.105:** "รายการพารามิเตอร์ (Log Data)" เปิดมาแล้ว **ไม่ใช่ All Time เป็น default อีกต่อไป** — ระบบจะเลือกรอบเวลามาตรฐานล่าสุดที่ผ่านไปแล้ว (03:00/09:00/15:00/21:00) ให้อัตโนมัติตอนเปิดหน้าครั้งแรก/import/restore เท่านั้น — ถ้า operator เปลี่ยน time filter เองระหว่างกะ ระบบจะไม่ไป override ค่านั้นทับจนกว่าจะมี trigger ใหม่ (import/restore/เปิดหน้าใหม่)
 - **หลัง V29.106:** ปุ่ม "เปิด Excel Bridge" เช็ค reachability ก่อนเปิด instance ใหม่เสมอแล้ว — ถ้ายังเจอหน้าต่าง terminal ดำค้างซ้ำอีก **ให้ถือว่าเป็นบั๊กใหม่** ไม่ใช่อาการเดิมที่เคยแก้แล้ว ควรสืบสวนแยกจากเคสเดิม

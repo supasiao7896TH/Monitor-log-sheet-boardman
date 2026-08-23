@@ -322,8 +322,12 @@ Object.assign(APP, {
                 // ดิสก์จนกว่าจะมีการ Save จริง ทำให้เช็ค mtime ด้านล่าง (getSourceFileInfo) ไม่เห็นว่าไฟล์
                 // เปลี่ยนจนกว่า operator จะกด Ctrl+S เอง — ไม่ block ถ้า bridge offline/ไม่มีไฟล์เปิดอยู่ แค่
                 // log ไว้เฉยๆ (auto-import เดิมยังทำงานได้ปกติถ้า operator กด save เองอยู่แล้ว)
+                // V29.107 FIX: เดิมไม่ log สถานะ 'no-file-open' เลย (ตั้งใจ whitelist ไว้เพราะคิดว่าเป็นเคส
+                // ปกติที่ยังไม่มีใครเปิดไฟล์) แต่นี่คือสาเหตุหนึ่งที่ทำให้ autosave เงียบล้มเหลวโดยไม่มีร่องรอย
+                // ให้ตามหา (ดู root cause จริงที่ excel-bridge.ps1 — Handle-AutosaveSourceFile) เปลี่ยนเป็น log
+                // ทุก status ที่ไม่ใช่ 'ok' เพื่อให้วินิจฉัยปัญหาลักษณะนี้ในอนาคตได้จาก console โดยไม่ต้องสืบใหม่
                 const autosave = await EXCEL_AUTOIMPORT.autosaveSourceFile();
-                if (autosave.status !== 'ok' && autosave.status !== 'no-file-open') {
+                if (autosave.status !== 'ok') {
                     console.warn('[auto-save] autosaveSourceFile:', autosave.status, autosave.message || '');
                 }
 
@@ -354,6 +358,11 @@ Object.assign(APP, {
                     bannerInfo = { status: 'error', message: rollover.message || `ไฟล์ log sheet '${rollover.fileName || ''}' ชื่อเป็นวันนี้แล้ว แต่เนื้อหายังเป็นไฟล์ (master) เปล่าอยู่ — กรุณาตรวจสอบไฟล์เอง` };
                 } else if (info.status === 'ok' && info.looksLikeTemplate) {
                     bannerInfo = { status: 'error', message: `ไฟล์ log sheet '${info.fileName}' เนื้อหาเหมือนไฟล์ (master) เป๊ะ (ไม่มีข้อมูลจริงอยู่ข้างใน) — กรุณาตรวจสอบไฟล์เอง` };
+                } else if (autosave.status === 'no-file-open') {
+                    // V29.107 FEAT: priority ต่ำกว่าเคสข้างบนทั้งหมดเพราะเคสเหล่านั้นเจาะจงกว่า — เคสนี้แค่
+                    // "ไม่มีไฟล์เปิดอยู่ใน Excel เลย" ซึ่งทำให้ autosave (และ Handle-WriteRemark) ทำอะไรไม่ได้
+                    // เลยจนกว่า operator จะเปิดไฟล์ log sheet ค้างไว้ที่เครื่อง Bridge
+                    bannerInfo = { status: 'error', message: `ไม่พบไฟล์ log sheet เปิดอยู่ใน Excel บนเครื่อง Bridge — กรุณาเปิดไฟล์ log sheet ค้างไว้ เพื่อให้ autosave/auto-import ทำงานได้` };
                 }
                 APP.renderAutoImportWarningBanner(bannerInfo); // V29.88 FEAT: โชว์/ซ่อน banner ตามสถานะล่าสุดทุกรอบ poll
 

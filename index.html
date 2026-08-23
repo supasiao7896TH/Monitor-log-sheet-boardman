@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.106)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.107)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -290,7 +290,7 @@
             <h1 id="page-title" class="text-lg md:text-xl font-black text-slate-800 tracking-tight">System Overview</h1>
             <div class="flex items-center gap-3">
                 <div class="px-3 py-1.5 bg-sky-50 border border-sky-100 rounded-full text-[10px] font-bold text-sky-700 flex items-center shadow-sm">
-                    <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-sky-500"></i> V29.106
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-sky-500"></i> V29.107
                 </div>
             </div>
         </header>
@@ -802,7 +802,7 @@
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
                             <li>เมื่อรัน <strong>Local Bridge</strong> ค้างไว้ (ดูข้อกำหนดใน Step 7) และเปิดไฟล์ log sheet ต้นฉบับค้างไว้ใน Excel ตามปกติ ระบบจะ <strong>ดึงข้อมูลจากไฟล์เข้า Web App ให้เองอัตโนมัติทุก ~5 นาที</strong> ไม่ต้องลากไฟล์เข้าหน้า "นำเข้าข้อมูล" ซ้ำเองอีก</li>
-                            <li><strong>สั่ง Save ให้เองก่อนดึงข้อมูลทุกรอบ (V29.102):</strong> สูตร PI Datalink ในไฟล์คำนวณค่าล่าสุดแสดงบนจอ Excel แบบสดได้เอง แต่ค่านั้นจะยังไม่ถูกเขียนลงไฟล์จริงจนกว่าจะมีการ Save — ตั้งแต่ V29.102 Bridge จะสั่ง Excel บันทึกไฟล์ให้เองก่อนทุกรอบที่เช็คข้อมูลใหม่ <strong>ไม่ต้องกด Ctrl+S เองอีกต่อไป</strong> ค่าตามเวลาที่ควรมี (เช่น 03:00/09:00/15:00/21:00) จะขึ้นในแดชบอร์ดให้เองภายในไม่กี่นาที</li>
+                            <li><strong>สั่ง Save ให้เองก่อนดึงข้อมูลทุกรอบ (V29.107):</strong> สูตร PI Datalink ในไฟล์คำนวณค่าล่าสุดแสดงบนจอ Excel แบบสดได้เอง แต่ค่านั้นจะยังไม่ถูกเขียนลงไฟล์จริงจนกว่าจะมีการ Save — Bridge จะสั่ง Excel บันทึกไฟล์ให้เองแบบไม่มีเงื่อนไขทุกรอบที่เช็คข้อมูลใหม่ (ทุก ~5 นาที) <strong>ไม่ต้องกด Ctrl+S เองอีกต่อไป</strong> ค่าตามเวลาที่ควรมี (เช่น 03:00/09:00/15:00/21:00) จะขึ้นในแดชบอร์ดให้เองภายในไม่กี่นาที</li>
                             <li><strong>เปลี่ยนไฟล์วันใหม่ให้เองทุกเที่ยงคืน:</strong> ไม่ต้องเปลี่ยนชื่อไฟล์หรือแก้วันที่ในชีตเองทุกเช้า ระบบจัดการให้อัตโนมัติ (รวมถึงเปิดไฟล์ให้เองถ้ายังไม่มีใครเปิดไว้ตอนเปลี่ยนกะ)</li>
                             <li>ถ้ามีปัญหา (เช่น เจอไฟล์มากกว่า 1 ไฟล์ในโฟลเดอร์ที่ Bridge เฝ้าดูอยู่ หรือไฟล์ที่เปิดยังเป็นไฟล์ template เปล่า) จะมี<strong>แบนเนอร์แจ้งเตือนสีเหลือง/แดง</strong>ขึ้นด้านบนของ Dashboard บอกสาเหตุให้ตรวจสอบ</li>
                         </ul>
@@ -823,7 +823,7 @@
                     </div>
 
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.106 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.107 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by A(i)CODER</p>
                     </div>
                 </div>
