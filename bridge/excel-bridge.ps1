@@ -48,6 +48,15 @@
 # layout ของ log sheet ใช้แถว/คอลัมน์เดิมซ้ำทุกวัน มีแค่สูตร PI Datalink ที่ดึงค่าของวันใหม่มาแทน ทำให้
 # comment ของเมื่อวานค้างโผล่อยู่บนแถวเดียวกันของวันนี้ (ตามที่ operator รายงานเข้ามา) เพิ่ม Clear-AppComments
 # ลบ comment ที่ Author เป็นแอปเองออกทั้งไฟล์ทันทีหลัง SaveAs ไม่แตะ comment ที่ operator พิมพ์เอง
+#
+# V29.102 FEAT: เพิ่ม /autosave-source-file — แก้ปัญหา operator รายงานว่าค่าที่ควรมีตามเวลา (เช่น 9:00)
+# ไม่ auto-sync เข้า Web App จนกว่าจะกด Ctrl+S ที่ Excel เอง ต้นเหตุคือสูตร PI Datalink ในไฟล์คำนวณ/แสดงค่า
+# ใหม่บนจอ Excel แบบ live ได้เอง แต่ค่านั้นอยู่แค่ใน memory ของ Excel ไม่ถูกเขียนกลับลงไฟล์บนดิสก์จนกว่าจะมี
+# การ Save จริง ในขณะที่ auto-import (pollAutoImport ฝั่ง Web App) เช็คแค่ LastWriteTimeUtc ของไฟล์บนดิสก์
+# เท่านั้น (ดู Handle-SourceFileInfo) — route นี้ให้ bridge สั่ง Excel save ไฟล์ให้เองเป็นระยะแทนที่จะรอ
+# operator กด Save เอง ใช้ Find-OpenWorkbook ตัวเดิม (เหมือน Handle-WriteRemark) แล้วเช็ค $wb.Saved ก่อน
+# เรียก .Save() จริง (ประหยัด disk write ตอนไม่มีอะไรเปลี่ยน) — Web App เรียก route นี้เป็นก้าวแรกสุดของทุก
+# poll cycle (ทุก 5 นาที) ก่อนเช็ค /source-file-info เสมอ ให้ mtime ที่เช็คหลังจากนั้นเห็นค่าล่าสุดจริง
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -594,6 +603,37 @@ function Handle-EnsureFileOpen {
     return @{ status = 'ok'; fileName = $file.Name }
 }
 
+# V29.102 FEAT: สั่ง Excel save ไฟล์ log sheet ที่เปิดอยู่ให้เอง (ถ้ามีอะไรเปลี่ยนที่ยังไม่บันทึกจริง) —
+# ดู comment header ด้านบนของไฟล์สำหรับที่มา ใช้ Find-OpenWorkbook ตัวเดิม (ไม่ auto-open เหมือน
+# Find-OrOpenWorkbook เพราะถ้ายังไม่มีใครเปิดไฟล์เลยก็ไม่มีอะไรให้ save — /ensure-file-open จัดการเปิดไฟล์
+# ให้อยู่แล้วจากอีกจุดใน poll cycle เดียวกันฝั่ง Web App) เช็ค $wb.Saved ก่อนเสมอ (เป็น $false เมื่อมีการ
+# เปลี่ยนแปลงที่ยังไม่บันทึก — Excel ตั้งค่านี้เองตอนสูตร/ค่าเซลล์เปลี่ยนจริง รวมถึงตอน external link เช่น
+# PI Datalink refresh แล้วค่าเปลี่ยน) กัน .Save() เขียนไฟล์ทุก 5 นาทีทั้งที่ไม่มีอะไรเปลี่ยนเลย
+function Handle-AutosaveSourceFile {
+    $resolved = Resolve-SourceFile
+    if ($resolved.status -ne 'ok') { return $resolved }
+    $file = $resolved.file
+
+    $excel, $wb = Find-OpenWorkbook $file.Name
+    if (-not $excel -or -not $wb) {
+        return @{ status = 'no-file-open'; message = "ไม่พบไฟล์ '$($file.Name)' เปิดอยู่ใน Excel" }
+    }
+
+    if ($wb.Saved) {
+        return @{ status = 'ok'; saved = $false }
+    }
+
+    try {
+        $wb.Save()
+        return @{ status = 'ok'; saved = $true }
+    } catch {
+        if (Test-IsSharingViolation $_.Exception) {
+            return @{ status = 'file-locked'; message = 'ไฟล์กำลังถูกเขียนอยู่ (Excel/PI กำลังรีเฟรชข้อมูล) กรุณาลองใหม่ในรอบถัดไป' }
+        }
+        return @{ status = 'error'; message = "บันทึกไฟล์ไม่ได้: $($_.Exception.Message)" }
+    }
+}
+
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:$Port/")
 $listener.Start()
@@ -714,6 +754,13 @@ try {
             # เหตุผลที่แยก route นี้ออกจาก /rollover-daily-file
             if ($request.Url.AbsolutePath -eq '/ensure-file-open' -and $request.HttpMethod -eq 'POST') {
                 Send-JsonResponse $response 200 (Handle-EnsureFileOpen)
+                continue
+            }
+
+            # V29.102 FEAT: สั่ง Excel save ไฟล์ log sheet ที่เปิดอยู่ให้เอง (ถ้ามีอะไรเปลี่ยนจริง) — ดู
+            # Handle-AutosaveSourceFile ด้านบนสำหรับที่มา (แก้ปัญหาต้องกด Ctrl+S เองก่อนข้อมูลจะ sync)
+            if ($request.Url.AbsolutePath -eq '/autosave-source-file' -and $request.HttpMethod -eq 'POST') {
+                Send-JsonResponse $response 200 (Handle-AutosaveSourceFile)
                 continue
             }
 

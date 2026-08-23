@@ -158,3 +158,36 @@ describe('EXCEL_AUTOIMPORT.ensureFileOpen', () => {
         expect(await EXCEL_AUTOIMPORT.ensureFileOpen()).toEqual({ status: 'bridge-offline' });
     });
 });
+
+describe('EXCEL_AUTOIMPORT.autosaveSourceFile', () => {
+    beforeEach(() => {
+        vi.stubGlobal('fetch', vi.fn());
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('returns the full bridge JSON envelope on success', async () => {
+        const payload = { status: 'ok', saved: true };
+        fetch.mockResolvedValue({ ok: true, json: async () => payload });
+        const result = await EXCEL_AUTOIMPORT.autosaveSourceFile();
+        expect(result).toEqual(payload);
+        expect(fetch).toHaveBeenCalledWith('http://localhost:5175/autosave-source-file', expect.objectContaining({ method: 'POST' }));
+    });
+
+    it('passes through a no-file-open status from the bridge unchanged', async () => {
+        const payload = { status: 'no-file-open', message: 'ไม่พบไฟล์เปิดอยู่ใน Excel' };
+        fetch.mockResolvedValue({ ok: true, json: async () => payload });
+        expect(await EXCEL_AUTOIMPORT.autosaveSourceFile()).toEqual(payload);
+    });
+
+    it('returns error when the bridge responds with a non-ok HTTP status', async () => {
+        fetch.mockResolvedValue({ ok: false });
+        expect(await EXCEL_AUTOIMPORT.autosaveSourceFile()).toEqual({ status: 'error' });
+    });
+
+    it('returns bridge-offline when the bridge is not running (network error)', async () => {
+        fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+        expect(await EXCEL_AUTOIMPORT.autosaveSourceFile()).toEqual({ status: 'bridge-offline' });
+    });
+});

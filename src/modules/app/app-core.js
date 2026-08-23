@@ -257,7 +257,17 @@ Object.assign(APP, {
             },
 
             pollAutoImport: async () => {
-                // V29.96 FEAT: เช็ค/ทำ rollover ไฟล์ log sheet วันใหม่เป็นก้าวแรกสุดของทุก poll (idempotent
+                // V29.102 FEAT: สั่ง Excel save ไฟล์ log sheet ที่เปิดอยู่ให้เองก่อนอย่างอื่นทั้งหมด — สูตร
+                // PI Datalink คำนวณค่าใหม่แสดงบนจอ Excel แบบ live ได้เอง แต่ค่านั้นยังไม่ถูกเขียนกลับไฟล์บน
+                // ดิสก์จนกว่าจะมีการ Save จริง ทำให้เช็ค mtime ด้านล่าง (getSourceFileInfo) ไม่เห็นว่าไฟล์
+                // เปลี่ยนจนกว่า operator จะกด Ctrl+S เอง — ไม่ block ถ้า bridge offline/ไม่มีไฟล์เปิดอยู่ แค่
+                // log ไว้เฉยๆ (auto-import เดิมยังทำงานได้ปกติถ้า operator กด save เองอยู่แล้ว)
+                const autosave = await EXCEL_AUTOIMPORT.autosaveSourceFile();
+                if (autosave.status !== 'ok' && autosave.status !== 'no-file-open') {
+                    console.warn('[auto-save] autosaveSourceFile:', autosave.status, autosave.message || '');
+                }
+
+                // V29.96 FEAT: เช็ค/ทำ rollover ไฟล์ log sheet วันใหม่เป็นก้าวถัดมาของทุก poll (idempotent
                 // ฝั่ง bridge เอง — no-op ถ้าวันที่ในชื่อไฟล์ตรงกับวันนี้อยู่แล้ว) ก่อนเช็ค getSourceFileInfo
                 // เพื่อให้ถ้ามี rename เกิดขึ้นพอดีรอบนี้ ส่วนที่เหลือของ poll เดียวกันเห็นไฟล์ใหม่ทันที
                 // ไม่ต้องรอ poll รอบถัดไปอีก 5 นาที

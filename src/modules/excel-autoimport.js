@@ -101,5 +101,20 @@ export const EXCEL_AUTOIMPORT = {
             console.error('EXCEL_AUTOIMPORT.ensureFileOpen: bridge unreachable', err);
             return { status: 'bridge-offline' };
         }
+    },
+
+    // V29.102 FEAT: สั่ง Excel save ไฟล์ log sheet ที่เปิดอยู่ให้เอง — แก้ปัญหาสูตร PI Datalink คำนวณค่า
+    // ใหม่แสดงบนจอ Excel แบบ live ได้เองแต่ไม่เขียนกลับไฟล์บนดิสก์จนกว่าจะมีคน Save จริง ทำให้ pollAutoImport
+    // (เช็คแค่ mtime บนดิสก์) มองไม่เห็นค่าใหม่จนกว่า operator จะกด Ctrl+S เอง เรียกเป็นก้าวแรกสุดของทุก
+    // poll cycle ก่อนเช็ค getSourceFileInfo (ดู APP.pollAutoImport ใน app-core.js)
+    autosaveSourceFile: async () => {
+        try {
+            const res = await fetchWithTimeout(`${BRIDGE_URL}/autosave-source-file`, { method: 'POST' });
+            if (!res.ok) return { status: 'error' };
+            return await res.json();
+        } catch (err) {
+            console.error('EXCEL_AUTOIMPORT.autosaveSourceFile: bridge unreachable', err);
+            return { status: 'bridge-offline' };
+        }
     }
 };
