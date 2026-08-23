@@ -57,6 +57,14 @@
 # operator กด Save เอง ใช้ Find-OpenWorkbook ตัวเดิม (เหมือน Handle-WriteRemark) แล้วเช็ค $wb.Saved ก่อน
 # เรียก .Save() จริง (ประหยัด disk write ตอนไม่มีอะไรเปลี่ยน) — Web App เรียก route นี้เป็นก้าวแรกสุดของทุก
 # poll cycle (ทุก 5 นาที) ก่อนเช็ค /source-file-info เสมอ ให้ mtime ที่เช็คหลังจากนั้นเห็นค่าล่าสุดจริง
+#
+# V29.106 FIX: $listener.Start() เดิมไม่มี try/catch — เจอ port 5175 ถูก instance อื่นจองอยู่แล้ว (เช่นตอนกด
+# ปุ่ม "เปิด Excel Bridge" ในเว็บขณะ bridge ตัวเดิมยังทำงานอยู่ แต่ sync indicator ยังไม่ทันอัปเดต) จะ throw
+# raw .NET exception ยาวๆ ทำให้สคริปต์จบแล้ว start-bridge.bat ไปค้างที่ prompt "กด key ใดก็ได้เพื่อปิด" ต่อ
+# ปกติ — operator เจอจริงแล้วนึกว่าหน้าต่างดำ "ไม่ปิดไปเอง" เป็น error ร้ายแรง ทั้งที่ไม่มีผลกระทบอะไรเลย (bridge
+# ตัวเดิมยังทำงานปกติ) จับ exception แล้วโชว์ข้อความไทยที่บอกตรงๆ แทน (ดู try/catch รอบ $listener.Start()
+# ด้านล่าง) คู่กับฝั่ง Web App ที่เช็คก่อนแล้วว่า bridge ตอบอยู่หรือยังก่อนสั่งเปิดใหม่ (APP.retryConnectAfter
+# OpenBridge ใน app-core.js) เพื่อไม่ให้ต้องพึ่งแค่ข้อความที่เป็นมิตรใน bridge ฝั่งเดียว
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -634,9 +642,23 @@ function Handle-AutosaveSourceFile {
     }
 }
 
+# V29.106 FIX: เดิม $listener.Start() ไม่มี try/catch ห่อเลย — เจอ port ชนกัน (bridge อีกตัวรันอยู่แล้ว เช่น
+# instance ที่ auto-start ผ่าน Task Scheduler ตอน login) จะ throw raw .NET exception ยาวๆ เป็นภาษาอังกฤษ ทำให้
+# สคริปต์จบทันที แล้ว start-bridge.bat ไปโชว์ "Bridge หยุดทำงานแล้ว - กด key ใดก็ได้เพื่อปิดหน้าต่างนี้" ต่อ
+# ตามปกติ — operator เจอจริงแล้วงงว่าทำไมหน้าต่างดำไม่ปิดไปเอง (เข้าใจว่าเป็น error ร้ายแรง ทั้งที่จริงๆ ไม่มี
+# ผลกระทบอะไรเลย เพราะ instance เดิมยังทำงานปกติ) เปลี่ยนเป็นจับ exception แล้วโชว์ข้อความไทยที่บอกตรงๆ ว่า
+# ไม่เป็นไร แทน — ยังคงให้สคริปต์จบแบบเดิม (ไม่เปลี่ยนพฤติกรรม "กด key ใดก็ได้เพื่อปิด" ของ start-bridge.bat
+# เพราะเป็น safety net ที่ตั้งใจไว้สำหรับ error จริงๆ กรณีอื่นด้วย)
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:$Port/")
-$listener.Start()
+try {
+    $listener.Start()
+} catch {
+    Write-Host ""
+    Write-Host "Bridge อีกตัวกำลังทำงานอยู่แล้วบนเครื่องนี้ (port $Port ถูกใช้อยู่)"
+    Write-Host "ปิดหน้าต่างนี้ได้เลย ไม่มีผลกระทบอะไร — ระบบใช้ตัวที่รันอยู่ก่อนแล้วต่อไปได้ตามปกติ"
+    exit 1
+}
 Write-Host "Excel Bridge กำลังทำงานที่ http://localhost:$Port/ (กด Ctrl+C เพื่อหยุด)"
 
 # V29.98 FEAT: เช็ค rollover ทันทีตอน bridge เริ่มทำงาน — ไม่ต้องรอ Web App เปิด/poll ทุก 5 นาทีอีกแล้ว

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.105)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.106)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -260,7 +260,11 @@
                 <!-- V29.103 FEAT: ปุ่มเปิด Excel Bridge จากหน้า Web App โดยตรง ผ่าน custom URI protocol
                      "plantlogbridge://" (ต้อง import bridge/register-protocol.reg ในเครื่องก่อนครั้งแรก —
                      ดู bridge/README.md) — เบราว์เซอร์ธรรมดาสั่งเปิดไฟล์ .bat ในเครื่องตรงๆ ไม่ได้ ต้องผ่าน
-                     protocol handler นี้เท่านั้น ซ่อน/โชว์ตาม sync state ใน APP.setSyncIndicator -->
+                     protocol handler นี้เท่านั้น ซ่อน/โชว์ตาม sync state ใน APP.setSyncIndicator
+                     V29.106 FIX: href ยังคงไว้เป็น fallback เฉยๆ (เผื่อ JS โหลดไม่ทัน/พัง) — ตัวที่ตัดสินใจ
+                     จริงว่าจะเปิด plantlogbridge://start ไหมคือ JS ใน APP.retryConnectAfterOpenBridge
+                     (app-core.js) ซึ่ง preventDefault() แล้วเช็คก่อนว่า bridge ตอบอยู่แล้วหรือยัง กันเปิด
+                     instance ใหม่ซ้อนของเดิมจนชน port 5175 แล้ว crash ค้างเป็นหน้าต่างดำ -->
                 <a id="btn-open-bridge" href="plantlogbridge://start" class="hidden inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-violet-600 hover:text-violet-700 hover:underline">
                     <i data-lucide="play-circle" class="w-3 h-3"></i> เปิด Excel Bridge
                 </a>
@@ -286,7 +290,7 @@
             <h1 id="page-title" class="text-lg md:text-xl font-black text-slate-800 tracking-tight">System Overview</h1>
             <div class="flex items-center gap-3">
                 <div class="px-3 py-1.5 bg-sky-50 border border-sky-100 rounded-full text-[10px] font-bold text-sky-700 flex items-center shadow-sm">
-                    <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-sky-500"></i> V29.105
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-sky-500"></i> V29.106
                 </div>
             </div>
         </header>
@@ -819,7 +823,7 @@
                     </div>
 
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.105 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.106 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by A(i)CODER</p>
                     </div>
                 </div>

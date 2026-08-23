@@ -198,10 +198,30 @@ Object.assign(APP, {
             // V29.103 bridge ตอบ /ping ได้ภายใน ~2-3 วิหลัง process เริ่ม จึงเผื่อเกินพอ) พอเจอว่า bridge
             // ตอบแล้วให้ sync ทันทีทั้ง indicator (pushSharedDb) และข้อมูลจริง (pollAutoImport) ในจังหวะ
             // เดียวกันเลย ไม่ต้องรอ operator ทำอะไรต่อ
+            //
+            // V29.106 FIX: เดิม index.html ปล่อยให้ href="plantlogbridge://start" ทำงานเสมอทุกครั้งที่กดปุ่ม
+            // ควบคู่ไปกับฟังก์ชันนี้ — ถ้ากดปุ่มตอน bridge จริงๆ ทำงานอยู่แล้วแต่ indicator ยังไม่ทันอัปเดตเป็น
+            // SYNCED (จังหวะสั้นๆ ตอนเพิ่งโหลดหน้าเว็บ ก่อน pushSharedDb/pullSharedDb ตอน init จะสำเร็จ) จะ
+            // เผลอสั่งเปิด instance ใหม่ซ้อนทับของเดิม → ชน port 5175 → excel-bridge.ps1 crash (ไม่มี try/catch
+            // ห่อ $listener.Start() เลย) → ค้างเป็นหน้าต่างดำรอ keypress ที่ operator เห็นว่า "ไม่ปิดไปเอง"
+            // (พบจริงบนเครื่อง operator) — แก้โดยเช็คก่อนเสมอว่า bridge ตอบอยู่แล้วหรือยัง ถ้าตอบแล้วข้ามการ
+            // เปิด instance ใหม่ไปเลย เปิดจริงเฉพาะตอนเช็คแล้วว่ายังไม่มีใครตอบเท่านั้น (ดู index.html
+            // bindEvents ที่เปลี่ยนมา preventDefault() คู่กัน ให้ JS เป็นคนตัดสินใจ navigate แทน href ตรงๆ)
             retryConnectAfterOpenBridge: async () => {
                 if (isConnectingToBridge) return; // กันกดปุ่มรัวๆ แล้วมี loop ซ้อนกันหลายอัน
                 isConnectingToBridge = true;
                 try {
+                    const already = await EXCEL_AUTOIMPORT.getSourceFileInfo();
+                    if (already.status !== 'bridge-offline') {
+                        // bridge ตอบอยู่แล้ว (indicator แค่ยังไม่ทันอัปเดตเป็น SYNCED) — sync ทันที ไม่ต้อง
+                        // เปิด instance ใหม่ซ้อนของเดิม (กัน crash ชน port ตามที่อธิบายไว้ด้านบน)
+                        await APP.pushSharedDb();
+                        await APP.pollAutoImport();
+                        return;
+                    }
+
+                    window.location.href = 'plantlogbridge://start';
+
                     const maxAttempts = 15;
                     for (let i = 0; i < maxAttempts; i++) {
                         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -615,9 +635,14 @@ Object.assign(APP, {
                 // V29.96 FEAT: ปุ่ม "Rollover เองตอนนี้" (view-import) — ทดสอบ/สำรองคู่กับ auto-rollover
                 assignEvent('btn-rollover-daily-file', APP.rolloverDailyFileNow);
 
-                // V29.104 FEAT: ปุ่ม "เปิด Excel Bridge" — ไม่ preventDefault เพราะยังต้องปล่อยให้ href
-                // (plantlogbridge://start) ทำงานเปิด protocol ตามปกติควบคู่ไปกับ retry loop นี้
-                assignEvent('btn-open-bridge', () => APP.retryConnectAfterOpenBridge());
+                // V29.106 FIX: เดิมไม่ preventDefault ปล่อยให้ href (plantlogbridge://start) ทำงานเสมอ
+                // ควบคู่ไปกับ retry loop — ทำให้เปิด bridge ซ้อนไปชน port กับ instance ที่ทำงานอยู่แล้วได้
+                // (ดู comment ใน retryConnectAfterOpenBridge) ต้อง preventDefault แล้วให้ JS เป็นคนตัดสินใจ
+                // navigate เองแทนเฉพาะตอนเช็คแล้วว่าจำเป็นจริงๆ
+                assignEvent('btn-open-bridge', (e) => {
+                    e.preventDefault();
+                    APP.retryConnectAfterOpenBridge();
+                });
 
                 // V29.51 FEAT: สำรอง/กู้คืนข้อมูล (Backup/Restore)
                 assignEvent('btn-backup-db', APP.backupData);
