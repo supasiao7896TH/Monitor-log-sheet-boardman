@@ -1,9 +1,9 @@
 # HANDOFF — Plant Log Analyzer
 
 ## 📅 อัปเดตล่าสุด
-2026-08-13 — อัปเดตโดย recovery session ผ่าน GitHub API โดยตรง (ไม่มี local clone ของ repo ในเครื่องที่ทำ recovery นี้)
-Branch: `main` | Commit ล่าสุดบน `origin/main`: `f1041e9` — **push แล้ว** (ต่อจาก `b6df8c8` ผ่าน `bcfb16b` → `f1041e9`)
-เวอร์ชันแอปปัจจุบัน: **V29.85**
+2026-08-23 — อัปเดตโดย sa-handoff (โหมดปิดงาน) บันทึกย้อนหลัง **V29.95–V29.106** (12 เวอร์ชัน) ที่ค้างมาตั้งแต่ "เรื่องที่ 14" (V29.94) — ไม่มีการบันทึก entry ใหม่ใน HANDOFF.md เลยในช่วงนี้ แม้ `git log` จะแสดงว่ามีการทำงานต่อเนื่อง
+Branch: `main` | Commit ล่าสุดบน `origin/main`: `50eedbf` "Record notable feature decisions from V29.78 through V29.106 in context.md" — **push แล้ว** (`git status` ตอนเขียน entry นี้: working tree clean, branch up to date กับ `origin/main`)
+เวอร์ชันแอปปัจจุบัน: **V29.106**
 URL production จริง: **https://monitor-log-sheet-boardman.supasiao.workers.dev** (ยืนยันจาก `AllowedOrigins` ใน `bridge/excel-bridge.ps1` + output จริงของ Cloudflare deploy job ล่าสุด commit `3d4792a` — ลิงก์นี้ถูก embed ไว้ใน Excel log sheet ของโรงงานผ่านสูตร `HYPERLINK` ให้ operator กดเปิดแอป ห้ามเปลี่ยนชื่อ worker ใน `wrangler.jsonc` เด็ดขาดเพราะจะทำให้ลิงก์เดิมใน Excel ใช้ไม่ได้)
 สูตร Hyperlink ที่ใช้งานจริงตอนนี้ในไฟล์ Excel log sheet (พี่ A ยืนยันเอง 2026-08-13):
 ```
@@ -13,10 +13,13 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 ```
 =HYPERLINK("D:\Monitor log sheet boardman\bridge\start-bridge.bat", "▶ เปิด Excel Bridge (กดก่อนจะ Update log sheet)")
 ```
+> ตั้งแต่ V29.103 มีอีกช่องทางหนึ่งด้วย — ปุ่ม "เปิด Excel Bridge" ในตัว Web App เอง (ข้าง sync indicator, โชว์เฉพาะตอน LOCAL MODE) ยิง custom URI protocol `plantlogbridge://` ซึ่งต้อง double-click `bridge/register-protocol.reg` ที่เครื่องนั้นก่อนครั้งแรก (ลงทะเบียนใต้ `HKCU`, ไม่ต้องสิทธิ์ admin — ดู "เรื่องที่ 17" ด้านล่าง)
 
 > ⚠️ **เหตุผลที่มี entry ย้อนหลัง (เรื่องที่ 10-11 ด้านล่าง):** เมื่อวันที่ 2026-08-12 ~19:37 น. (เวลาไทย) sa-handoff ตัวก่อนหน้ากำลังบันทึกสถานะ session ให้ แต่พี่ A ปิดเครื่องก่อนบันทึกเสร็จ ทำให้ HANDOFF.md ฉบับก่อนหน้า **ไม่มีข้อมูล 2 เรื่องที่เกิดขึ้นจริงแล้วบน `origin/main`**: (1) เรื่องที่ 10 — shared-DB sync ข้าม operator (V29.85, commit `bcfb16b`, push แล้วตั้งแต่ 2026-08-12 ~19:37 เวลาไทย) และ (2) เรื่องที่ 11 — แก้บั๊ก badge เวอร์ชันค้าง (commit `f1041e9`, push แล้ว 2026-08-13 ~09:56 เวลาไทย) — เพิ่ม entry ทั้งสองย้อนหลังใน session recovery นี้ โดยอ้างอิงจาก commit message/diff stat ผ่าน GitHub API เท่านั้น (ไม่มี local clone จึงไม่มีบริบทเพิ่มเติมนอกเหนือจากที่ commit message ระบุไว้ — ถ้าใครมีบริบทการทดสอบเพิ่มเติมของ 2 commit นี้ ควรเติมให้ครบ)
 >
 > ⚠️ ตอนเริ่ม session ที่เครื่อง Office (ก่อนหน้านี้) `git log` พบว่า `origin/main` ไปไกลกว่า header เดิมด้านล่าง (ซึ่งหยุดที่ `2b81b3b` / V29.81) อีก 1 commit ที่ไม่เคยถูกบันทึกเป็น entry ใน HANDOFF.md เลย: `51ec9d2` — **V29.82** "Fix canonical-times completeness reporting a future time slot as present" (แก้ `getCanonicalTimesStatus` ให้เทียบกับเวลาจริง ณ ปัจจุบันด้วย ไม่ใช่แค่เช็คว่ามี record ของ time slot นั้นหรือยัง กันไม่ให้ dashboard ขึ้น "ครบ 4 รอบเวลา" ก่อนเวลาจริงมาถึง) — **session นั้น (เครื่อง Office) ไม่ได้เป็นคนทำ V29.82** พบแค่จาก `git log`/`git show --stat` ตอนตรวจสอบก่อนเริ่มงาน ไม่มีบริบทเพิ่มเติมนอกจาก commit message เอง — ถ้าใครรับงานต่อและมีบริบทมากกว่านี้ ควรเติม entry ย้อนหลังให้ครบ
+>
+> ⚠️ **ช่องว่างเดียวกันเกิดซ้ำอีกครั้งกับ V29.95-101 (ดู "เรื่องที่ 15" ด้านล่าง):** เมื่อเริ่ม session นี้ (2026-08-23) `git log` พบว่า `origin/main` ไปไกลกว่า "เรื่องที่ 14" (ซึ่งหยุดที่ V29.94, commit `d124b58`) ไปแล้วถึง V29.101 (`f8ba9a3`) โดยไม่มี entry ใน HANDOFF.md เลยสักตัว — เพิ่ม "เรื่องที่ 15" ย้อนหลังโดยอ้างอิงจาก `git log --stat`/commit message เท่านั้น (ไม่มีบริบทการทดสอบ/การตัดสินใจระหว่างทางเพิ่มเติม เพราะ session ที่ทำจริงไม่ใช่ session ที่เขียน entry นี้) ส่วน V29.102-106 ("เรื่องที่ 16-20") เขียนจาก session นี้เองจึงมีบริบทเต็ม — และ "เรื่องที่ 15" เดิม (การตัดสินใจเรื่อง SQL/Cloud Database ที่ยังค้างอยู่ ไม่มีโค้ดเปลี่ยน) ถูกย้าย/renumber ไปเป็น **"เรื่องที่ 21"** ท้ายสุดของ session log แทน เพื่อไม่ให้ปนกับงานที่ทำเสร็จแล้วจริง
 >
 > หมายเหตุเก่าจากเครื่องบ้าน (เก็บไว้เป็นบันทึกประวัติ): HANDOFF.md ฉบับก่อนหน้า (เขียนที่เครื่อง Office `26007294`) ค้างข้อมูลไว้ที่ commit `22416d8` และบอกว่า "เรื่องที่ 4" (Threaded Comment fix) ยังไม่ commit — ความจริงตอนเริ่ม session นั้นที่เครื่องบ้าน `origin/main` ไปไกลกว่านั้นแล้ว 10 commits (รวม "เรื่องที่ 4" ที่ commit ไปแล้วเป็น `952d8f5`) เนื้อหาเก่าด้านล่างเก็บไว้เป็นบันทึกประวัติ
 
@@ -38,7 +41,7 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 **Commit:** `2b81b3b` "Fix auto-import/archive seeing Excel's own lock file as a second file (V29.81)" — 2 ไฟล์ (`bridge/excel-bridge.ps1`, `index.html`) — **push ขึ้น `origin/main` แล้ว** (`8537334..2b81b3b`)
 
-**สถานะ:** แก้เสร็จ + commit + push แล้ว **แต่ยังไม่มีใครยืนยันบน production/สภาพแวดล้อมจริง** — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 1
+**สถานะ:** แก้เสร็จ + commit + push แล้ว **ยืนยันแล้วโดยอ้อมในสภาพแวดล้อมจริง** — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 1
 
 ---
 
@@ -78,11 +81,11 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 **ไฟล์ที่แก้:** `src/modules/app/app-import.js`, `index.html` (title + label "System Version") — bump เป็น **V29.83**
 
-**การยืนยัน:** เครื่อง Office นี้ **ไม่มี Node.js/npm ติดตั้งอยู่เลย** (`npm`/`node` หาไม่เจอทั้งใน bash และ PowerShell ไม่มี `node_modules`/`dist`) จึงรัน `npm run dev` ไม่ได้ — ทดสอบผ่าน browser (Claude in Chrome) แทน โดยตั้ง local Python static server ชั่วคราว (map `/vendor/*` → `public/vendor/*` เลียนแบบ Vite dev server) import ไฟล์ log sheet จริง (`P1-F-2002-22 (11-08-26) (Digital).xlsm`) → กรอก remark → re-import ไฟล์เดิมซ้ำ → ยืนยันว่า remark ไม่หายทั้งในการ์ด dashboard และใน Infographic Report (ทั้ง Card และ Table layout) — ผ่านหมด ปิด server แล้วหลังทดสอบเสร็จ **ยังไม่ได้รัน `npm test` (Vitest suite) เพราะไม่มี npm บนเครื่องนี้** — ควรรันที่เครื่องบ้านเพื่อ double-check ว่า suite ผ่านปกติ (แม้ fix นี้จะไม่แตะไฟล์ที่มี test coverage ก็ตาม)
+**การยืนยัน:** เครื่อง Office นี้ตอนนั้น **ไม่มี Node.js/npm ติดตั้งอยู่เลย** (`npm`/`node` หาไม่เจอทั้งใน bash และ PowerShell ไม่มี `node_modules`/`dist`) จึงรัน `npm run dev` ไม่ได้ — ทดสอบผ่าน browser (Claude in Chrome) แทน โดยตั้ง local Python static server ชั่วคราว (map `/vendor/*` → `public/vendor/*` เลียนแบบ Vite dev server) import ไฟล์ log sheet จริง (`P1-F-2002-22 (11-08-26) (Digital).xlsm`) → กรอก remark → re-import ไฟล์เดิมซ้ำ → ยืนยันว่า remark ไม่หายทั้งในการ์ด dashboard และใน Infographic Report (ทั้ง Card และ Table layout) — ผ่านหมด ปิด server แล้วหลังทดสอบเสร็จ **ตอนนั้นยังไม่ได้รัน `npm test` (Vitest suite) เพราะไม่มี npm บนเครื่องนี้** — **อัปเดต 2026-08-23:** เครื่องนี้มี Node.js/npm ติดตั้งแล้ว และ `npm test` รันผ่าน 140/140 (รวม suite ที่ครอบคลุมไฟล์นี้โดยอ้อม) — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 6
 
 **Commit:** `401e500` "Preserve Resolution Remark across re-import (V29.83)" — 2 ไฟล์ (`index.html`, `src/modules/app/app-import.js`) — **push ขึ้น `origin/main` แล้ว**
 
-**สถานะ:** แก้เสร็จ + commit + push แล้ว **แต่ยังไม่ได้รัน automated test suite (`npm test`) เพื่อยืนยัน** — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 6
+**สถานะ:** แก้เสร็จ + commit + push แล้ว + ยืนยัน `npm test` ผ่านแล้ว (2026-08-23)
 
 ---
 
@@ -115,11 +118,11 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 - Badge `σ-BAND` โชว์แม้ตอน tag เป็น Exact Value ที่ฟีเจอร์นี้ไม่มีผลจริง (state.js skip ไปเงียบๆ) — เพิ่มเงื่อนไข `eExact === null` ก่อนโชว์ badge กันสับสน
 - อัปเดต `CLAUDE.md`/`AGENTS.md` ให้ตรงกับโครงสร้าง `_recomputeFlags` แบบ 2-pass ใหม่ (เดิม doc ยังพูดถึง `_deriveAbnormal` ที่เลิกใช้ไปแล้วตั้งแต่ V29.78 — doc drift ที่ค้างมานาน แก้พร้อมกันไปด้วย)
 
-**การทดสอบ:** เครื่อง Office นี้ไม่มี Node.js/npm เลย (ยืนยันซ้ำอีกครั้ง หา `node`/`npm` ไม่เจอทั้ง bash/PowerShell) จึง **ไม่ได้รัน `npm test` จริงทั้ง 2 รอบ** (ทั้งตอนเขียน test และตอน sa-code-reviewer ตรวจ) — ตรวจด้วย hand-trace ตัวเลขทีละ step แทน (ไม่พบข้อผิดพลาดทางคณิตศาสตร์) และทดสอบ end-to-end จริงผ่าน browser (Claude in Chrome) แทน: ตั้ง local Python static server ชั่วคราว (เลียนแบบ Vite dev server, map `/vendor/*` → `public/vendor/*`), สร้าง synthetic backup JSON (`STORAGE_ENGINE.importAll` format) ที่มี TI-2301 baseline 25 samples + ค่า anomaly 238.7 + ค่าหลุด hard-limit 300 แล้วใช้ "กู้คืนข้อมูล" (restore) โดย override `window.confirm`/`window.alert` ผ่าน `javascript_tool` ก่อน เพื่อไม่ให้ native dialog บล็อก session (เจอปัญหานี้จริงรอบแรก — tab หลุดค้าง ต้อง `tabs_close_mcp` แล้วเปิดใหม่) ยืนยันผ่านหมด: purple badge/card/filter/counter ถูกต้อง, Infographic Report (Card+Table) สีถูก, Tag Master badge ถูก, ไม่มี console error (นอกจาก "bridge unreachable" ที่ปกติเพราะไม่ได้รัน Local Bridge)
+**การทดสอบ:** เครื่อง Office นี้ตอนนั้นไม่มี Node.js/npm เลย (ยืนยันซ้ำอีกครั้ง หา `node`/`npm` ไม่เจอทั้ง bash/PowerShell) จึง **ไม่ได้รัน `npm test` จริงทั้ง 2 รอบ** (ทั้งตอนเขียน test และตอน sa-code-reviewer ตรวจ) — ตรวจด้วย hand-trace ตัวเลขทีละ step แทน (ไม่พบข้อผิดพลาดทางคณิตศาสตร์) และทดสอบ end-to-end จริงผ่าน browser (Claude in Chrome) แทน: ตั้ง local Python static server ชั่วคราว (เลียนแบบ Vite dev server, map `/vendor/*` → `public/vendor/*`), สร้าง synthetic backup JSON (`STORAGE_ENGINE.importAll` format) ที่มี TI-2301 baseline 25 samples + ค่า anomaly 238.7 + ค่าหลุด hard-limit 300 แล้วใช้ "กู้คืนข้อมูล" (restore) โดย override `window.confirm`/`window.alert` ผ่าน `javascript_tool` ก่อน เพื่อไม่ให้ native dialog บล็อก session (เจอปัญหานี้จริงรอบแรก — tab หลุดค้าง ต้อง `tabs_close_mcp` แล้วเปิดใหม่) ยืนยันผ่านหมด: purple badge/card/filter/counter ถูกต้อง, Infographic Report (Card+Table) สีถูก, Tag Master badge ถูก, ไม่มี console error (นอกจาก "bridge unreachable" ที่ปกติเพราะไม่ได้รัน Local Bridge) — **อัปเดต 2026-08-23:** `npm test` รันผ่าน 140/140 บนเครื่องนี้แล้วเช่นกัน (รวม `tests/shared.test.js`/`tests/state.test.js` ที่มี describe block ของฟีเจอร์นี้) — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 9
 
 **Commit:** `b6df8c8` "Add Statistical Deviation detection, opt-in per tag (V29.84)" — 10 files, 343 insertions — **push ขึ้น `origin/main` แล้ว** (`0a6d7e5..b6df8c8`)
 
-**สถานะ:** แก้เสร็จ + commit + push แล้ว **แต่ยังไม่มีใครรัน `npm test` จริงเลยตลอด session นี้** (ทั้ง test เก่าและ test ใหม่ที่เพิ่งเขียน) — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 9 และ **ฟีเจอร์นี้ปิดอยู่ทุก tag โดย default** จนกว่าพี่ A จะไปเปิด `enableStatDeviation` เองผ่าน Tag Master — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 10
+**สถานะ:** แก้เสร็จ + commit + push แล้ว + ยืนยัน `npm test` ผ่านแล้ว (2026-08-23) และฟีเจอร์นี้ **ไม่ได้ opt-in ต่อ tag แบบเดิมแล้ว** — flip เป็น opt-out เปิดอัตโนมัติทุก tag ไปตั้งแต่ V29.92 (ดู "เรื่องที่ 12")
 
 ---
 
@@ -141,7 +144,7 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 **Commit:** `bcfb16b` "Add shared-DB sync across operators via Local Bridge (V29.85)" — **push ขึ้น `origin/main` แล้ว** (2026-08-12 ~19:37 น. เวลาไทย, ต่อจาก `b6df8c8`)
 
-**สถานะ:** shipped + push แล้ว — **แต่ยังไม่มีข้อมูลยืนยันว่า `tests/excel-sync.test.js` (ไฟล์ test ใหม่ของ feature นี้) เคยรันผ่าน `npm test` จริงหรือไม่** (commit message ไม่ได้ระบุ ไม่มีข้อมูลยืนยัน) — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 12
+**สถานะ:** shipped + push แล้ว — **`tests/excel-sync.test.js` ยืนยันแล้วว่ารันผ่าน `npm test` จริง** (2026-08-23, เป็น 1 ใน 7 test files ที่ผ่านครบ 140/140 — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 12) แต่**การใช้งานจริงกับ operator หลายคนบน PC ที่ทำงาน (คนละ Windows account) หลัง deploy ยังไม่มีใครยืนยัน** — ยังเป็นรายการค้างอยู่ (ข้อ 13)
 
 ---
 
@@ -151,7 +154,7 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 **Commit:** `f1041e9` "Fix stale version badge V29.52 -> V29.85 (cosmetic, tracked in HANDOFF.md)" — 1 ไฟล์ (`index.html`), +1/-1 — **push ขึ้น `origin/main` แล้ว** (2026-08-13 ~09:56 น. เวลาไทย)
 
-**สถานะ:** แก้เสร็จ + commit + push แล้ว เป็น commit ล่าสุดบน `origin/main` ณ ตอนที่บันทึก entry นี้
+**สถานะ:** แก้เสร็จ + commit + push แล้ว — **หมายเหตุ 2026-08-23:** badge จุดนี้ (header sparkles badge) หลุดค้างซ้ำอีกครั้งหลังจากนี้ (ที่ข้อความ "V29.85" คราวนี้) เพราะยังไม่เคยอยู่ใน checklist bump เวอร์ชันอย่างเป็นทางการ — แก้แล้วอีกรอบพร้อมเพิ่มเข้า checklist ถาวรที่ V29.98 (ดู "เรื่องที่ 15" ด้านล่าง, housekeeping `8d9e0ed`) กันไม่ให้หลุดซ้ำเป็นครั้งที่ 3
 
 ---
 
@@ -168,11 +171,11 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 **ไฟล์ที่แก้:** `src/modules/shared.js`, `src/modules/state.js`, `index.html`, `src/modules/app/app-master.js`, `src/modules/app/app-dashboard.js`, `src/modules/app/app-report.js`, `src/modules/app/app-core.js`, `src/modules/app/app-history.js`, `src/modules/app/app-export.js`, `src/modules/smart-agent.js`, `tests/shared.test.js`, `tests/state.test.js`, `CLAUDE.md`, `AGENTS.md` — bump เป็น **V29.92**
 
-**การยืนยัน:** เขียน test ใหม่ครบ (`computeCausalStatTrendWarning` describe block ใน `tests/shared.test.js`, ปรับ `_recomputeFlags` integration tests ใน `tests/state.test.js` ให้ตรงกับ opt-out gate ใหม่) แต่ **เครื่องที่เขียน session นี้ไม่มี Node.js/npm ติดตั้งอยู่เลย — ยังไม่เคยรัน `npm test` จริงสักครั้ง** ยืนยันแค่ hand-trace logic เท่านั้น ต้องรัน `npm test` ที่เครื่องที่มี Node.js ก่อนไว้ใจ 100%, และควรทดสอบ UI จริงผ่าน `npm run dev` (import log sheet ตัวอย่าง, เปิด Tag Master ดู checkbox ใหม่, ลองสร้างข้อมูลไต่ระดับ/เบี่ยงเบนซ้ำเพื่อดู Trend Warning card สีฟ้าขึ้นจริง)
+**การยืนยัน:** เขียน test ใหม่ครบ (`computeCausalStatTrendWarning` describe block ใน `tests/shared.test.js`, ปรับ `_recomputeFlags` integration tests ใน `tests/state.test.js` ให้ตรงกับ opt-out gate ใหม่) แต่ **เครื่องที่เขียน session นี้ไม่มี Node.js/npm ติดตั้งอยู่เลย — ยังไม่เคยรัน `npm test` จริงสักครั้ง** ยืนยันแค่ hand-trace logic เท่านั้น — **อัปเดต 2026-08-23:** `npm test` รันผ่าน 140/140 บนเครื่องนี้แล้ว (รวม `tests/shared.test.js`/`tests/state.test.js` ที่มี test ของฟีเจอร์นี้) — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 14 — ยังไม่ได้ทดสอบ UI จริงผ่าน `npm run dev` โดยเฉพาะสำหรับฟีเจอร์นี้ (Trend Warning card สีฟ้า) ในทุก session ที่ผ่านมา
 
 **Commit:** `c5aa038` "Auto-enable Statistical Deviation for all tags, add Trend Warning tier (V29.92)" — 15 ไฟล์, +326/-71 — **push ขึ้น `origin/main` แล้ว** (ต่อจาก `7757c1f`)
 
-**สถานะ:** โค้ด+test เขียนเสร็จ, commit+push แล้ว — **`npm test` ยังไม่เคยรันจริง** (เครื่องนี้ไม่มี Node.js/npm) ยังเป็นรายการค้างอยู่
+**สถานะ:** โค้ด+test เขียนเสร็จ, commit+push แล้ว, **`npm test` ยืนยันผ่านแล้ว** (2026-08-23) — ยังไม่เคยทดสอบ UI จริงผ่าน browser สำหรับ Trend Warning card โดยเฉพาะ
 
 ---
 
@@ -189,11 +192,11 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 **ไฟล์ที่แก้:** `index.html`, `src/modules/state.js`, `src/modules/app/app-dashboard.js`, `src/modules/app/app-core.js`, `src/modules/app/app-import.js`, `tests/state.test.js` — bump เป็น **V29.93**
 
-**การยืนยัน:** เพิ่ม test ใหม่ใน `tests/state.test.js` สำหรับ filter `'hard-abnormal'` (แยกจาก `isStatDeviation` ถูกต้อง) — **`npm test` ยังไม่เคยรันจริงเช่นเดียวกับ "เรื่องที่ 12"** (เครื่องนี้ไม่มี Node.js/npm) ยัง**ไม่เคยทดสอบ UI จริงผ่าน browser เลย** ว่าคลิกการ์ดแล้ว ring highlight/filter ทำงานถูกต้อง โดยเฉพาะ toggle-off (คลิกซ้ำ) ต้องเช็คให้ดีที่เครื่องที่มี Node.js
+**การยืนยัน:** เพิ่ม test ใหม่ใน `tests/state.test.js` สำหรับ filter `'hard-abnormal'` (แยกจาก `isStatDeviation` ถูกต้อง) — **อัปเดต 2026-08-23:** `npm test` รันผ่าน 140/140 แล้ว (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 14) แต่ **ยังไม่เคยทดสอบ UI จริงผ่าน browser เลย** ว่าคลิกการ์ดแล้ว ring highlight/filter ทำงานถูกต้อง โดยเฉพาะ toggle-off (คลิกซ้ำ) — ยังไม่มีข้อมูลยืนยันจาก session ใดเลยจนถึงตอนนี้ (session นี้ทดสอบ UI จริงหลายฟีเจอร์แต่ไม่ใช่ฟีเจอร์นี้โดยตรง — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 15)
 
 **Commit:** `afb0593` "Make dashboard summary cards act as click-to-filter controls (V29.93)" — 7 ไฟล์, +75/-24 — **push ขึ้น `origin/main` แล้ว** (ต่อจาก `c5aa038`)
 
-**สถานะ:** โค้ด+test เขียนเสร็จ, commit+push แล้ว — **`npm test` และทดสอบ UI จริงยังไม่เคยทำเลย** ยังเป็นรายการค้างอยู่ (ดู item 14-15 ใน "ค้างอยู่ตรงไหน")
+**สถานะ:** โค้ด+test เขียนเสร็จ, commit+push แล้ว, `npm test` ยืนยันผ่านแล้ว (2026-08-23) — **ทดสอบ UI จริงยังไม่เคยทำเลย** ยังเป็นรายการค้างอยู่ (ดู item 15 ใน "ค้างอยู่ตรงไหน")
 
 ---
 
@@ -205,95 +208,206 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 **ไฟล์ที่แก้:** `src/modules/state.js`, `src/modules/app/app-dashboard.js`, `src/modules/app/app-core.js`, `src/modules/app/app-import.js`, `index.html` — bump เป็น **V29.94**
 
-**การยืนยัน:** ไม่กระทบ `tests/state.test.js` เดิม (แต่ละ test set `viewFilter` เองผ่าน `beforeEach`/`STATE.set` โดยตรง ไม่พึ่งค่า default จาก `STATE.data`) — **`npm test`/ทดสอบ UI จริงยังไม่เคยทำ** เหมือน "เรื่องที่ 12-13"
+**การยืนยัน:** ไม่กระทบ `tests/state.test.js` เดิม (แต่ละ test set `viewFilter` เองผ่าน `beforeEach`/`STATE.set` โดยตรง ไม่พึ่งค่า default จาก `STATE.data`) — **อัปเดต 2026-08-23:** `npm test` รันผ่าน 140/140 แล้ว — ทดสอบ UI จริงยังไม่เคยทำ เหมือน "เรื่องที่ 12-13"
 
 **Commit:** `d124b58` "Default the parameter list to Abnormalities only (V29.94)" — 6 ไฟล์, +23/-6 — **push ขึ้น `origin/main` แล้ว** (ต่อจาก `f277fae`)
 
-**สถานะ:** โค้ดเขียนเสร็จ, commit+push แล้ว — `npm test`/ทดสอบ UI จริงยังไม่เคยทำเหมือนเดิม
+**สถานะ:** โค้ดเขียนเสร็จ, commit+push แล้ว, `npm test` ยืนยันผ่านแล้ว (2026-08-23) — ทดสอบ UI จริงยังไม่เคยทำเหมือนเดิม
 
 ---
 
-## 💭 เรื่องที่ 15 — การตัดสินใจที่ยังค้างอยู่: ควรย้ายไป SQL/Cloud Database ไหม? (ยังไม่ตัดสินใจ ไม่มีโค้ดเปลี่ยนแปลง)
+## ✅ เรื่องที่ 15 — Excel Bridge: ระบบ Rollover ไฟล์ log sheet รายวันอัตโนมัติ + ตรวจจับไฟล์ template ค้าง (V29.95–V29.101) — บันทึกย้อนหลัง
 
-**คำถามที่พี่ A ถาม:** "เราเก็บข้อมูลไว้มากมายขนาดนี้ และเป็นข้อมูลรูปแบบเดิมๆ เราจะต้องทำ database SQL ไหม" — ตามด้วยเหตุผลที่แท้จริง 2 ข้อ: (1) อยากวิเคราะห์/ทำรายงานข้อมูลย้อนหลังแบบซับซ้อนกว่าที่ UI ปัจจุบันทำได้ และ (2) **กลัวว่าเครื่อง PC จะพัง หรือหมดสัญญาเช่า แล้วข้อมูลจะหายหมด**
+**หมายเหตุสำคัญ:** entry นี้ครอบคลุม 7 commits ฟีเจอร์ต่อเนื่องกัน (+housekeeping คั่นกลาง) เขียนย้อนหลังโดย sa-handoff session นี้ (2026-08-23) — **ไม่มีบริบทการทำงาน/การตัดสินใจระหว่างทางเพิ่มเติมนอกเหนือจาก commit message** เพราะเป็นงานที่ทำใน session ก่อนหน้า (2026-08-18 ถึง 2026-08-22 ตาม timestamp ของ commit) ไม่ใช่ session ที่เขียน entry นี้ — ถ้าใครมีบริบทเพิ่มเติม (โดยเฉพาะการทดสอบ) ควรเติมให้ครบ
 
-**สิ่งที่เช็คแล้ว (ข้อเท็จจริงจากโค้ดจริง ไม่ใช่การเดา):**
-- **IndexedDB (ข้อมูลหลัก):** อยู่ในเครื่อง PC เครื่องเดียว ผูกกับ browser profile ด้วย
-- **Shared-DB sync (V29.85, `src/modules/excel-sync.js` + `bridge/excel-bridge.ps1`):** เขียนไปที่ `$SharedDbPath = "D:\Monitor log sheet boardman\shared-data\plantlog-shared-db.json"` ซึ่ง**เป็น drive เดียวกับเครื่องเดิม** — แก้ปัญหา operator login คนละ Windows account เห็นข้อมูลคนละก้อน แต่**ไม่ใช่ backup นอกเครื่อง**
-- **ปุ่ม "สำรองข้อมูล" (`APP.backupData`, V29.51, `app-core.js`):** ดาวน์โหลดไฟล์ JSON ด้วยมือเท่านั้น (`STORAGE_ENGINE.exportAll()` → Blob → download) — ถ้า operator ไม่เอาไฟล์ไปเก็บที่อื่นเอง (OneDrive/network drive/USB) ก็ยังอยู่ในเครื่องเดิม
-- **สรุป: ถ้าเครื่องนี้พัง/หมดสัญญาเช่าโดยไม่มีใครย้ายข้อมูลออกมาก่อน ข้อมูลหายจริงตามที่พี่ A กังวล** — เป็นช่องโหว่จริง เกิดจาก "ข้อมูลอยู่ที่เดียว ไม่มี copy นอกเครื่อง" ไม่ใช่ปัญหา SQL vs NoSQL
+**V29.95** (`d869583`, 2026-08-18) — ย้าย archive folder ของสำเนา log sheet ที่ auto-archive ไว้ ให้ไปอยู่ใต้ `$WatchFolder` เอง (`D:\PTA COMMONT WORK\Log sheet Digital\<Mmm yy>\`) แทนที่จะอยู่ใต้ folder ของ repo — ตามคำขอ operator พฤติกรรม subfolder รายเดือนเหมือนเดิม
 
-**3 ทางเลือกที่เสนอไป (เรียงจากเบาไปหนัก) — สรุปสั้น (รายละเอียด pros/cons เต็มอยู่ใน conversation ของ session นี้ ยังไม่ได้ก็อปมาไว้ที่นี่ทั้งหมดเพราะยาวมาก):**
+**V29.96** (`000fd07`, 2026-08-18) — เพิ่ม route ใหม่ `/rollover-daily-file`: parse วันที่แบบ "(DD-MM-YY)" จากชื่อไฟล์ log sheet เมื่อวันที่ในเครื่องเลยวันที่ในชื่อไฟล์แล้ว จะ safety-archive ไฟล์เก่า, rename (SaveAs คง FileFormat เดิม) เป็นวันที่วันนี้ และเขียนวันที่วันนี้ลง `"BM 1"!W1` (cell ที่ขับสูตร PI Datalink) แทนที่ operator ต้อง rename+แก้ cell ด้วยมือทุกวัน — idempotent ต่อรอบ poll (ทุก 5 นาที ไม่มี trigger เที่ยงคืนตรงๆ) มีปุ่ม "Rollover เองตอนนี้" เป็น manual fallback/test path ด้วย
 
-1. **Auto-backup ออกนอกเครื่อง** (เช่น สำรองอัตโนมัติไปโฟลเดอร์ OneDrive/network drive ที่ sync อยู่แล้ว) — เบาสุด ไม่แตะสถาปัตยกรรม แก้เฉพาะปัญหาข้อมูลหาย ไม่ช่วยเรื่อง reporting
-2. **Firebase Firestore** — cloud จริง, ตรงกับ roadmap เดิมของพี่ A เอง (`vibe-coding-firebase` skill), แก้ปัญหาข้อมูลหายได้ + multi-device real-time แต่ยังไม่ใช่ SQL เต็มรูปแบบ (query ซับซ้อนยังจำกัด) ต้องออกแบบ Auth ใหม่ทั้งหมด (ตอนนี้แอปไม่มี auth เลย)
-3. **Cloudflare D1** — SQL จริง, ต่อยอดจาก Cloudflare Workers ที่ deploy อยู่แล้ว, ตอบโจทย์ทั้ง 2 ข้อดีที่สุด **แต่เป็นงานใหญ่ที่สุด**: ตอนนี้ Worker เสิร์ฟแค่ static file ล้วนๆ ไม่มี server-side logic เลย ต้องสร้าง backend API ใหม่ทั้งหมด + ต้องออกแบบระบบ auth/สิทธิ์เข้าถึงใหม่จริงจัง (ตอนนี้ "security" = ไม่มีใครรู้ URL เฉยๆ) + rewrite `STORAGE_ENGINE` เกือบทั้งหมด + แอปจะไม่ offline 100% เหมือนเดิม + เสี่ยงข้อมูลเสียหายช่วง migrate ถ้าพลาด (ย้อนแย้งกับเป้าหมายที่อยากป้องกันข้อมูลหาย)
+**V29.97** (`7baf197`, 2026-08-18) — แก้ปัญหา rollover เดิมต้องพึ่งให้ operator เปิดไฟล์ไว้ใน Excel ก่อนเอง (ไม่งั้น fail เงียบด้วย `no-file-open`) — `Handle-RolloverDailyFile` เปิดไฟล์เองผ่าน COM (`Find-OrOpenWorkbook`) ถ้ายังไม่มีใครเปิดไว้ ทำให้ rollover ข้ามคืนสำเร็จโดยไม่ต้องมีคนอยู่หน้าเครื่อง
 
-**ข้อสังเกตร่วมของทาง 2 และ 3:** ทั้งคู่ทำให้แอปต้องพึ่งอินเทอร์เน็ตทุกครั้งที่อ่าน/เขียนข้อมูล (จากเดิม offline ได้เต็มที่) — สำหรับเครื่องมือหน้างานโรงงานที่สัญญาณเน็ตอาจไม่เสถียรตลอดเวลา ควรคิดให้รอบคอบ
+**V29.98** (`0306a1c`, 2026-08-18) — ย้าย trigger การ rollover จากที่พึ่ง Web App poll ทุก 5 นาทีอย่างเดียว (พังถ้าไม่มีใครเปิด Web App ค้างไว้ข้ามคืน) มาให้ `excel-bridge.ps1` รัน `Handle-RolloverDailyFile` เองตอน bridge เริ่มทำงาน — เคยพิจารณา dedicated always-logged-in account + Task Scheduler แต่ปฏิเสธเพราะ shared PC ให้แต่ละ operator login/logout คนละ Windows account จริง บัญชี dedicated จะไปแย่ง port 5175 และมองไม่เห็น Excel session ของ operator คนอื่น
 
-**คำแนะนำที่ให้ไป (ยังไม่ได้ทำ):** เริ่มจากทาง 1 (auto-backup) ก่อนได้เลยเพราะความเสี่ยงต่ำสุดและเป็น "ประกันภัย" ที่มีประโยชน์ไม่ว่าจะเลือกทางไหนต่อ ส่วนทาง 2/3 ควรตัดสินใจแยกต่างหาก เพราะเป็นการเปลี่ยนสถาปัตยกรรมใหญ่ที่ควรผ่านขั้นตอน Blueprint + อนุมัติแบบเต็มรูปแบบ (อาจใช้ `sa-architect` subagent ช่วยตอนเริ่มออกแบบจริง)
+**Housekeeping ระหว่างทาง (คั่นระหว่าง V29.98-99, ไม่ bump version):**
+- `13ab688` — บันทึกการตัดสินใจ (ไม่มีโค้ดเปลี่ยน) **ไม่** เพิ่ม setting ให้ browser ตั้ง path โฟลเดอร์เอง เพราะ Local Bridge ผูกกับเครื่องโดยตั้งใจ เปิดให้ browser สั่ง path เองจะกลายเป็นช่องโหว่ arbitrary file read/write — ถ้าต้องย้าย Bridge ไปเครื่องอื่นในอนาคต ให้แก้ `excel-bridge.ps1` ตรงๆ
+- `8d9e0ed` — พบว่า badge เวอร์ชันเล็กที่หัวเว็บ (header sparkles badge, `index.html:282`) ค้างที่ข้อความ **"V29.85 Strict Numeric Core" มาตั้งแต่ V29.41–V29.97** (คนละจุดกับ badge "V29.52" ที่เคยแก้ไปแล้วใน "เรื่องที่ 11") เพราะไม่เคยอยู่ใน checklist bump เวอร์ชันที่บันทึกไว้ (checklist เดิมมีแค่ `<title>` กับ label "System Version") — แก้เป็น V29.98 แล้วเพิ่มเป็นจุดที่ 3 ใน checklist ของ `CLAUDE.md`/`AGENTS.md` กันหลุดซ้ำอีก
+- `f1395ad` — เพิ่ม `tests/app-report.test.js` (235 บรรทัด) คลุม 3 pure function ใน `app-report.js` (`buildInfographicCardHTML`/`buildInfographicTableRowHTML`/`getReportData`) — ไฟล์เดียวใน `src/modules/app/*.js` (9 ไฟล์) ที่มี test ได้ เพราะที่เหลือแตะ DOM/IndexedDB/`alert` ตรงๆ ต้องใช้ jsdom
 
-**สถานะ:** **พี่ A ยังไม่ตัดสินใจ** ("ขอฟังข้อดี/ข้อเสียของแต่ละทางก่อน" แล้วง่วง/คิดไม่ออก ขอพักไว้ก่อน) — **ยังไม่มีโค้ดเปลี่ยนแปลงใดๆ ในเรื่องนี้เลย** entry นี้บันทึกไว้เฉพาะบริบท/ข้อเท็จจริงที่หามาได้ + ทางเลือกที่คุยกันไว้ เพื่อให้ session ถัดไปสานต่อได้โดยไม่ต้องเริ่มคิดใหม่ทั้งหมด
+**V29.99** (`14c4a0f`, 2026-08-19) — Rollover เดิมเช็คแค่ "วันที่ในชื่อไฟล์ตรงกับวันนี้ไหม" ไม่ได้เช็คว่า Excel ยังเปิดไฟล์อยู่จริงไหม — พอเปลี่ยนกะ (~ทุก 12 ชม.) operator คนเดิม logout ทำให้ Excel/bridge process เดิมตายไปด้วย operator คนใหม่เปิด bridge ใหม่เจอว่าวันที่ตรงกันแล้ว (`already-current`) เลยไม่เช็คว่า Excel เปิดอยู่จริงไหม — เพิ่ม route แยก `/ensure-file-open` เช็คเฉพาะ "Excel เปิดไฟล์นี้อยู่ไหม" ไม่สนวันที่ เรียกทั้งจาก bridge startup (ตอน rollover เป็น no-op) และจาก `APP.init()` ทุกครั้งที่เปิด Web App
 
-**Commit:** เอกสารอย่างเดียว ไม่มีโค้ดเปลี่ยน
+**Doc-only** (`24b460c`, ผ่าน PR #9, merge `5cc20a0`, 2026-08-21) — SaveAs ตอน rollover เก็บ cell comment เดิมไว้หมด (เพราะแต่ละ Tag ใช้ row เดิมซ้ำทุกวัน มีแค่สูตร PI Datalink ที่ดึงค่าใหม่) ทำให้ Resolution Remark comment ของเมื่อวานค้างอยู่กับไฟล์วันใหม่ — เพิ่ม `Clear-AppComments` ลบเฉพาะ comment ที่แอปเป็นคนเขียน (ไม่แตะ comment ที่ operator พิมพ์เอง) ทันทีหลัง SaveAs ตอน rollover จริง (commit ตัวนี้ authored โดย "Claude" ผ่าน PR flow แยกต่างหาก ไม่ใช่ local session ปกติ)
+
+**V29.101** (`79535d1` + fix `f8ba9a3`, merge `e1f7347`, 2026-08-22) — สืบสวนเคสที่ Web App เปิดไฟล์แล้วเห็นข้อมูลของ 2026-08-14 ทั้งที่ชื่อไฟล์ถูกต้องสำหรับ 2026-08-22 — root cause: ไฟล์ถูก rename ถูกต้องแล้ว แต่มีอะไรบางอย่าง **นอกเหนือโค้ด repo นี้** เขียนทับเนื้อหาไฟล์ด้วยสำเนา (master) template แบบ byte-identical ในภายหลัง (แอป/bridge เช็คแค่วันที่ในชื่อไฟล์ ไม่เคยเช็คเนื้อหา error ที่ต่ำกว่า `open-failed` ถูกกลืนเงียบๆ ไม่มี UI แจ้งเตือนเลย) — เพิ่ม `Test-FileLooksLikeMasterTemplate` (เทียบขนาด + SHA256 กับ master template) surface ผ่าน `/source-file-info`, `/rollover-daily-file` (status ใหม่ `'stale-template'`), `/ensure-file-open` ให้ Web App โชว์ warning banner ทันทีแทนที่จะเงียบ และข้ามการ import เนื้อหา template เป็นค่าจริง — **fix ตามมาทันที** (`f8ba9a3`): `Test-FileLooksLikeMasterTemplate` เดิมใช้ `Get-FileHash` ตรงๆ ซึ่งเปิดไฟล์แบบไม่ share — ยืนยันสดกับ bridge จริงที่เครื่อง Office ว่าตอนไฟล์เปิดอยู่ใน Excel (สภาวะปกติทุกครั้งที่ check นี้มีความหมาย) `Get-FileHash` throw "process cannot access the file" แล้ว fail-open เป็น `false` เงียบๆ พลาดเคส stale-template ที่ตั้งใจจะจับพอดี — แก้โดยใช้ helper เดิม `Read-FileBytesShared` (เปิดแบบ `FileShare.ReadWrite`) แล้ว hash bytes ในหน่วยความจำแทน ยืนยันสดอีกครั้งว่าตรวจจับถูกต้องแล้ว
+
+**ไฟล์ที่แก้ (รวมทั้งชุด V29.95-101):** `bridge/excel-bridge.ps1`, `bridge/README.md`, `index.html`, `package.json`, `src/modules/app/app-core.js`, `src/modules/excel-autoimport.js`, `tests/excel-autoimport.test.js`, `context.md`, `CLAUDE.md`, `AGENTS.md`
+
+**การยืนยัน:** commit message ของ `f8ba9a3` ระบุชัดว่า "Verified live against the actual office-PC bridge" และ "Confirmed against the live bridge" — ยืนยันสดกับเครื่อง Office จริงอย่างน้อย 1 รอบสำหรับ V29.101 แต่ไม่มีข้อมูลยืนยันการทดสอบของ V29.95-99 นอกจาก commit message เอง (ไม่มีบริบทเพิ่มเติมเพราะ session ที่ทำไม่ใช่ session นี้)
+
+**Commits:** `d869583`, `000fd07`, `7baf197`, `0306a1c`, `13ab688`, `8d9e0ed`, `f1395ad`, `14c4a0f`, `24b460c` (PR #9, merge `5cc20a0`), `79535d1`, (merge `e1f7347`), `f8ba9a3` — ทั้งหมด **push ขึ้น `origin/main` แล้ว**
+
+**สถานะ:** shipped + push แล้วทั้งหมด — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 17-18 สำหรับรายการที่ยังต้องติดตาม (เฝ้าดู rollover/stale-template ต่อเนื่องอีกสักพัก)
+
+---
+
+## ✅ เรื่องที่ 16 — Auto-save log sheet ก่อนทุกรอบ poll ของ auto-import (V29.102) — เครื่อง Office, session นี้
+
+**ปัญหา:** operator รายงานว่าค่าที่อ่านได้จาก PI Datalink ไม่ auto-sync เข้า Web App จนกว่าจะกด Ctrl+S เองใน Excel — root cause: สูตร PI Datalink คำนวณ/แสดงค่าใหม่สดบนหน้าจอตลอด แต่ **ไม่เขียนลงดิสก์จนกว่าจะ save** ส่วน `pollAutoImport` เช็คแค่ mtime ของไฟล์บนดิสก์เท่านั้น เลยไม่เห็นค่าที่เพิ่งอัปเดตจนกว่าจะมีคน save ไฟล์
+
+**Fix:** bridge เซฟ workbook ที่เปิดอยู่เองที่จุดเริ่มต้นของทุกรอบ poll เมื่อมี unsaved changes ค้างอยู่ (ไม่รอ operator กด Ctrl+S)
+
+**ไฟล์ที่แก้ (5 files, +109/-4):** `bridge/excel-bridge.ps1`, `index.html`, `src/modules/app/app-core.js`, `src/modules/excel-autoimport.js`, `tests/excel-autoimport.test.js` — bump เป็น **V29.102**
+
+**Doc ตามมาทันที (`e9f15aa`):** ในคู่มือผู้ใช้ในแอป step 7 เดิมพูดถึงแค่ทิศทาง write-back remark กลับ Excel เท่านั้น ไม่เคยพูดถึงทิศทาง auto-import (ดึงค่าใหม่จาก log sheet เข้า Web App) และ auto-save fix ตัวนี้ที่ทำให้ทำงานได้โดยไม่ต้อง Ctrl+S เอง — เพิ่ม manual step ใหม่ครอบคลุมเรื่องนี้ เลื่อนเลข step backup/restore เดิมจาก 8 เป็น 9
+
+**Commit:** `9bac710` "Auto-save Excel log sheet before each auto-import poll (V29.102)" — **push ขึ้น `origin/main` แล้ว**
+
+**สถานะ:** shipped + push แล้ว — เป็นงานของ session นี้เอง (`Claude-Session: session_018svBnWMvQzCwuLkKZo5RnM`)
+
+---
+
+## ✅ เรื่องที่ 17 — ปุ่ม "เปิด Excel Bridge" ในหน้าเว็บผ่าน custom URI protocol (V29.103) — เครื่อง Office, session นี้
+
+**ปัญหา:** browser เรียก `.bat`/`.exe` บนเครื่องตรงๆ จากหน้าเว็บไม่ได้ (ต่างจากสูตร Excel `HYPERLINK` ที่มีอยู่แล้วซึ่งเรียกจาก Excel ได้) — พี่ A อยากให้มีปุ่มเปิด bridge จากในตัว Web App เองด้วย ไม่ต้องสลับไปเปิดจาก Excel เท่านั้น
+
+**Fix:** ลงทะเบียน custom URI protocol `plantlogbridge://` ใต้ `HKCU` (per-user registry hive, **ไม่ต้องสิทธิ์ admin**) ที่ map ไปเรียก `start-bridge.bat` — เพิ่มไฟล์ `bridge/register-protocol.reg` (ลงทะเบียน) และ `bridge/unregister-protocol.reg` (ถอด) ใหม่ — ปุ่ม "เปิด Excel Bridge" โชว์ในหน้าเว็บข้าง sync indicator เฉพาะตอนอยู่ LOCAL MODE (bridge ยังไม่ online) และซ่อนไปเองเมื่อ sync สำเร็จแล้ว
+
+**ไฟล์ที่แก้ (5 files, +50/-3):** `bridge/README.md`, `bridge/register-protocol.reg` (ใหม่), `bridge/unregister-protocol.reg` (ใหม่), `index.html`, `src/modules/app/app-core.js` — bump เป็น **V29.103**
+
+**การทดสอบ (ทำจริงใน session นี้):** ทดสอบ register/unregister ไฟล์ `.reg` จริงบน `HKCU` ของเครื่องนี้ (เครื่อง Office) + ทดสอบเปิด bridge ผ่าน protocol จริงสำเร็จ
+
+**Commit:** `e050d81` "Add web-app button to launch Excel Bridge via custom URI protocol (V29.103)" — **push ขึ้น `origin/main` แล้ว**
+
+**สถานะ:** shipped + push แล้ว, ทดสอบจริงบนเครื่องนี้แล้ว — **ข้อควรระวัง:** `HKCU` เป็น per-user hive ตามหลักการทั่วไปของ Windows registry — เครื่อง Office เป็น shared PC ที่ operator แต่ละคน login คนละ Windows account จริง (ดู "เรื่องที่ 2"/"เรื่องที่ 10") การลงทะเบียนที่ทำในเซสชันนี้ผูกกับ user account เดียวที่ทดสอบเท่านั้น — ยังไม่มีข้อมูลยืนยันว่า operator คนอื่นต้อง double-click `register-protocol.reg` เองก่อนใช้ปุ่มนี้ได้หรือไม่ (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 18)
+
+---
+
+## ✅ เรื่องที่ 18 — Auto-sync sidebar indicator หลังกดปุ่มเปิด bridge ไม่ต้องรีเฟรชหน้า (V29.104) — เครื่อง Office, session นี้
+
+**ปัญหา:** ปุ่มจาก "เรื่องที่ 17" กดแล้วแค่ยิง protocol เปิด process bridge บนเครื่องเท่านั้น หน้าเว็บไม่มีทางรู้ว่า bridge ขึ้นมาสำเร็จหรือยัง operator ต้องรีเฟรชหน้าเองถึงจะเห็นสถานะเปลี่ยนเป็น SYNCED
+
+**Fix:** ตอนกดปุ่ม นอกจากยิง protocol แล้ว เริ่ม probe เพิ่มทุก 1 วินาที (สูงสุด 15 วินาที) push/pull shared data และ poll auto-import ทันทีที่ bridge เริ่มตอบสนอง ไม่ต้องรอรอบ poll ปกติ (ทุก 5 นาที) หรือให้ operator รีเฟรชเอง
+
+**ไฟล์ที่แก้ (2 files, +37/-3):** `index.html`, `src/modules/app/app-core.js` — bump เป็น **V29.104**
+
+**การทดสอบ (ทำจริงใน session นี้):** ยืนยันด้วยข้อมูลจริงบนเครื่อง (4282 records) ว่า label sync indicator เปลี่ยนเป็น SYNCED ภายใน ~6 วินาทีหลังกดปุ่ม โดยไม่ต้องรีเฟรชหน้า
+
+**Commit:** `ab21adc` "Auto-sync sidebar indicator after clicking Open Bridge, no reload needed (V29.104)" — **push ขึ้น `origin/main` แล้ว**
+
+**สถานะ:** shipped + push แล้ว, ทดสอบจริงบนเครื่องนี้ด้วยข้อมูล production จริงแล้ว
+
+---
+
+## ✅ เรื่องที่ 19 — Default "รายการพารามิเตอร์ (Log Data)" ไปที่รอบเวลาปัจจุบันแทน All Time (V29.105) — เครื่อง Office, session นี้
+
+**ปัญหา:** หน้า "รายการพารามิเตอร์ (Log Data)" เดิมเปิดมาแล้วโชว์ทุก record จากทุกวัน/ทุกเวลารวมกันเสมอ (`timeFilter = 'all'`) ทำให้ค่าล่าสุดของกะปัจจุบันจมอยู่ใต้ข้อมูลเก่าเยอะมาก
+
+**Fix:** เพิ่ม `getDefaultTimeFilter` ใน `src/modules/shared.js` — reuse logic gating เดิมของ `getCanonicalTimesStatus` (ที่มีอยู่แล้วสำหรับ V29.82) เพื่อเลือกรอบเวลามาตรฐาน (03:00/09:00/15:00/21:00) **ล่าสุดที่ผ่านไปแล้วจริง** ตามเวลาปัจจุบัน — ใช้ค่านี้เป็น default ตอนเปิดหน้าเว็บครั้งแรก, หลัง import, และหลัง restore เท่านั้น **ไม่ override เวลาที่ operator เลือกเองระหว่างกะ**
+
+**ไฟล์ที่แก้ (5 files, +82/-8):** `index.html`, `src/modules/app/app-core.js`, `src/modules/app/app-import.js`, `src/modules/shared.js`, `tests/shared.test.js` — bump เป็น **V29.105**
+
+**การทดสอบ (ทำจริงใน session นี้):** ยืนยันด้วยข้อมูลจริงว่าเวลา 11:01 น. ระบบเลือกรอบเวลา 09:00 ของวันนั้นให้อัตโนมัติถูกต้อง + เพิ่ม test ใหม่ใน `tests/shared.test.js`
+
+**Commit:** `c994d86` "Default Dashboard to the latest occurred time slot instead of All Time (V29.105)" — **push ขึ้น `origin/main` แล้ว**
+
+**สถานะ:** shipped + push แล้ว, ทดสอบจริง 1 เคส (11:01→09:00) แล้ว — ยังไม่ครอบคลุม edge case อื่น (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 19)
+
+---
+
+## ✅ เรื่องที่ 20 — Fix บั๊ก duplicate bridge window ค้าง (V29.106) — เครื่อง Office, session นี้ (พบและแก้จริงระหว่าง session)
+
+**ปัญหา (operator รายงานเข้ามาระหว่าง session นี้):** กดปุ่ม "เปิด Excel Bridge" (จาก "เรื่องที่ 17") ยิง protocol `plantlogbridge://` ทุกครั้งไม่ว่า bridge จะรันอยู่แล้วจริงหรือไม่ — ถ้า bridge รันอยู่แล้วแต่ sync indicator ยังตามไม่ทัน (เช่นเพิ่งกดไปหมาดๆ) การกดซ้ำจะ spawn instance ที่สองซึ่งชนกับ port 5175 เดิม เกิด unhandled exception แล้วค้างเป็นหน้าต่าง terminal สีดำรอ keypress อยู่เฉยๆ — operator รายงานว่าหน้าจอดำไม่หายไปเอง
+
+**Fix:**
+1. Click handler ของปุ่มเช็ค reachability ของ bridge ก่อนเสมอ เปิด instance ใหม่เฉพาะตอนที่ยืนยันแล้วว่า offline จริงเท่านั้น
+2. `excel-bridge.ps1` wrap `$listener.Start()` ด้วย try/catch ให้ error message กรณีพอร์ตชนกันในอนาคต (เช่นถ้ามีจุดอื่นเรียกซ้ำจนหลุด guard ข้อ 1 ไปได้) อ่านง่ายเป็นภาษาธรรมดาแทน raw exception ที่ค้างหน้าต่างไว้เฉยๆ
+
+**ไฟล์ที่แก้ (3 files, +59/-8):** `bridge/excel-bridge.ps1`, `index.html`, `src/modules/app/app-core.js` — bump เป็น **V29.106**
+
+**การทดสอบ (ทำจริงใน session นี้):** ยืนยันว่ากดปุ่มตอน bridge ทำงานอยู่แล้วไม่มี process ใหม่เกิดขึ้นเลย (ไม่มี window ดำค้างซ้ำอีก)
+
+**Commit:** `2b030e9` "Stop the Open Bridge button from launching a duplicate instance (V29.106)" — **push ขึ้น `origin/main` แล้ว**
+
+**สถานะ:** shipped + push แล้ว, ทดสอบจริงบนเครื่องนี้ยืนยันแล้วว่าแก้ได้ — นี่คือเวอร์ชันปัจจุบันของแอป ณ ตอนเขียน HANDOFF.md entry นี้
+
+---
+
+### 📚 เอกสารที่อัปเดตไปแล้วในช่วง V29.95-106 (ไม่ใช่งานค้าง แค่บันทึกว่าทำแล้ว)
+
+หลัง V29.106 มีอีก 2 commit doc-only ปิดท้าย session นี้ ไม่ bump เวอร์ชันแอป:
+- `e376663` "Document excel-autoimport.js, excel-sync.js, and the bridge's V29.78-106 routes" — `CLAUDE.md`/`AGENTS.md` ไม่เคยแตะตั้งแต่ baseline V29.74 (write-remark) มาก่อน ทั้งโมดูล auto-import/auto-save/rollover และโมดูล shared-DB sync ข้าม operator ไม่เคยถูกบันทึกในเอกสารเลย และ route list ของ bridge ในเอกสารมีแค่ `/ping`/`/write-remark` ทั้งที่จริงมีเพิ่มอีก 6 route + ปุ่ม custom-protocol ไปแล้ว
+- `50eedbf` "Record notable feature decisions from V29.78 through V29.106 in context.md" — `context.md` ไม่เคยแตะตั้งแต่ entry ของ V29.76 (card/table toggle) — เพิ่ม rationale ของ auto-import/auto-archive/rollover subsystem ทั้งชุด (V29.78-101), shared-DB sync (V29.85), stat-deviation opt-out + trend-warning tier (V29.92), dashboard click-filter cards (V29.93/94), และงานของ session นี้เอง (V29.102-106)
 
 ---
 
 ## 🚧 ค้างอยู่ตรงไหน
 
-1. **V29.81 fix (เรื่องที่ 5) ยังไม่ได้ยืนยันในสภาพแวดล้อมจริง** — ทดสอบแค่กับ temp folder จำลองที่เครื่องบ้าน ยังไม่เคยทดสอบกับ watch folder จริง (`D:\PTA COMMONT WORK\Log sheet Digital`) บนเครื่องที่มีจริง และยังไม่เคยทดสอบกับ Excel ตัวจริงที่เปิดไฟล์ค้างไว้จริงๆ (จำลองด้วย `FileShare.None` เท่านั้น) — แนะนำให้ยืนยันที่เครื่อง Office (หรือเครื่องไหนก็ตามที่มี watch folder จริง) ว่า auto-import/auto-archive ยังทำงานต่อได้ปกติขณะ log sheet เปิดค้างอยู่ใน Excel เพราะนั่นคือเงื่อนไขที่พังมาก่อน
-2. **ยังไม่ได้เช็ค GitHub Actions deploy status ของ commit ล่าสุด (`f1041e9`, ต่อจาก `bcfb16b`/`b6df8c8`)** — เช็คได้ที่ https://github.com/supasiao7896TH/Monitor-log-sheet-boardman/actions ก่อนสรุปว่า production ขึ้น V29.85 แล้วจริง
-3. ~~บั๊กเล็กๆ ที่เจอแต่ยังไม่ได้แก้ (cosmetic, ไม่เร่งด่วน): `index.html` badge UI hardcode ข้อความ "V29.52 Strict Numeric Core" ที่ไม่เคยอัปเดตมาตั้งแต่ V29.52~~ — **แก้แล้ว** commit `f1041e9` (2026-08-13) เปลี่ยนเป็น "V29.85 Strict Numeric Core" ดู "เรื่องที่ 11" ด้านบน
+1. ~~**V29.81 fix (เรื่องที่ 5) ยังไม่ได้ยืนยันในสภาพแวดล้อมจริง**~~ — **ยืนยันแล้วโดยอ้อม (2026-08-23):** ระบบ auto-import/auto-archive/rollover (ที่พึ่ง `Resolve-SourceFile` เดียวกับที่ V29.81 แก้) ทำงานต่อเนื่องมาหลายสัปดาห์บนเครื่อง Office จริงตั้งแต่ V29.95 เป็นต้นมา รวมถึงมีการยืนยันสดกับ bridge จริงที่กำลังรันอยู่หลายรอบ (เช่น commit message ของ `f8ba9a3`: "Verified live against the actual office-PC bridge") — ไม่มีรายงานว่า auto-import/auto-archive ล้มเหลวเพราะ lock-file ปัญหาเดิมอีกเลย แต่ยังไม่มีการทดสอบแบบเจาะจงกรณีนี้ตรงๆ อีกครั้ง (เป็นการยืนยันทางอ้อมจากการใช้งานต่อเนื่อง ไม่ใช่การทดสอบซ้ำแบบตั้งใจ)
+2. **ยังไม่ได้เช็ค GitHub Actions deploy status ของ commit ล่าสุด (`50eedbf`, V29.106)** — เช็คได้ที่ https://github.com/supasiao7896TH/Monitor-log-sheet-boardman/actions ก่อนสรุปว่า production ขึ้น V29.106 แล้วจริง (เดิมข้อนี้อ้างถึง commit `f1041e9`/V29.85 เก่ามาก — อัปเดต reference เป็น commit ล่าสุดแล้ว)
+3. ~~บั๊กเล็กๆ ที่เจอแต่ยังไม่ได้แก้ (cosmetic, ไม่เร่งด่วน): `index.html` badge UI hardcode ข้อความ "V29.52 Strict Numeric Core" ที่ไม่เคยอัปเดตมาตั้งแต่ V29.52~~ — **แก้แล้ว** commit `f1041e9` (2026-08-13) เปลี่ยนเป็น "V29.85 Strict Numeric Core" ดู "เรื่องที่ 11" ด้านบน (**หมายเหตุ:** badge จุดเดียวกันหลุดค้างซ้ำอีกครั้งที่ "V29.85" ในภายหลัง เพราะยังไม่เคยอยู่ใน checklist อย่างเป็นทางการ — แก้รอบ 2 แล้วที่ V29.98 พร้อมเพิ่มเข้า checklist ถาวรใน `CLAUDE.md`/`AGENTS.md` แล้ว ดู "เรื่องที่ 15", commit `8d9e0ed`)
 4. **รายการค้างเก่าจาก session ที่เครื่อง Office (22416d8 เป็นต้นไป) — ยังไม่ได้ตรวจสอบซ้ำใน session นี้ ให้ถือว่ายังค้างอยู่จนกว่าจะมีหลักฐานใหม่:**
-   - สูตร Hyperlink (`=HYPERLINK("D:\Monitor log sheet boardman\bridge\start-bridge.bat", ...)`) ยังไม่ได้แปะในไฟล์ log sheet จริง
-   - Task Scheduler (Specific-user, ผูก `PTTGC\26007294`) ยังไม่ได้ยืนยันด้วยการ log off/log on จริงว่า auto-start ทำงาน
-   - เศษโฟลเดอร์ `.git` ว่างเปล่าค้างที่ `C:\Users\26007294\Monitor log sheet boardman\.git` ยังไม่ได้ลบ
+   - ~~สูตร Hyperlink (`=HYPERLINK("D:\Monitor log sheet boardman\bridge\start-bridge.bat", ...)`) ยังไม่ได้แปะในไฟล์ log sheet จริง~~ — **แก้แล้ว/ยืนยันแล้ว** ดู header บนสุดของไฟล์นี้ — พี่ A ยืนยันเอง 2026-08-13 ว่าทั้งสูตรเปิดแอปและสูตรเปิด Bridge ใช้งานจริงอยู่ในไฟล์ log sheet แล้ว
+   - Task Scheduler (Specific-user, ผูก `PTTGC\26007294`) ยังไม่ได้ยืนยันด้วยการ log off/log on จริงว่า auto-start ทำงาน — ยังไม่มีหลักฐานใหม่
+   - เศษโฟลเดอร์ `.git` ว่างเปล่าค้างที่ `C:\Users\26007294\Monitor log sheet boardman\.git` ยังไม่ได้ลบ — ยังไม่มีหลักฐานใหม่ว่าลบแล้ว
    - **หมายเหตุสำคัญ:** commit `1e99d15` ("Document Excel Bridge multi-user setup") ที่อยู่ใน 10 commits ที่ pull เข้ามา *อาจจะ* เป็น doc commit ที่ HANDOFF.md ฉบับเก่าพูดถึงว่า "รอ commit อยู่" (เรื่องที่ 3) ไปแล้วก็ได้ — **ยังไม่ได้ตรวจสอบยืนยัน** ให้คนที่รับงานต่อลอง `git show 1e99d15 --stat` เทียบเนื้อหาเองก่อนสรุปว่าตรงกัน อย่าเดาเอาว่าตรงแน่นอน
-5. **bridge บนเครื่องบ้าน (4000D) ยังรันแบบ manual** เหมือนเดิม (ยังไม่ได้ตั้ง Task Scheduler ที่นี่)
-6. **V29.83 fix (เรื่องที่ 7) ยังไม่ได้รัน `npm test` (Vitest suite) เลย** — เครื่อง Office ไม่มี Node.js/npm ติดตั้ง ยืนยันแค่ manual ผ่าน browser เท่านั้น ควรรัน `npm test` ที่เครื่องบ้าน (หรือเครื่องที่มี Node.js) เพื่อ double-check ว่ายังผ่านครบ 49/49 เหมือนเดิม
-7. **commit `51ec9d2` (V29.82, canonical-times fix) ไม่เคยมีการบันทึกรายละเอียดใน HANDOFF.md เลย** มีแค่ commit message ที่เห็นจาก `git log`/`git show --stat` — ถ้าใครที่เครื่องบ้านมีบริบทเพิ่มเติมของ session ที่ทำ V29.82 ควรเติม entry ย้อนหลังให้ครบ
-8. **เครื่อง Office (`26007294`) ไม่มี Node.js/npm ติดตั้งอยู่เลย** — ถ้าจะ dev/test ต่อบนเครื่องนี้ในอนาคตต้องติดตั้ง Node.js ก่อน (การตั้ง static server ชั่วคราวแบบที่ทำใน "เรื่องที่ 7"/"เรื่องที่ 9" ใช้ตรวจ UI ได้เท่านั้น ไม่ครอบคลุม Vitest suite)
-9. **V29.84 (เรื่องที่ 9) — ทั้ง test suite เดิม (49 tests) และ test ใหม่ (`tests/shared.test.js` describe ใหม่, `tests/state.test.js` ทั้งไฟล์) ยังไม่มีใคร run จริงเลยด้วย `npm test`** — ต้องรันที่เครื่องบ้านก่อนไว้ใจ 100% ว่า test ใหม่ผ่านและ suite เดิมไม่พัง (ตรวจด้วย hand-trace + browser manual test เท่านั้นใน session นี้)
+5. **bridge บนเครื่องบ้าน (4000D) ยังรันแบบ manual** เหมือนเดิม (ยังไม่ได้ตั้ง Task Scheduler ที่นี่) — ยังไม่มีหลักฐานใหม่
+6. ~~**V29.83 fix (เรื่องที่ 7) ยังไม่ได้รัน `npm test` (Vitest suite) เลย**~~ — **แก้แล้ว/ยืนยันแล้ว (2026-08-23):** เครื่องนี้มี Node.js/npm ติดตั้งแล้ว รัน `npm test` ผ่าน **140/140** (7 test files) ครบทุก suite รวมถึง suite ที่ครอบคลุมการทำงานของ import/re-import
+7. **commit `51ec9d2` (V29.82, canonical-times fix) ไม่เคยมีการบันทึกรายละเอียดใน HANDOFF.md เลย** มีแค่ commit message ที่เห็นจาก `git log`/`git show --stat` — ถ้าใครที่เครื่องบ้านมีบริบทเพิ่มเติมของ session ที่ทำ V29.82 ควรเติม entry ย้อนหลังให้ครบ — ยังไม่มีหลักฐานใหม่
+8. ~~**เครื่อง Office (`26007294`) ไม่มี Node.js/npm ติดตั้งอยู่เลย**~~ — **แก้แล้ว/ยืนยันแล้ว (2026-08-23):** เครื่องนี้ (ที่มี WatchFolder จริง `D:\PTA COMMONT WORK\Log sheet Digital` และ Task Scheduler ผูก `PTTGC\26007294` ทำงานอยู่จริง — ยืนยันว่าเป็น "เครื่อง Office" ตัวเดิม) **มี Node.js/npm ติดตั้งแล้ว** — ไม่ทราบว่าติดตั้งเองเมื่อไหร่หรือมีคนติดตั้งให้ระหว่างทาง ไม่มีข้อมูลยืนยันวันที่ติดตั้ง แต่ยืนยันแล้วว่าใช้งานได้จริงตอนนี้ (`npm test`/`npm install` รันสำเร็จ)
+9. ~~**V29.84 (เรื่องที่ 9) — ทั้ง test suite เดิม (49 tests) และ test ใหม่ (`tests/shared.test.js` describe ใหม่, `tests/state.test.js` ทั้งไฟล์) ยังไม่มีใคร run จริงเลยด้วย `npm test`**~~ — **แก้แล้ว/ยืนยันแล้ว (2026-08-23):** รันแล้ว ผ่านหมดเป็นส่วนหนึ่งของ 140/140 ที่กล่าวในข้อ 6
 10. ~~**Statistical Deviation feature (V29.84) ยังไม่ได้เปิดใช้กับ tag ไหนเลยในข้อมูลจริง** — default ปิดทุก tag ต้องไปติ๊ก `enableStatDeviation` เองผ่าน Tag Master ทีละ tag (เช่น TI-2301) ก่อนฟีเจอร์นี้จะเริ่มทำงาน~~ — **แก้แล้ว** V29.92 (ดู "เรื่องที่ 12" ด้านล่าง) flip เป็น opt-out เปิดอัตโนมัติทุก tag แล้ว
-11. **Known limitation ของ Statistical Deviation ที่ตั้งใจไม่แก้ใน v1 (มี comment ในโค้ดแล้ว):** ถ้า process เปลี่ยน setpoint จริงถาวร (ไม่ใช่ fault) จะเกิด false-positive ต่อเนื่องจนกว่า window 120 samples จะเลื่อนผ่านครบ — mitigation ระยะสั้นคือปิด `disableStatDeviation` (เดิมชื่อ `enableStatDeviation` ก่อน V29.92) ชั่วคราวเองผ่าน Tag Master — ยังไม่แก้ใน V29.92 เช่นกัน (ยังเป็น known limitation อยู่)
-12. **V29.85 shared-DB sync (เรื่องที่ 10) — ยังไม่มีข้อมูลยืนยันว่า `tests/excel-sync.test.js` เคยรันผ่าน `npm test` จริงหรือไม่** (entry เขียนย้อนหลังจาก recovery session ที่ไม่มี local clone จึงรันเองไม่ได้ ไม่มีข้อมูลยืนยันจาก commit message) — ควรรัน `npm test` ที่เครื่องบ้าน/เครื่องที่มี Node.js เพื่อยืนยัน พร้อมกับ suite เดิมและ test ของ V29.84
-13. **V29.85 shared-DB sync (เรื่องที่ 10) ยังไม่มีใครยืนยันการใช้งานจริงกับ operator หลายคนบน PC ที่ทำงานหลัง deploy** — commit message ยืนยันแค่ผลทดสอบ round-trip ระหว่าง browser origin 2 ตัว ไม่ใช่การใช้งานจริงกับ Windows account คนละ account บนเครื่อง Office
-14. **V29.92/V29.93 (เรื่องที่ 12-13) — `npm test` ยังไม่เคยรันจริงเลยทั้งสองรอบ** เครื่องที่เขียนไม่มี Node.js/npm ติดตั้งอยู่ ต้องรันที่เครื่องบ้าน/เครื่องที่มี Node.js ก่อนไว้ใจ 100%
-15. **V29.93 (เรื่องที่ 13) — ยังไม่เคยทดสอบ UI จริงผ่าน browser เลย** โดยเฉพาะพฤติกรรมคลิกการ์ด: ring highlight ขึ้นถูกการ์ด, คลิกซ้ำแล้วยกเลิกกรองกลับไป `abnormal` จริง, empty-state message ขึ้นถูกต้องครบทุก filter — ต้องเปิด `npm run dev` ทดสอบก่อนใช้งานจริง
-16. **(เรื่องที่ 15) พี่ A ยังไม่ตัดสินใจว่าจะย้ายไป SQL/Cloud Database หรือไม่** — มี 3 ทางเลือกที่คุยกันไว้แล้ว (auto-backup เบาสุด / Firebase Firestore / Cloudflare D1 หนักสุด) รายละเอียด pros/cons เต็มอยู่ใน "เรื่องที่ 15" ด้านบน — session ถัดไปควรถามพี่ A ว่าคิดออกหรือยัง ก่อนเริ่มออกแบบอะไรในเรื่องนี้
+11. **Known limitation ของ Statistical Deviation ที่ตั้งใจไม่แก้ใน v1 (มี comment ในโค้ดแล้ว):** ถ้า process เปลี่ยน setpoint จริงถาวร (ไม่ใช่ fault) จะเกิด false-positive ต่อเนื่องจนกว่า window 120 samples จะเลื่อนผ่านครบ — mitigation ระยะสั้นคือปิด `disableStatDeviation` (เดิมชื่อ `enableStatDeviation` ก่อน V29.92) ชั่วคราวเองผ่าน Tag Master — ยังไม่แก้จนถึงตอนนี้ (V29.106) เช่นกัน (ยังเป็น known limitation อยู่ ไม่มีหลักฐานว่าเกิดขึ้นจริงในหน้างานหรือยัง)
+12. ~~**V29.85 shared-DB sync (เรื่องที่ 10) — ยังไม่มีข้อมูลยืนยันว่า `tests/excel-sync.test.js` เคยรันผ่าน `npm test` จริงหรือไม่**~~ — **แก้แล้ว/ยืนยันแล้ว (2026-08-23):** `tests/excel-sync.test.js` เป็น 1 ใน 7 test files ที่รันผ่านครบใน `npm test` (140/140) แล้ว
+13. **V29.85 shared-DB sync (เรื่องที่ 10) ยังไม่มีใครยืนยันการใช้งานจริงกับ operator หลายคนบน PC ที่ทำงานหลัง deploy** — commit message ยืนยันแค่ผลทดสอบ round-trip ระหว่าง browser origin 2 ตัว ไม่ใช่การใช้งานจริงกับ Windows account คนละ account บนเครื่อง Office — ยังไม่มีหลักฐานใหม่จาก session นี้
+14. ~~**V29.92/V29.93 (เรื่องที่ 12-13) — `npm test` ยังไม่เคยรันจริงเลยทั้งสองรอบ**~~ — **แก้แล้ว/ยืนยันแล้ว (2026-08-23):** รันแล้ว ผ่านหมดเป็นส่วนหนึ่งของ 140/140 (ข้อ 6) — **หมายเหตุ:** ยืนยันได้แค่ว่า ณ ตอนนี้ (2026-08-23) test suite ทั้งหมดที่มีอยู่ผ่านหมด ไม่สามารถยืนยันย้อนหลังได้ 100% ว่าตอนที่เขียนแต่ละเวอร์ชันนั้น (V29.84/85/92/93) เคยรันผ่านจริงหรือยังในตอนนั้น
+15. **V29.93 (เรื่องที่ 13) — ยังไม่เคยทดสอบ UI จริงผ่าน browser เลย** โดยเฉพาะพฤติกรรมคลิกการ์ด: ring highlight ขึ้นถูกการ์ด, คลิกซ้ำแล้วยกเลิกกรองกลับไป `hard-abnormal` (default หลัง V29.94) จริง, empty-state message ขึ้นถูกต้องครบทุก filter — ต้องเปิด `npm run dev` ทดสอบก่อนใช้งานจริง (session นี้ทดสอบ UI จริงหลายฟีเจอร์อื่น แต่ไม่ใช่ฟีเจอร์นี้)
+16. **(เรื่องที่ 21 — เดิมคือเรื่องที่ 15) พี่ A ยังไม่ตัดสินใจว่าจะย้ายไป SQL/Cloud Database หรือไม่** — มี 3 ทางเลือกที่คุยกันไว้แล้ว (auto-backup เบาสุด / Firebase Firestore / Cloudflare D1 หนักสุด) รายละเอียด pros/cons เต็มอยู่ใน "เรื่องที่ 21" ท้ายไฟล์นี้ — session ถัดไปควรถามพี่ A ว่าคิดออกหรือยัง ก่อนเริ่มออกแบบอะไรในเรื่องนี้
+17. **(ใหม่) V29.95-101 rollover subsystem (เรื่องที่ 15) — ยืนยันสดกับ bridge จริงแล้วอย่างน้อย 1 รอบสำหรับ V29.101 (stale-template) แต่ยังไม่มีการเฝ้าสังเกตระยะยาวต่อเนื่องหลายวัน/หลายรอบเที่ยงคืน** ว่า rollover ทำงานถูกต้อง 100% ทุกวันโดยไม่มี edge case ใหม่โผล่มา — โดยเฉพาะยังไม่ทราบแน่ชัดว่าอะไร "นอกเหนือโค้ด repo นี้" เป็นตัวเขียนทับไฟล์ด้วย (master) template ในเคสที่ V29.101 ไปเจอและแก้อาการปลายทาง ไม่ใช่ต้นตอ — ควรเฝ้าดูต่อว่าจะเกิดซ้ำไหม
+18. **(ใหม่) V29.103 custom protocol handler (`plantlogbridge://`) ลงทะเบียนไว้ที่ `HKCU` ของ user ที่ทดสอบบนเครื่องนี้ในเซสชันนี้เท่านั้น** — เครื่อง Office เป็น shared PC ที่ operator แต่ละคน login คนละ Windows account จริง (`HKCU` เป็น per-user registry hive) ยังไม่มีข้อมูลยืนยันว่า operator คนอื่นต้อง double-click `bridge/register-protocol.reg` เองก่อนปุ่ม "เปิด Excel Bridge" จะใช้งานได้ในเครื่องเดียวกันหรือไม่ — ควรทดสอบข้าม account จริงก่อนบอกว่าใช้ได้กับทุกคน
+19. **(ใหม่) V29.105 default time filter (`getDefaultTimeFilter`) ทดสอบจริงแค่ 1 เคส** (11:01 น. → เลือกรอบ 09:00 ให้ถูกต้อง) — ยังไม่ครอบคลุม edge case เช่น เวลาก่อนรอบ 03:00 แรกของวัน (ยังไม่มีรอบไหน "ผ่านไปแล้ว" เลยในวันนั้น) หรือกรณีไม่มี record ใดๆ อยู่เลย — มี test ใน `tests/shared.test.js` แล้วแต่ยังไม่ได้ตรวจ manual ผ่าน UI ในทุก edge case
 
 ---
 
 ## 🎯 ขั้นตอนถัดไปที่ตั้งใจจะทำ
 
-1. ยืนยัน V29.81 fix กับ watch folder จริง + Excel ตัวจริงเปิดไฟล์ค้างไว้ (ที่เครื่อง Office หรือเครื่องที่มี path จริง)
-2. เช็คสถานะ GitHub Actions ของ commit ล่าสุด (`f1041e9`)
+1. ~~ยืนยัน V29.81 fix กับ watch folder จริง + Excel ตัวจริงเปิดไฟล์ค้างไว้ (ที่เครื่อง Office หรือเครื่องที่มี path จริง)~~ — ยืนยันแล้วโดยอ้อมจากการใช้งานต่อเนื่อง (ดู "ค้างอยู่ตรงไหน" ข้อ 1)
+2. **เช็คสถานะ GitHub Actions ของ commit ล่าสุด (`50eedbf`, V29.106)** — https://github.com/supasiao7896TH/Monitor-log-sheet-boardman/actions
 3. `git show 1e99d15 --stat` เช็คว่า "เรื่องที่ 3" เดิม (doc changes ของ Hyperlink/multi-user setup) commit ไปแล้วจริงหรือยัง
-4. ถ้ายังไม่ได้ทำ: แปะสูตร Hyperlink ในไฟล์ log sheet จริง, ทดสอบ Task Scheduler ด้วย log off/log on จริง, ลบเศษ `.git` ค้างที่เครื่อง Office
-5. ~~(ไม่เร่งด่วน) แก้ badge "V29.52" ที่ค้างใน `index.html` ให้ตรงเวอร์ชันปัจจุบัน~~ — **ทำแล้ว** commit `f1041e9`
-6. รัน `npm test` ที่เครื่องบ้าน (หรือเครื่องที่มี Node.js) เพื่อ double-check ว่า V29.83 fix (เรื่องที่ 7) ไม่ทำ suite เดิม (49/49) พัง
-7. ถ้าจะพัฒนาต่อที่เครื่อง Office ในอนาคต ให้ติดตั้ง Node.js ก่อน
-8. พิจารณาเติม entry ย้อนหลังของ V29.82 (`51ec9d2`) ใน HANDOFF.md ให้ครบถ้วน (ตอนนี้มีแค่ commit message)
-9. **สำคัญที่สุด:** รัน `npm test` ที่เครื่องบ้าน (มี Node.js) เพื่อ confirm ชุด test ใหม่ของ V29.84 (`tests/shared.test.js` describe block ใหม่, `tests/state.test.js` ทั้งไฟล์) **และ** V29.85 (`tests/excel-sync.test.js`) ผ่านจริงและ suite เดิมไม่พัง — ยังไม่มีใคร run จริงเลยตลอดทั้ง 2 session ที่เขียนฟีเจอร์เหล่านี้
-10. ~~เปิดใช้ Statistical Deviation ผ่าน Tag Master ให้ tag ที่ต้องการจริง (เช่น TI-2301) เพราะ default ปิดไว้ทุก tag ฟีเจอร์นี้ยังไม่ทำงานกับ tag ไหนเลยจนกว่าจะไปติ๊กเปิดเอง~~ — **ทำแล้ว** V29.92 flip เป็น opt-out เปิดอัตโนมัติทุก tag แล้ว (ดู "เรื่องที่ 12")
-12. **สำคัญ:** รัน `npm test` เพื่อยืนยัน test ใหม่ของ V29.92 (`tests/shared.test.js` describe block `computeCausalStatTrendWarning`, `tests/state.test.js` ที่แก้ opt-out flip) ผ่านจริงและ suite เดิมไม่พัง — เขียน session นี้ที่เครื่องไม่มี Node.js/npm ติดตั้ง ยืนยันแค่ hand-trace logic เท่านั้น ยังไม่เคยรันจริงเลย
-11. ยืนยันการใช้งานจริงของ shared-DB sync (V29.85) กับ operator หลายคนบน PC ที่ทำงานจริง (login คนละ Windows account) หลัง deploy ขึ้น production แล้ว — ตรวจว่า sidebar sync indicator ขึ้นสถานะถูกต้องและข้อมูล/remark เห็นตรงกันข้ามคน login
+4. ถ้ายังไม่ได้ทำ: ทดสอบ Task Scheduler ด้วย log off/log on จริง, ลบเศษ `.git` ค้างที่เครื่อง Office (สูตร Hyperlink แปะแล้วยืนยันแล้ว ตัดออกจากรายการนี้)
+5. ~~(ไม่เร่งด่วน) แก้ badge "V29.52" ที่ค้างใน `index.html` ให้ตรงเวอร์ชันปัจจุบัน~~ — **ทำแล้ว** commit `f1041e9`, และแก้ badge รอบ 2 ("V29.85" ค้าง) แล้วที่ V29.98 (`8d9e0ed`) พร้อมเพิ่มเข้า checklist bump ถาวรกันหลุดซ้ำรอบ 3
+6. ~~รัน `npm test` ที่เครื่องบ้าน (หรือเครื่องที่มี Node.js) เพื่อ double-check ว่า V29.83 fix (เรื่องที่ 7) ไม่ทำ suite เดิม (49/49) พัง~~ — ทำแล้ว 2026-08-23 ผ่าน 140/140
+7. ~~ถ้าจะพัฒนาต่อที่เครื่อง Office ในอนาคต ให้ติดตั้ง Node.js ก่อน~~ — เครื่องนี้มี Node.js แล้ว ไม่ต้องทำอีก
+8. พิจารณาเติม entry ย้อนหลังของ V29.82 (`51ec9d2`) ใน HANDOFF.md ให้ครบถ้วน (ตอนนี้มีแค่ commit message) — ยังไม่ได้ทำ
+9. ~~**สำคัญที่สุด:** รัน `npm test` ที่เครื่องบ้าน (มี Node.js) เพื่อ confirm ชุด test ใหม่ของ V29.84/V29.85 ผ่านจริงและ suite เดิมไม่พัง~~ — ทำแล้ว 2026-08-23 ผ่าน 140/140 (บนเครื่อง Office ไม่ใช่เครื่องบ้าน แต่ยืนยันผ่านแล้วจริง)
+10. ~~เปิดใช้ Statistical Deviation ผ่าน Tag Master ให้ tag ที่ต้องการจริง~~ — **ทำแล้ว** V29.92 flip เป็น opt-out เปิดอัตโนมัติทุก tag แล้ว
+11. ยืนยันการใช้งานจริงของ shared-DB sync (V29.85) กับ operator หลายคนบน PC ที่ทำงานจริง (login คนละ Windows account) — ตรวจว่า sidebar sync indicator ขึ้นสถานะถูกต้องและข้อมูล/remark เห็นตรงกันข้ามคน login — **ยังไม่ได้ทำ**
+12. ~~รัน `npm test` เพื่อยืนยัน test ใหม่ของ V29.92~~ — ทำแล้ว 2026-08-23 ผ่าน 140/140
+13. **(ใหม่)** ทดสอบ UI จริงผ่าน `npm run dev` สำหรับพฤติกรรมคลิกการ์ด dashboard (V29.93/94): ring highlight, toggle-off กลับไป `hard-abnormal`, empty-state message — ยังไม่เคยทำเลยตั้งแต่ V29.93 (ดู "ค้างอยู่ตรงไหน" ข้อ 15)
+14. **(ใหม่)** ถ้าจะให้ operator คนอื่นบนเครื่อง Office ใช้ปุ่ม "เปิด Excel Bridge" (V29.103) ได้ ให้แต่ละคน double-click `bridge/register-protocol.reg` เองครั้งเดียวตอน login ด้วย Windows account ของตัวเอง (เพราะ `HKCU` เป็น per-user) — ยังไม่ได้ทดสอบว่าจำเป็นจริงหรือไม่ ควรทดสอบข้าม account ก่อน
+15. **(ใหม่)** เฝ้าสังเกตระบบ rollover รายวัน (V29.95-101) ต่อเนื่องอีกสักพักว่าไม่มี edge case ใหม่ โดยเฉพาะเคส stale-template ที่ยังไม่ทราบ root cause ที่แท้จริงว่าอะไรนอกเหนือโค้ด repo นี้เขียนทับไฟล์ด้วย template
+16. พิจารณาว่าจะเดินหน้าเรื่อง SQL/Cloud Database ต่อไหม (ดู "เรื่องที่ 21" ท้ายไฟล์) — ถามพี่ A ก่อนว่าคิดออกหรือยัง
 
 ---
 
 ## ⚠️ ข้อควรระวัง / สิ่งที่ต้องไม่ลืม
 
 - ฟีเจอร์ sync remark กลับ Excel **ใช้ไม่ได้เลยถ้า `bridge/excel-bridge.ps1` ไม่ได้รันอยู่** — Web App จะแจ้งสถานะ "ไม่พบ Local Bridge" ให้ operator ทราบ ไม่ fail เงียบๆ (ข้อมูลใน Web App เองไม่หาย แค่ไม่ sync กลับ Excel)
-- **ต้องเปิดไฟล์ log sheet ต้นฉบับค้างไว้ใน Excel ก่อน** ถึงจะ sync/auto-import/auto-archive ได้ — bridge หา workbook จาก "ชื่อไฟล์ที่เปิดอยู่ใน Excel" ไม่ใช่ path บนดิสก์ (browser ให้ path จริงไม่ได้)
+- **ต้องเปิดไฟล์ log sheet ต้นฉบับค้างไว้ใน Excel ก่อน** ถึงจะ sync/auto-import/auto-archive/rollover ได้ — bridge หา workbook จาก "ชื่อไฟล์ที่เปิดอยู่ใน Excel" ไม่ใช่ path บนดิสก์ (browser ให้ path จริงไม่ได้) — ตั้งแต่ V29.97/V29.99 bridge จะพยายามเปิดไฟล์เองผ่าน COM ให้อัตโนมัติถ้ายังไม่มีใครเปิดไว้ (`Find-OrOpenWorkbook`, เรียกจาก rollover ตอน bridge startup และจาก `/ensure-file-open` ทุกครั้งที่เปิด Web App) แต่ยัง "เปิดไฟล์ให้เอง" ได้เท่านั้น — ไม่ได้ช่วยกรณี Excel ปิดไปเลยระหว่างวันโดยไม่มี bridge process อยู่คอย trigger
 - **หลัง V29.81:** `Resolve-SourceFile` กรองทั้งไฟล์ `(master)` และไฟล์ lock ของ Excel (`~$*`) แล้ว — ถ้าเจอ error "พบไฟล์มากกว่า 1 ไฟล์" อีก ให้เช็คว่ามีไฟล์ผู้สมัครจริงมากกว่า 1 ไฟล์ในโฟลเดอร์ (ไม่ใช่แค่ lock file) ก่อน
 - ถ้าเจอ "ไม่พบไฟล์นี้เปิดอยู่ใน Excel" ทั้งที่เปิดไฟล์ถูกต้องแล้วจริงๆ **เช็ค Task Manager ก่อนว่ามี `EXCEL.EXE` มากกว่า 1 ตัวไหม** (อาจมีตัวที่ไม่มีหน้าต่างค้างอยู่จากการเปิด/ปิดไฟล์ก่อนหน้า) ปิดตัวที่ไม่มีหน้าต่างทิ้งแล้วลองใหม่
 - อย่า commit ไฟล์ข้อมูลหน้างานจริง (`.xls`/`.xlsm`/PDF) ปนไปกับ commit โค้ด — gitignore ดักไว้อยู่แล้ว เช็ค `git status` ก่อน commit ทุกครั้ง
 - `wrangler.jsonc`'s `name` (`monitor-log-sheet-boardman`) ห้ามเปลี่ยน — URL ฝังอยู่ใน Excel log sheet จริงผ่าน HYPERLINK formula
 - แบรนด์เปลี่ยนจาก "Supasit.A" → **"A(i)CODER"** แล้วตั้งแต่ commit `64fae6a` — ถ้าจะเพิ่ม branding ใหม่ที่ไหน ให้ใช้ชื่อใหม่
-- **หลัง V29.83:** re-import (ทั้ง manual drag-drop และ auto-import) จะ carry-over `remark`+`actionStatus` จาก record เดิมมาก่อนบันทึกทับเสมอ (`src/modules/app/app-import.js`) — ถ้าต้องการล้าง remark ของ record ใดจริงๆ ต้องลบ/แก้เองผ่าน UI (annotation modal) ไม่ใช่หวังพึ่งการ re-import ทับให้ว่าง
-- **เครื่อง Office (`26007294`) ไม่มี Node.js/npm ติดตั้ง** — ตรวจสอบ/ติดตั้งก่อนถ้าจะรัน `npm run dev`/`npm test`/`npm install` ที่นี่ (session ที่ผ่านมาต้องใช้ local Python static server จำลองแทน ใช้ตรวจ UI ได้เท่านั้น)
-- **หลัง V29.84:** Statistical Deviation (`isStatDeviation`/`statZScore`) เป็นเกณฑ์แยกจาก hard-limit (`isAbnormal`) โดยตั้งใจ — mutually exclusive กัน (evaluate เฉพาะ record ที่ผ่าน hard-limit แล้วว่าไม่ผิดปกติ) ต้องเปิด opt-in ต่อ tag ผ่าน Tag Master (`enableStatDeviation`) ก่อนจะมีผล ไม่ทำงานกับ tag แบบ Exact Value และต้องมีข้อมูลอย่างน้อย 20 samples ก่อน baseline จะเริ่มมีผล (ไม่งั้น record จะไม่ถูก flag เพราะข้อมูลไม่พอ ไม่ใช่บั๊ก) — ถ้า process เปลี่ยน setpoint จริงถาวรจะเห็น false-positive ต่อเนื่องจนกว่า rolling window 120 samples จะเลื่อนผ่าน ให้ปิด `enableStatDeviation` ชั่วคราวถ้าเจอกรณีนี้
+- **หลัง V29.83:** re-import (ทั้ง manual drag-drop และ auto-import) จะ carry-over `remark`+`actionStatus` จาก record เดิมมาก่อนบันทึกทับเสมอ (`src/modules/app/app-import.js`) — ถ้าต้องการล้าง remark ของ record ใดจริงๆ ต้องลบ/แก้เองผ่าน UI (annotation modal) ไม่ใช่หวังพึ่งการ re-import ทับให้ว่าง — **ยกเว้น** ตอน rollover ข้ามวันจริง (V29.100/`24b460c`) ซึ่งตั้งใจลบเฉพาะ**คอมเมนต์ที่แอปเป็นคนเขียนใน Excel** ก่อนวันใหม่เริ่ม (ไม่แตะคอมเมนต์ของ operator เอง) — คนละกลไกกับ carry-over ใน IndexedDB
+- **เครื่อง Office (`26007294`) มี Node.js/npm ติดตั้งแล้ว** (ยืนยัน 2026-08-23 — ต่างจากที่เคยบันทึกไว้ก่อนหน้าว่าไม่มี) — `npm run dev`/`npm test`/`npm install` รันได้ตรงบนเครื่องนี้แล้ว ไม่ต้องพึ่ง local Python static server จำลองอีกต่อไป
+- **หลัง V29.84 (แก้ไขเพิ่มเติมโดย V29.92):** Statistical Deviation (`isStatDeviation`/`statZScore`) เป็นเกณฑ์แยกจาก hard-limit (`isAbnormal`) โดยตั้งใจ — mutually exclusive กัน (evaluate เฉพาะ record ที่ผ่าน hard-limit แล้วว่าไม่ผิดปกติ) **ตั้งแต่ V29.92 เปิดอัตโนมัติทุก tag แล้ว** (opt-out ผ่าน `master.disableStatDeviation`, ไม่ใช่ opt-in แบบเดิมอีกต่อไป) ไม่ทำงานกับ tag แบบ Exact Value และต้องมีข้อมูลอย่างน้อย 20 samples ก่อน baseline จะเริ่มมีผล (ไม่งั้น record จะไม่ถูก flag เพราะข้อมูลไม่พอ ไม่ใช่บั๊ก) — ถ้า process เปลี่ยน setpoint จริงถาวรจะเห็น false-positive ต่อเนื่องจนกว่า rolling window 120 samples จะเลื่อนผ่าน ให้ปิด `disableStatDeviation` ชั่วคราวถ้าเจอกรณีนี้ (known limitation ที่ยังไม่แก้ ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 11)
 - **หลัง V29.85:** เปิดแอปแล้วอาจเห็น dashboard ดึงข้อมูลจาก shared snapshot บน D: มาทับ/ผสานกับ IndexedDB local ตอน init (pull แบบเงียบๆ ก่อน `loadLocalData`) — ถ้า bridge ปิดอยู่ ระบบจะ fallback ไปใช้ IndexedDB local เดิมโดยไม่ error แต่จะไม่ sync ข้าม operator จนกว่า bridge จะกลับมาออนไลน์ (มี dirty-flag ใน localStorage คอย retry push ที่ค้างเองอัตโนมัติ) — ยังไม่มีการยืนยันการใช้งานจริงกับ operator หลายคนบนเครื่อง Office หลัง deploy (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 13)
+- **หลัง V29.93/94:** ไม่มี `<select id="view-filter">` dropdown แล้ว — filter ตอนนี้ควบคุมจากการคลิกการ์ดสรุป 4 ใบเหนือ dashboard เท่านั้น (`data-filter` attribute) ค่า default/reset คือ `'hard-abnormal'` (เฉพาะ Abnormalities จริง หลุด min/max) ไม่ใช่ `'abnormal'` (รวม 3 ประเภท) อีกต่อไป — ถ้าจะเพิ่ม filter ใหม่ในอนาคต ต้องผูก onclick ในการ์ดใหม่เอง ไม่มี dropdown ให้เพิ่ม option แล้ว
+- **หลัง V29.95-99 (ระบบ Rollover):** log sheet จะถูก **rename ไฟล์อัตโนมัติ** (ชื่อไฟล์มีวันที่ฝังอยู่แบบ "(DD-MM-YY)") ทุกครั้งที่วันที่ในเครื่องเลยวันที่ในชื่อไฟล์ — ถ้าเห็นไฟล์ log sheet เปลี่ยนชื่อเองข้ามคืนโดยไม่มีใครทำ **นี่คือพฤติกรรมปกติที่ตั้งใจ ไม่ใช่บั๊ก** (แทนที่การ rename+แก้ cell `"BM 1"!W1` ด้วยมือของ operator เดิม) — bridge จะ archive สำเนาไฟล์เก่าไว้ที่ `$WatchFolder\<Mmm yy>\` ก่อนเสมอ (ตั้งแต่ V29.95 ย้ายมาอยู่ใต้ share `D:\PTA COMMONT WORK\Log sheet Digital` ไม่ใช่ใต้ repo แล้ว) และลบเฉพาะคอมเมนต์ที่แอปเขียนเองก่อนวันใหม่เริ่ม (V29.100)
+- **หลัง V29.101:** ถ้าเห็น warning banner ใน Web App บอกว่าไฟล์ log sheet "ดูเหมือนเป็น template เปล่า" (stale-template) **อย่าเพิกเฉย** — แปลว่าเนื้อหาไฟล์บนดิสก์ถูกเขียนทับด้วยสำเนา (master) template จริง (ตรวจจากขนาดไฟล์ + SHA256 เทียบกับ master) แม้ชื่อไฟล์จะถูกต้องตามวันที่ก็ตาม แอปจะไม่ import เนื้อหานั้นเป็นค่าจริงให้ — ต้นตอที่แท้จริงว่าอะไรไปเขียนทับยังไม่ทราบแน่ชัด (นอกเหนือโค้ด repo นี้) ถ้าเจอซ้ำควรรายงานรายละเอียดให้ครบเพื่อสืบต่อ
+- **หลัง V29.102:** bridge auto-save workbook เองทุกรอบ poll (ทุก ~5 นาที) เมื่อมี unsaved changes — operator ไม่ต้องกด Ctrl+S เองอีกต่อไปเพื่อให้ auto-import เห็นค่าล่าสุด แต่หมายความว่า **ไฟล์จะถูกเซฟเองเป็นระยะโดยไม่มีใครสั่ง** ถ้าเห็น Excel เด้ง/save indicator ขึ้นเองโดยไม่มีใครกด นี่คือ bridge ทำงานปกติ ไม่ใช่บั๊ก
+- **หลัง V29.103/104:** ปุ่ม "เปิด Excel Bridge" ในหน้าเว็บใช้ custom protocol `plantlogbridge://` ซึ่ง**ต้อง register ผ่าน `bridge/register-protocol.reg` ก่อนครั้งแรกต่อ 1 Windows user account** (ลงทะเบียนที่ `HKCU`) — ถ้า operator คนใหม่ (login คนละ account) กดปุ่มแล้วไม่มีอะไรเกิดขึ้นเลย ให้ตรวจสอบว่า register ให้ user นั้นแล้วหรือยัง (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 18 — ยังไม่เคยทดสอบข้าม account จริง)
+- **หลัง V29.105:** "รายการพารามิเตอร์ (Log Data)" เปิดมาแล้ว **ไม่ใช่ All Time เป็น default อีกต่อไป** — ระบบจะเลือกรอบเวลามาตรฐานล่าสุดที่ผ่านไปแล้ว (03:00/09:00/15:00/21:00) ให้อัตโนมัติตอนเปิดหน้าครั้งแรก/import/restore เท่านั้น — ถ้า operator เปลี่ยน time filter เองระหว่างกะ ระบบจะไม่ไป override ค่านั้นทับจนกว่าจะมี trigger ใหม่ (import/restore/เปิดหน้าใหม่)
+- **หลัง V29.106:** ปุ่ม "เปิด Excel Bridge" เช็ค reachability ก่อนเปิด instance ใหม่เสมอแล้ว — ถ้ายังเจอหน้าต่าง terminal ดำค้างซ้ำอีก **ให้ถือว่าเป็นบั๊กใหม่** ไม่ใช่อาการเดิมที่เคยแก้แล้ว ควรสืบสวนแยกจากเคสเดิม
 
 ---
 
@@ -302,15 +416,21 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 ```bash
 git pull
 npm install   # ถ้ายังไม่เคยลงที่เครื่องนี้ หรือ package.json เปลี่ยน
-npm test      # ควรผ่าน 49/49 (suite เดิม) + test ใหม่จาก V29.84 (tests/shared.test.js, tests/state.test.js) + V29.85 (tests/excel-sync.test.js) — ยังไม่มีใคร run จริงเลยทั้งหมด ให้รันเป็นอันดับแรก
+npm test      # ควรผ่าน 140/140 (7 test files: excel-worker, excel-writeback, excel-sync, excel-autoimport, shared, state, app-report) — ยืนยันแล้วบนเครื่องนี้ (Office) 2026-08-23
 ```
 
-> หมายเหตุ: เครื่อง Office (`26007294`) ยังไม่มี Node.js ติดตั้ง — ต้องติดตั้ง Node.js ก่อนถึงจะรันคำสั่งข้างบนได้จริงที่เครื่องนี้
+> **อัปเดต 2026-08-23:** เครื่อง Office (`26007294`) มี Node.js/npm ติดตั้งแล้ว คำสั่งข้างบนรันได้ตรงบนเครื่องนี้เลย ไม่ต้องพึ่ง local Python static server จำลองอีกต่อไป (หมายเหตุเดิมที่บอกว่า "เครื่อง Office ไม่มี Node.js" ล้าสมัยแล้ว)
 
 รัน bridge (manual, ทดสอบก่อนตั้ง Task Scheduler):
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 ```
+
+ลงทะเบียน custom protocol ให้ปุ่ม "เปิด Excel Bridge" ในหน้าเว็บใช้งานได้ (V29.103, ครั้งเดียวต่อ Windows user account, ไม่ต้อง admin):
+```
+ดับเบิลคลิก bridge\register-protocol.reg
+```
+(ถอดออก: ดับเบิลคลิก `bridge\unregister-protocol.reg`)
 
 เช็คสถานะ deploy: https://github.com/supasiao7896TH/Monitor-log-sheet-boardman/actions
 
@@ -339,3 +459,33 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 **สถานะ:** ทดสอบ end-to-end ผ่านจริงครบวงจร (2026-08-10 ดึก) — comment ขึ้นใน Excel จริงสำเร็จ, `npm test` ผ่าน 35/35 (ตอนนั้น), deploy ขึ้น production ผ่าน GitHub Actions
 
 </details>
+
+---
+
+## 💭 เรื่องที่ 21 (เดิมคือ "เรื่องที่ 15") — การตัดสินใจที่ยังค้างอยู่: ควรย้ายไป SQL/Cloud Database ไหม? (ยังไม่ตัดสินใจ ไม่มีโค้ดเปลี่ยนแปลง)
+
+> ย้าย/renumber จาก "เรื่องที่ 15" มาเป็น "เรื่องที่ 21" ในการอัปเดต HANDOFF.md เมื่อ 2026-08-23 (sa-handoff) เพื่อไม่ให้ปนกับงานที่ทำเสร็จแล้วจริงของ V29.95-106 ("เรื่องที่ 15-20" ใหม่ด้านบน) — เนื้อหาข้างล่างนี้เหมือนเดิมทุกประการ ไม่มีอะไรเปลี่ยน เพราะพี่ A ยังไม่ได้ตัดสินใจเรื่องนี้เพิ่มเติมนับตั้งแต่บันทึกครั้งแรก
+
+**คำถามที่พี่ A ถาม:** "เราเก็บข้อมูลไว้มากมายขนาดนี้ และเป็นข้อมูลรูปแบบเดิมๆ เราจะต้องทำ database SQL ไหม" — ตามด้วยเหตุผลที่แท้จริง 2 ข้อ: (1) อยากวิเคราะห์/ทำรายงานข้อมูลย้อนหลังแบบซับซ้อนกว่าที่ UI ปัจจุบันทำได้ และ (2) **กลัวว่าเครื่อง PC จะพัง หรือหมดสัญญาเช่า แล้วข้อมูลจะหายหมด**
+
+**สิ่งที่เช็คแล้ว (ข้อเท็จจริงจากโค้ดจริง ไม่ใช่การเดา):**
+- **IndexedDB (ข้อมูลหลัก):** อยู่ในเครื่อง PC เครื่องเดียว ผูกกับ browser profile ด้วย
+- **Shared-DB sync (V29.85, `src/modules/excel-sync.js` + `bridge/excel-bridge.ps1`):** เขียนไปที่ `$SharedDbPath = "D:\Monitor log sheet boardman\shared-data\plantlog-shared-db.json"` ซึ่ง**เป็น drive เดียวกับเครื่องเดิม** — แก้ปัญหา operator login คนละ Windows account เห็นข้อมูลคนละก้อน แต่**ไม่ใช่ backup นอกเครื่อง**
+- **ปุ่ม "สำรองข้อมูล" (`APP.backupData`, V29.51, `app-core.js`):** ดาวน์โหลดไฟล์ JSON ด้วยมือเท่านั้น (`STORAGE_ENGINE.exportAll()` → Blob → download) — ถ้า operator ไม่เอาไฟล์ไปเก็บที่อื่นเอง (OneDrive/network drive/USB) ก็ยังอยู่ในเครื่องเดิม
+- **สรุป: ถ้าเครื่องนี้พัง/หมดสัญญาเช่าโดยไม่มีใครย้ายข้อมูลออกมาก่อน ข้อมูลหายจริงตามที่พี่ A กังวล** — เป็นช่องโหว่จริง เกิดจาก "ข้อมูลอยู่ที่เดียว ไม่มี copy นอกเครื่อง" ไม่ใช่ปัญหา SQL vs NoSQL
+
+**3 ทางเลือกที่เสนอไป (เรียงจากเบาไปหนัก) — สรุปสั้น (รายละเอียด pros/cons เต็มอยู่ใน conversation ของ session ที่คุยกันครั้งแรก ยังไม่ได้ก็อปมาไว้ที่นี่ทั้งหมดเพราะยาวมาก):**
+
+1. **Auto-backup ออกนอกเครื่อง** (เช่น สำรองอัตโนมัติไปโฟลเดอร์ OneDrive/network drive ที่ sync อยู่แล้ว) — เบาสุด ไม่แตะสถาปัตยกรรม แก้เฉพาะปัญหาข้อมูลหาย ไม่ช่วยเรื่อง reporting
+2. **Firebase Firestore** — cloud จริง, ตรงกับ roadmap เดิมของพี่ A เอง (`vibe-coding-firebase` skill), แก้ปัญหาข้อมูลหายได้ + multi-device real-time แต่ยังไม่ใช่ SQL เต็มรูปแบบ (query ซับซ้อนยังจำกัด) ต้องออกแบบ Auth ใหม่ทั้งหมด (ตอนนี้แอปไม่มี auth เลย)
+3. **Cloudflare D1** — SQL จริง, ต่อยอดจาก Cloudflare Workers ที่ deploy อยู่แล้ว, ตอบโจทย์ทั้ง 2 ข้อดีที่สุด **แต่เป็นงานใหญ่ที่สุด**: ตอนนี้ Worker เสิร์ฟแค่ static file ล้วนๆ ไม่มี server-side logic เลย ต้องสร้าง backend API ใหม่ทั้งหมด + ต้องออกแบบระบบ auth/สิทธิ์เข้าถึงใหม่จริงจัง (ตอนนี้ "security" = ไม่มีใครรู้ URL เฉยๆ) + rewrite `STORAGE_ENGINE` เกือบทั้งหมด + แอปจะไม่ offline 100% เหมือนเดิม + เสี่ยงข้อมูลเสียหายช่วง migrate ถ้าพลาด (ย้อนแย้งกับเป้าหมายที่อยากป้องกันข้อมูลหาย)
+
+**ข้อสังเกตร่วมของทาง 2 และ 3:** ทั้งคู่ทำให้แอปต้องพึ่งอินเทอร์เน็ตทุกครั้งที่อ่าน/เขียนข้อมูล (จากเดิม offline ได้เต็มที่) — สำหรับเครื่องมือหน้างานโรงงานที่สัญญาณเน็ตอาจไม่เสถียรตลอดเวลา ควรคิดให้รอบคอบ
+
+**คำแนะนำที่ให้ไป (ยังไม่ได้ทำ):** เริ่มจากทาง 1 (auto-backup) ก่อนได้เลยเพราะความเสี่ยงต่ำสุดและเป็น "ประกันภัย" ที่มีประโยชน์ไม่ว่าจะเลือกทางไหนต่อ ส่วนทาง 2/3 ควรตัดสินใจแยกต่างหาก เพราะเป็นการเปลี่ยนสถาปัตยกรรมใหญ่ที่ควรผ่านขั้นตอน Blueprint + อนุมัติแบบเต็มรูปแบบ (อาจใช้ `sa-architect` subagent ช่วยตอนเริ่มออกแบบจริง)
+
+**สถานะ:** **พี่ A ยังไม่ตัดสินใจ** ("ขอฟังข้อดี/ข้อเสียของแต่ละทางก่อน" แล้วง่วง/คิดไม่ออก ขอพักไว้ก่อน) — **ยังไม่มีโค้ดเปลี่ยนแปลงใดๆ ในเรื่องนี้เลยจนถึง 2026-08-23** entry นี้บันทึกไว้เฉพาะบริบท/ข้อเท็จจริงที่หามาได้ + ทางเลือกที่คุยกันไว้ เพื่อให้ session ถัดไปสานต่อได้โดยไม่ต้องเริ่มคิดใหม่ทั้งหมด
+
+**Commit:** เอกสารอย่างเดียว ไม่มีโค้ดเปลี่ยน (`f9e14c9` เอกสารต้นฉบับ, `4051f6c` backfill commit hash ของ entry ที่ 14)
+
+---
