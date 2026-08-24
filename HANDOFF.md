@@ -1,9 +1,9 @@
 # HANDOFF — Plant Log Analyzer
 
 ## 📅 อัปเดตล่าสุด
-2026-08-23 — เพิ่ม "เรื่องที่ 22" (V29.107, fix autosave gate ที่พึ่ง `$wb.Saved` ไม่ได้) ต่อจาก session ก่อนหน้าที่บันทึกย้อนหลัง **V29.95–V29.106** (12 เวอร์ชัน) ไว้แล้ว — commit และ push แล้ว **แต่ยังไม่ได้ทดสอบกับ PI Datalink จริงหน้างาน** (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 20)
-Branch: `main` | Commit ล่าสุดบน `origin/main`: `accf5a5` "Remove unverified $wb.Saved gate from Bridge autosave (V29.107)" — **push แล้ว** (`git status` ตอนเขียนส่วนนี้: working tree clean)
-เวอร์ชันแอปปัจจุบัน: **V29.107**
+2026-08-24 — เพิ่ม "เรื่องที่ 23" (V29.108, fix Bridge auto-open Excel ไม่โหลด PI DataLink Add-in ทำให้ค่าขึ้น `#NAME?`) — commit, push **และทดสอบหน้างานจริงยืนยันแก้ได้แล้ว** วันเดียวกัน (ต่างจาก "เรื่องที่ 22"/V29.107 ก่อนหน้าที่ยัง pending field test อยู่ — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 20 ซึ่งยังไม่เปลี่ยนสถานะ)
+Branch: `main` | Commit ล่าสุดบน `origin/main`: `6d29af1` "Confirm V29.108 Bridge auto-open fix on real hardware" — **push แล้ว** (`git status` ตอนเขียนส่วนนี้: working tree clean)
+เวอร์ชันแอปปัจจุบัน: **V29.108**
 URL production จริง: **https://monitor-log-sheet-boardman.supasiao.workers.dev** (ยืนยันจาก `AllowedOrigins` ใน `bridge/excel-bridge.ps1` + output จริงของ Cloudflare deploy job ล่าสุด commit `3d4792a` — ลิงก์นี้ถูก embed ไว้ใน Excel log sheet ของโรงงานผ่านสูตร `HYPERLINK` ให้ operator กดเปิดแอป ห้ามเปลี่ยนชื่อ worker ใน `wrangler.jsonc` เด็ดขาดเพราะจะทำให้ลิงก์เดิมใน Excel ใช้ไม่ได้)
 สูตร Hyperlink ที่ใช้งานจริงตอนนี้ในไฟล์ Excel log sheet (พี่ A ยืนยันเอง 2026-08-13):
 ```
@@ -351,6 +351,33 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 
 ---
 
+## ✅ เรื่องที่ 23 — Fix Bridge auto-open Excel ไม่โหลด PI DataLink Add-in ทำให้ค่าขึ้น `#NAME?` (V29.108) — บันทึกจาก session นี้ ยืนยันหน้างานจริงแล้ว
+
+**ปัญหา (พี่ A รายงานเข้ามา 2026-08-24 พร้อมภาพหน้าจอ `Log055.png`):** ไฟล์ log sheet ที่ Bridge เปิดให้เองอัตโนมัติ (ตอนไม่มีใครเปิด Excel ค้างไว้ก่อน — bridge เพิ่ง startup หรือเปลี่ยนกะแล้วไม่มีใครเปิดไฟล์ไว้) ทุกช่องสูตร PI Datalink ขึ้น `#NAME?` หมด ทั้งที่ไฟล์บนดิสก์มีค่าถูกต้องอยู่
+
+**วินิจฉัยสดกับพี่ A บนเครื่องจริง (ใช้ `AskUserQuestion` ตัดทฤษฎีทีละข้อก่อนสรุป root cause แทนการเดา):**
+- Force Full Recalculate (`Ctrl+Alt+Shift+F9`) → **ไม่ช่วย** ตัดทฤษฎี "Add-in โหลดช้ากว่า Excel เปิดไฟล์ (race condition)" ทิ้ง
+- Excel ที่ auto-open เป็น **Windows account เดียวกัน** กับที่พี่ A เปิดเองปกติทุกวัน → ตัดทฤษฎี "Add-in ไม่เคยถูก enable ต่อ account นี้" ทิ้ง
+- **จุดชี้ขาด:** สังเกตจากภาพว่า Ribbon ของหน้าต่างที่ auto-open ไม่มีแท็บ "PI DataLink" โผล่มาเลย (มีแค่ File/Home/.../Automate/Developer) — พี่ A ยืนยันว่าเปิดเองแบบ double-click ที่เครื่อง/account เดียวกันนี้มีแท็บ PI DataLink ขึ้นทุกครั้ง
+
+**Root cause:** `Find-OrOpenWorkbook` (`bridge/excel-bridge.ps1`) ตอนไม่มี Excel รันอยู่เลย สร้าง Excel session ใหม่ด้วย `New-Object -ComObject Excel.Application` ตรงๆ — COM Add-in อย่าง PI DataLink ไม่โหลดเข้า session ที่ถูกสร้างผ่านทางนี้ แม้ตั้งค่าให้โหลดอัตโนมัติไว้แล้วและเป็น account ที่ enable ไว้ถูกต้องก็ตาม (ต่างจากตอนเปิดผ่าน double-click ไอคอนจริงๆ ซึ่งผ่าน startup path ปกติของ Excel)
+
+**Fix:**
+1. เพิ่มฟังก์ชันใหม่ `Start-ExcelProcessAndAttach` — resolve path ของ `EXCEL.EXE` จาก registry (`HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\EXCEL.EXE`, key เดียวกับที่ Windows เองใช้ resolve จาก Start/Run), เปิดเป็น process จริงผ่าน `Start-Process` (เหมือน double-click ไอคอน ไม่ใช่สร้าง COM object ตรงๆ), แล้ว poll `GetActiveObject` รอ process ใหม่ขึ้นทะเบียนใน ROT (ทุก 1 วินาที สูงสุด 20 ครั้ง) — ถ้า resolve path ไม่ได้หรือรอ timeout ให้ fallback กลับไปพฤติกรรมเดิม (`New-Object -ComObject`) แทนที่จะ fail เฉยๆ กันเครื่องที่ theory นี้ไม่ตรงจากที่เคยใช้งานได้อยู่แล้วพัง
+2. `Find-OrOpenWorkbook` เปลี่ยนไปเรียกฟังก์ชันใหม่นี้แทนตอนไม่เจอ Excel รันอยู่ — ใช้ร่วมกันทั้ง `/ensure-file-open` และ `/rollover-daily-file` (ทั้งคู่เรียก `Find-OrOpenWorkbook` เดียวกัน ได้ fix นี้ไปพร้อมกันโดยไม่ต้องแก้แยก)
+
+**ไฟล์ที่แก้ (3 files, +47/-4):** `bridge/excel-bridge.ps1`, `index.html` (bump เป็น **V29.108** ทั้ง 3 จุด: title, sparkles badge, Manual view label), `context.md`
+
+**✅ ทดสอบหน้างานจริงแล้ว (2026-08-24, วันเดียวกับที่แก้):** ปิด Bridge เดิมที่รันอยู่ (PID หาเจอผ่าน `Get-CimInstance Win32_Process` filter หา `excel-bridge.ps1` ใน CommandLine, ยืนยัน owner ของ port 5175 ด้วย) ให้พี่ A รันใหม่ผ่าน `start-bridge.bat` — หลัง Bridge เปิดไฟล์ log sheet ให้อัตโนมัติ พี่ A ยืนยันว่า **ค่าขึ้นแล้วและมีแท็บ PI DataLink บน Ribbon แล้ว** ตรงตามที่คาดไว้ 100%
+
+**Commit:** `3975939` "Launch real EXCEL.EXE instead of raw COM object for auto-open (V29.108)", `6d29af1` "Confirm V29.108 Bridge auto-open fix on real hardware" — **push ขึ้น `origin/main` แล้วทั้งคู่**
+
+**สถานะ:** shipped + push แล้ว + **ทดสอบหน้างานจริงยืนยันแก้ได้แล้ว** ไม่มีงานค้างสำหรับเรื่องนี้
+
+**หมายเหตุ (ขอบเขตที่ยังไม่ทดสอบแยก):** เคสที่ทดสอบคือ scenario "ปิด Bridge แล้วเปิดใหม่ตอนไม่มี Excel รันอยู่เลย" (ตรงกับ `/ensure-file-open` ที่รันตอน bridge startup) — ยังไม่เคยทดสอบแยกกรณี `/rollover-daily-file` เรียก `Find-OrOpenWorkbook` เอง (เที่ยงคืนข้ามวันตอนไม่มีใครเปิด Excel ไว้เลย) ตรงๆ แต่ใช้ฟังก์ชันร่วมกันตัวเดียวกันเป๊ะ คาดว่าน่าจะแก้ได้เหมือนกัน — ควรเฝ้าสังเกตรอบเที่ยงคืนถัดไปว่าไม่มีปัญหาเช่นกัน (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 21 ใหม่ด้านล่าง)
+
+---
+
 ### 📚 เอกสารที่อัปเดตไปแล้วในช่วง V29.95-106 (ไม่ใช่งานค้าง แค่บันทึกว่าทำแล้ว)
 
 หลัง V29.106 มีอีก 2 commit doc-only ปิดท้าย session นี้ ไม่ bump เวอร์ชันแอป:
@@ -384,7 +411,8 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 17. **(ใหม่) V29.95-101 rollover subsystem (เรื่องที่ 15) — ยืนยันสดกับ bridge จริงแล้วอย่างน้อย 1 รอบสำหรับ V29.101 (stale-template) แต่ยังไม่มีการเฝ้าสังเกตระยะยาวต่อเนื่องหลายวัน/หลายรอบเที่ยงคืน** ว่า rollover ทำงานถูกต้อง 100% ทุกวันโดยไม่มี edge case ใหม่โผล่มา — โดยเฉพาะยังไม่ทราบแน่ชัดว่าอะไร "นอกเหนือโค้ด repo นี้" เป็นตัวเขียนทับไฟล์ด้วย (master) template ในเคสที่ V29.101 ไปเจอและแก้อาการปลายทาง ไม่ใช่ต้นตอ — ควรเฝ้าดูต่อว่าจะเกิดซ้ำไหม
 18. **(ใหม่) V29.103 custom protocol handler (`plantlogbridge://`) ลงทะเบียนไว้ที่ `HKCU` ของ user ที่ทดสอบบนเครื่องนี้ในเซสชันนี้เท่านั้น** — เครื่อง Office เป็น shared PC ที่ operator แต่ละคน login คนละ Windows account จริง (`HKCU` เป็น per-user registry hive) ยังไม่มีข้อมูลยืนยันว่า operator คนอื่นต้อง double-click `bridge/register-protocol.reg` เองก่อนปุ่ม "เปิด Excel Bridge" จะใช้งานได้ในเครื่องเดียวกันหรือไม่ — ควรทดสอบข้าม account จริงก่อนบอกว่าใช้ได้กับทุกคน
 19. **(ใหม่) V29.105 default time filter (`getDefaultTimeFilter`) ทดสอบจริงแค่ 1 เคส** (11:01 น. → เลือกรอบ 09:00 ให้ถูกต้อง) — ยังไม่ครอบคลุม edge case เช่น เวลาก่อนรอบ 03:00 แรกของวัน (ยังไม่มีรอบไหน "ผ่านไปแล้ว" เลยในวันนั้น) หรือกรณีไม่มี record ใดๆ อยู่เลย — มี test ใน `tests/shared.test.js` แล้วแต่ยังไม่ได้ตรวจ manual ผ่าน UI ในทุก edge case
-20. **(ใหม่, สำคัญ) V29.107 autosave gate fix (เรื่องที่ 22) ยังไม่ได้ทดสอบกับ PI Datalink จริงเลย** — dev sandbox ไม่มี Excel COM + PI Datalink ให้ทดสอบ มีแค่ `npm test` ยืนยันว่า JS-side ไม่พัง (140/140) ต้อง verify หน้างานจริงตาม steps นี้ก่อนถือว่าจบ: (1) รัน `bridge/excel-bridge.ps1` บนเครื่องจริงที่เปิดไฟล์ log sheet ค้างไว้ใน Excel พร้อม PI Datalink ทำงานอยู่ (2) **ห้ามกด Ctrl+S เอง** ปล่อยให้ PI Datalink refresh ตามรอบปกติ (3) รอครบ 1 รอบ poll (5 นาที) (4) เช็คว่า reading ใหม่เข้า dashboard อัตโนมัติโดยไม่มีใครกด save เอง + เช็คไฟล์ไม่มีข้อมูลเสีย/`#NAME?` โผล่มา (5) ถ้าเป็นไปได้ลองทิ้งไว้เกินครึ่งกะดูว่า save ถี่ทุก 5 นาทีไม่ทำให้ Excel/PI มีปัญหาสะสม — **commit/push ไปแล้ว** (`accf5a5`, พี่ A สั่งก่อนยืนยันหน้างาน) ถ้าทดสอบแล้วเจอปัญหาต้องแก้เพิ่ม ให้เปิด commit ใหม่ทับ ไม่ใช่ amend
+20. **(สำคัญ) V29.107 autosave gate fix (เรื่องที่ 22) ยังไม่ได้ทดสอบกับ PI Datalink จริงเลย** — dev sandbox ไม่มี Excel COM + PI Datalink ให้ทดสอบ มีแค่ `npm test` ยืนยันว่า JS-side ไม่พัง (140/140) ต้อง verify หน้างานจริงตาม steps นี้ก่อนถือว่าจบ: (1) รัน `bridge/excel-bridge.ps1` บนเครื่องจริงที่เปิดไฟล์ log sheet ค้างไว้ใน Excel พร้อม PI Datalink ทำงานอยู่ (2) **ห้ามกด Ctrl+S เอง** ปล่อยให้ PI Datalink refresh ตามรอบปกติ (3) รอครบ 1 รอบ poll (5 นาที) (4) เช็คว่า reading ใหม่เข้า dashboard อัตโนมัติโดยไม่มีใครกด save เอง + เช็คไฟล์ไม่มีข้อมูลเสีย/`#NAME?` โผล่มา (5) ถ้าเป็นไปได้ลองทิ้งไว้เกินครึ่งกะดูว่า save ถี่ทุก 5 นาทีไม่ทำให้ Excel/PI มีปัญหาสะสม — **commit/push ไปแล้ว** (`accf5a5`, พี่ A สั่งก่อนยืนยันหน้างาน) ถ้าทดสอบแล้วเจอปัญหาต้องแก้เพิ่ม ให้เปิด commit ใหม่ทับ ไม่ใช่ amend
+21. **(ใหม่, minor) V29.108 fix (เรื่องที่ 23) ยืนยันแล้วเฉพาะ scenario `/ensure-file-open` (bridge startup ตอนไม่มี Excel รันอยู่เลย)** — ยังไม่เคยเห็น `/rollover-daily-file` เรียก `Find-OrOpenWorkbook`/`Start-ExcelProcessAndAttach` ตัวเดียวกันนี้เอง (เที่ยงคืนข้ามวันตอนไม่มีใครเปิด Excel ไว้เลย) ทำงานจริงหลัง fix นี้ — คาดว่าน่าจะแก้ได้เหมือนกันเพราะใช้ฟังก์ชันร่วมกัน แต่ยังไม่มีหลักฐานตรงๆ ควรเฝ้าสังเกตรอบเที่ยงคืนถัดไป
 
 ---
 
@@ -406,7 +434,8 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 14. **(ใหม่)** ถ้าจะให้ operator คนอื่นบนเครื่อง Office ใช้ปุ่ม "เปิด Excel Bridge" (V29.103) ได้ ให้แต่ละคน double-click `bridge/register-protocol.reg` เองครั้งเดียวตอน login ด้วย Windows account ของตัวเอง (เพราะ `HKCU` เป็น per-user) — ยังไม่ได้ทดสอบว่าจำเป็นจริงหรือไม่ ควรทดสอบข้าม account ก่อน
 15. **(ใหม่)** เฝ้าสังเกตระบบ rollover รายวัน (V29.95-101) ต่อเนื่องอีกสักพักว่าไม่มี edge case ใหม่ โดยเฉพาะเคส stale-template ที่ยังไม่ทราบ root cause ที่แท้จริงว่าอะไรนอกเหนือโค้ด repo นี้เขียนทับไฟล์ด้วย template
 16. พิจารณาว่าจะเดินหน้าเรื่อง SQL/Cloud Database ต่อไหม (ดู "เรื่องที่ 21" ท้ายไฟล์) — ถามพี่ A ก่อนว่าคิดออกหรือยัง
-17. **(ใหม่, สำคัญที่สุด) ทดสอบ V29.107 autosave gate fix (เรื่องที่ 22, commit `accf5a5` push แล้ว) หน้างานจริงตาม steps ใน "🚧 ค้างอยู่ตรงไหน" ข้อ 20** — พี่ A สั่งให้ commit/push ไปก่อนแล้วโดยยังไม่ทดสอบหน้างาน ถ้าเจอว่ายังไม่แก้ปัญหา Ctrl+S ได้จริง ต้องสืบสวนต่อ (เช่น `.Saved` อาจไม่ใช่สาเหตุเดียว หรือมีปัจจัยอื่นที่ COM Save() เจอ) แล้วเปิด commit ใหม่ ไม่ใช่ amend
+17. **(สำคัญที่สุด) ทดสอบ V29.107 autosave gate fix (เรื่องที่ 22, commit `accf5a5` push แล้ว) หน้างานจริงตาม steps ใน "🚧 ค้างอยู่ตรงไหน" ข้อ 20** — พี่ A สั่งให้ commit/push ไปก่อนแล้วโดยยังไม่ทดสอบหน้างาน ถ้าเจอว่ายังไม่แก้ปัญหา Ctrl+S ได้จริง ต้องสืบสวนต่อ (เช่น `.Saved` อาจไม่ใช่สาเหตุเดียว หรือมีปัจจัยอื่นที่ COM Save() เจอ) แล้วเปิด commit ใหม่ ไม่ใช่ amend
+18. ~~**(ใหม่) ทดสอบ V29.108 Bridge auto-open fix (เรื่องที่ 23) หน้างานจริง**~~ — **ทำแล้ว/ยืนยันแล้ว (2026-08-24):** พี่ A ทดสอบทันทีวันที่แก้ ยืนยันค่าขึ้นถูกต้อง + แท็บ PI DataLink โผล่มาแล้ว — เหลือแค่เฝ้าสังเกตรอบเที่ยงคืนถัดไปว่า `/rollover-daily-file` (ยังไม่เคยเห็นเรียกใช้ fix นี้ตรงๆ) ทำงานถูกต้องเช่นกัน (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 21)
 
 ---
 
@@ -430,6 +459,7 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 - **หลัง V29.103/104:** ปุ่ม "เปิด Excel Bridge" ในหน้าเว็บใช้ custom protocol `plantlogbridge://` ซึ่ง**ต้อง register ผ่าน `bridge/register-protocol.reg` ก่อนครั้งแรกต่อ 1 Windows user account** (ลงทะเบียนที่ `HKCU`) — ถ้า operator คนใหม่ (login คนละ account) กดปุ่มแล้วไม่มีอะไรเกิดขึ้นเลย ให้ตรวจสอบว่า register ให้ user นั้นแล้วหรือยัง (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 18 — ยังไม่เคยทดสอบข้าม account จริง)
 - **หลัง V29.105:** "รายการพารามิเตอร์ (Log Data)" เปิดมาแล้ว **ไม่ใช่ All Time เป็น default อีกต่อไป** — ระบบจะเลือกรอบเวลามาตรฐานล่าสุดที่ผ่านไปแล้ว (03:00/09:00/15:00/21:00) ให้อัตโนมัติตอนเปิดหน้าครั้งแรก/import/restore เท่านั้น — ถ้า operator เปลี่ยน time filter เองระหว่างกะ ระบบจะไม่ไป override ค่านั้นทับจนกว่าจะมี trigger ใหม่ (import/restore/เปิดหน้าใหม่)
 - **หลัง V29.106:** ปุ่ม "เปิด Excel Bridge" เช็ค reachability ก่อนเปิด instance ใหม่เสมอแล้ว — ถ้ายังเจอหน้าต่าง terminal ดำค้างซ้ำอีก **ให้ถือว่าเป็นบั๊กใหม่** ไม่ใช่อาการเดิมที่เคยแก้แล้ว ควรสืบสวนแยกจากเคสเดิม
+- **หลัง V29.108:** ตอน Bridge ไม่เจอ Excel รันอยู่เลย (cold-start ตอน bridge เริ่ม/เปลี่ยนกะ) จะเปิด **`EXCEL.EXE` เป็น process จริง** (เหมือน double-click ไอคอน) แทนการสร้าง COM object ตรงๆ แบบเดิม — operator อาจเห็น Excel ขึ้นหน้า Start Screen/blank workbook สั้นๆ ก่อนไฟล์ log sheet จะเปิดตามมา (ต่างจากเดิมที่กระโดดไปเปิดไฟล์เลยทันที) **นี่คือพฤติกรรมปกติที่ตั้งใจ ไม่ใช่บั๊ก** — แลกมาเพื่อให้ PI DataLink Add-in โหลดได้ถูกต้อง (ดู "เรื่องที่ 23") ถ้า resolve path `EXCEL.EXE` จาก registry ไม่ได้หรือรอ attach เกิน 20 วินาที จะ fallback กลับไปพฤติกรรมเดิมอัตโนมัติ
 
 ---
 
