@@ -183,6 +183,7 @@ Object.assign(APP, {
 
                     await APP.loadLocalData();
                     STATE.set('timeFilter', getDefaultTimeFilter(STATE.get('records'))); // V29.105 FEAT: default ไปรอบเวลาล่าสุดของข้อมูลที่เพิ่ง import แทน 'all' — ต้องอยู่หลัง loadLocalData() เพื่อเห็น records ใหม่
+                    APP._autoTimeFilter = STATE.get('timeFilter'); // V29.109 FIX: reset tracking ให้ auto-import เลื่อนตามได้ต่อ
                     APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
                 } catch (error) {
                     console.error("Save Import Failed: ", error);
@@ -270,6 +271,16 @@ Object.assign(APP, {
                         await APP.renderImportHistory();
                     }
                     await APP.loadLocalData();
+                    // V29.109 FIX: auto-import เดิมไม่เคย re-derive timeFilter เลย ทำให้กรอบไฮไลน์ Time Breakdown
+                    // ค้างที่รอบเวลาตอนเปิดแอป (เช่น 09:00) ไม่เลื่อนตามเมื่อรอบใหม่ (15:00) มาถึงจริง แม้ records
+                    // จะถูกดึงเข้ามาครบแล้วก็ตาม — เลื่อนให้อัตโนมัติเฉพาะตอนที่ timeFilter ยังเป็นค่า auto-default
+                    // เดิมอยู่ (operator ยังไม่ได้กดเลือกรอบอื่นเองระหว่างกะ) เทียบกับ APP._autoTimeFilter ที่ตั้งไว้
+                    // ครั้งล่าสุด (init/manual import/restore) เพื่อไม่แย่งรอบเวลาที่ operator เลือกดูเอง
+                    const newDefaultTimeFilter = getDefaultTimeFilter(STATE.get('records'));
+                    if (STATE.get('timeFilter') === APP._autoTimeFilter && newDefaultTimeFilter !== APP._autoTimeFilter) {
+                        STATE.set('timeFilter', newDefaultTimeFilter);
+                        APP._autoTimeFilter = newDefaultTimeFilter;
+                    }
                     APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget — pollAutoImport ทำงานทุก 5 นาที ทำให้ sync ให้คนอื่นอัตโนมัติไปด้วย
                     return { status: 'ok', recordsAdded, recordsUpdated };
                 } catch (error) {

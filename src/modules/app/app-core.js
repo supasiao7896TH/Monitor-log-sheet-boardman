@@ -110,6 +110,10 @@ Object.assign(APP, {
                     // ครั้งที่ loadLocalData() ถูกเรียกจากจุดอื่น (เช่น หลังบันทึก remark) กันไม่ให้ไปแย่งรอบ
                     // เวลาที่ operator เลือกดูเองอยู่ระหว่างกะ
                     STATE.set('timeFilter', getDefaultTimeFilter(STATE.get('records')));
+                    // V29.109 FIX: จำค่า default ที่เพิ่ง auto-set ไว้ ให้ APP.handleAutoImportedFile (ทำงาน
+                    // เบื้องหลังทุก 5 นาที) รู้ว่า timeFilter ยังไม่ถูก operator เลือกเอง จะได้เลื่อนตามให้อัตโนมัติ
+                    // เมื่อรอบเวลาใหม่มาถึง — ดู pattern เดียวกันใน restoreData() และ handleFiles()
+                    APP._autoTimeFilter = STATE.get('timeFilter');
                     await APP.renderImportHistory();
                     APP.startAutoImportPolling(); // V29.78 FEAT: เริ่ม poll ไฟล์จาก Excel Bridge เบื้องหลัง (เงียบๆ ไม่บล็อก init)
                     APP.ensureExcelFileOpen(); // V29.99 FEAT: fire-and-forget เช็ค/เปิดไฟล์ log sheet ทันทีตอนเปิดหน้าเว็บ (ปิดช่องว่างตอนเปลี่ยนกะ)
@@ -559,6 +563,7 @@ Object.assign(APP, {
                         await STORAGE_ENGINE.importAll(payload);
                         await APP.loadLocalData();
                         STATE.set('timeFilter', getDefaultTimeFilter(STATE.get('records'))); // V29.105 FEAT: default ไปรอบเวลาล่าสุด แทน 'all'
+                        APP._autoTimeFilter = STATE.get('timeFilter'); // V29.109 FIX: reset tracking ให้ auto-import เลื่อนตามได้ต่อ
                         APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget — sync restore ที่เพิ่ง import ไปทับ D: ด้วย
                         alert("กู้คืนข้อมูลสำเร็จ");
                     } catch (error) {
