@@ -73,6 +73,16 @@
 # $wb.Save() แบบไม่มีเงื่อนไขทุกรอบ poll (ทุก 5 นาที) แทน — ยอมแลก disk write ที่บางรอบไม่มีอะไรเปลี่ยนจริง
 # เพื่อไม่ต้องพึ่ง COM property ที่พิสูจน์แล้วว่าเชื่อไม่ได้กับเคสนี้ (Save() ก็แค่ flush memory ลงดิสก์เหมือน
 # Ctrl+S เป๊ะ ไม่มีความเสี่ยงข้อมูลหาย)
+#
+# V29.108 FIX: Find-OrOpenWorkbook เดิม (ตอนไม่มี Excel รันอยู่เลย) สร้าง Excel session ใหม่ด้วย
+# `New-Object -ComObject Excel.Application` ตรงๆ — operator รายงานว่าไฟล์ที่ bridge เปิดให้อัตโนมัติแบบนี้
+# ทุกช่องสูตร PI Datalink ขึ้น #NAME? ทั้งหมด วินิจฉัยสดกับ operator บนเครื่องจริงตัดทฤษฎีอื่นออกหมด: Force
+# Full Recalculate (Ctrl+Alt+Shift+F9) ไม่ช่วย, เป็น Windows account เดียวกับที่เปิด Excel เองปกติทุกวัน —
+# แต่ Ribbon ของหน้าต่างที่ bridge เปิดให้กลับไม่มีแท็บ "PI DataLink" โผล่มาเลย (ต่างจากตอนเปิดเองแบบ
+# double-click ที่มีแท็บนี้เสมอบนเครื่อง/account เดียวกัน) สรุปคือ COM Add-in อย่าง PI DataLink ไม่โหลดเข้า
+# Excel session ที่ถูกสร้างผ่าน `New-Object -ComObject` ตรงๆ แบบนี้ ทั้งที่ตั้งค่าให้โหลดอัตโนมัติไว้แล้วก็ตาม
+# แก้โดยเปลี่ยนมาสั่งเปิด EXCEL.EXE เป็น process จริงก่อน (เหมือน double-click ไอคอน) แล้วค่อย attach ผ่าน
+# GetActiveObject ทีหลัง ให้ Add-in โหลดผ่าน startup path ปกติของ Excel เอง — ดู Find-OrOpenWorkbook ด้านล่าง
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -347,6 +357,38 @@ function Find-OpenWorkbook($fileName) {
     return $excel, $null
 }
 
+# V29.108 FIX: ใช้เฉพาะตอน Find-OrOpenWorkbook ไม่เจอ Excel รันอยู่เลย (GetActiveObject fail) — เปิด
+# EXCEL.EXE เป็น process จริงแบบเดียวกับ double-click ไอคอน แทนที่จะสร้าง Application object ตรงๆ ผ่าน
+# `New-Object -ComObject` เพราะพิสูจน์แล้วว่า COM Add-in (PI DataLink) ไม่โหลดเข้า session ที่ถูกสร้างแบบหลัง
+# (ดู comment header ด้านบนของไฟล์สำหรับหลักฐานการวินิจฉัย) resolve path ของ EXCEL.EXE จาก registry key
+# เดียวกับที่ Windows เองใช้ resolve ชื่อโปรแกรมจาก Start/Run แล้ว poll GetActiveObject รอ process ใหม่
+# ลงทะเบียนตัวเองใน ROT (ใช้เวลาสักพักหลัง Start-Process คืนค่าทันที ไม่ได้แปลว่า Excel พร้อมใช้แล้ว)
+# ถ้า resolve path ไม่ได้หรือรอ timeout ให้ fallback กลับไปพฤติกรรมเดิม (สร้างตรงผ่าน COM) แทนที่จะ fail
+# เฉยๆ — กันเครื่องที่ theory นี้ไม่ตรง (เช่นไม่มี key นี้ในเครื่องนั้นจริงๆ) จากที่เคยใช้งานได้อยู่แล้วพัง
+function Start-ExcelProcessAndAttach {
+    $excelExePath = $null
+    try {
+        $excelExePath = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\EXCEL.EXE' -ErrorAction Stop).'(default)'
+    } catch {
+        Write-Host "[ensure-file-open] หา path ของ EXCEL.EXE จาก registry ไม่เจอ — ใช้วิธีเดิม (New-Object -ComObject) แทน"
+        return New-Object -ComObject Excel.Application
+    }
+
+    Start-Process -FilePath $excelExePath | Out-Null
+
+    for ($i = 0; $i -lt 20; $i++) {
+        Start-Sleep -Seconds 1
+        try {
+            return [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
+        } catch {
+            # ยังไม่ทันขึ้นทะเบียนใน ROT — ลองรอบถัดไป
+        }
+    }
+
+    Write-Host "[ensure-file-open] เปิด EXCEL.EXE แล้วรอ 20 วินาทีแต่ attach ไม่สำเร็จ — ใช้วิธีเดิม (New-Object -ComObject) แทน"
+    return New-Object -ComObject Excel.Application
+}
+
 # V29.97 FEAT: ใช้เฉพาะ Handle-RolloverDailyFile — ต่างจาก Find-OpenWorkbook ตรงที่ "เปิดไฟล์ให้เองถ้ายัง
 # ไม่มีใครเปิดไว้" แทนที่จะแค่หาแล้วคืน $null ถ้าไม่เจอ ให้ rollover กลางดึกทำงานจบได้เองแม้ operator ยังไม่
 # ได้เปิด Excel เลยก็ตาม (ต่างจาก Handle-WriteRemark ที่ยังคง requirement เดิมไว้โดยเจตนา — ดู comment
@@ -355,7 +397,7 @@ function Find-OrOpenWorkbook($fileName, $fullPath) {
     try {
         $excel = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
     } catch {
-        $excel = New-Object -ComObject Excel.Application
+        $excel = Start-ExcelProcessAndAttach
     }
     # ตั้ง Visible เสมอไม่ว่าจะ attach ของเดิมหรือสร้างใหม่ — กัน instance ที่ถูกสร้างแบบซ่อนอยู่เบื้องหลัง
     # (ทั้งจากสคริปต์นี้เองตอนไม่มี Excel รันอยู่ หรือจาก process อื่นที่เคยสร้างไว้แบบ invisible) ให้
