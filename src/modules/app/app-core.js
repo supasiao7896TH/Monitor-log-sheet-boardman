@@ -362,6 +362,12 @@ Object.assign(APP, {
                     bannerInfo = { status: 'error', message: rollover.message || `ไฟล์ log sheet '${rollover.fileName || ''}' ชื่อเป็นวันนี้แล้ว แต่เนื้อหายังเป็นไฟล์ (master) เปล่าอยู่ — กรุณาตรวจสอบไฟล์เอง` };
                 } else if (info.status === 'ok' && info.looksLikeTemplate) {
                     bannerInfo = { status: 'error', message: `ไฟล์ log sheet '${info.fileName}' เนื้อหาเหมือนไฟล์ (master) เป๊ะ (ไม่มีข้อมูลจริงอยู่ข้างใน) — กรุณาตรวจสอบไฟล์เอง` };
+                } else if (rollover.status === 'locked-by-other-session') {
+                    // V29.110 FEAT: priority สูงกว่า autosave.status==='no-file-open' ด้านล่างโดยเจตนา — ถ้า
+                    // ปล่อยให้ตกไปที่ branch นั้น operator จะเห็นข้อความ "กรุณาเปิดไฟล์" ทั้งที่ไฟล์เปิดอยู่จริง
+                    // (แค่เปิดโดย Excel session อื่นบนเครื่องเดียวกัน) ผิดบริบทตรงๆ — ระบบจะลองเปิดใหม่เองอัตโนมัติ
+                    // ในรอบ poll ถัดไปหลัง session นั้นปิดไฟล์ ไม่ต้องรอ operator ทำอะไรเพิ่ม
+                    bannerInfo = { status: 'error', message: rollover.message || `ไฟล์ log sheet ถูก Excel session อื่นบนเครื่องเดียวกัน (คนละ Windows account) เปิดค้างอยู่ — ระบบจะลองเปิดใหม่เองอัตโนมัติในรอบถัดไป` };
                 } else if (autosave.status === 'no-file-open') {
                     // V29.107 FEAT: priority ต่ำกว่าเคสข้างบนทั้งหมดเพราะเคสเหล่านั้นเจาะจงกว่า — เคสนี้แค่
                     // "ไม่มีไฟล์เปิดอยู่ใน Excel เลย" ซึ่งทำให้ autosave (และ Handle-WriteRemark) ทำอะไรไม่ได้
@@ -468,6 +474,11 @@ Object.assign(APP, {
                     // V29.101 FEAT: banner แสดงจริงถูก merge ไว้ที่ pollAutoImport (caller) แล้ว — log ไว้ที่
                     // นี้เพื่อ debug เท่านั้น
                     console.warn('[auto-rollover] stale-template detected:', result.message);
+                } else if (result.status === 'locked-by-other-session') {
+                    // V29.110 FEAT: ไฟล์ถูก Excel session ของ Windows account อื่นบนเครื่องเดียวกันเปิดค้างอยู่
+                    // (bridge เห็นแค่ session ตัวเอง) ไม่ใช่ error ที่ operator ต้องรู้ทันที จะลองใหม่เองในรอบ
+                    // poll ถัดไปอัตโนมัติ — log ไว้เพื่อ debug เท่านั้น
+                    console.info('[auto-rollover] ไฟล์ถูกเปิดโดยผู้ใช้อื่นบนเครื่องเดียวกันอยู่:', result.message || '');
                 }
                 return result;
             },
@@ -491,6 +502,10 @@ Object.assign(APP, {
                     }
                 } else if (result.status === 'open-failed') {
                     console.warn('[ensure-file-open] เปิดไฟล์ log sheet ไม่สำเร็จ:', result.message);
+                } else if (result.status === 'locked-by-other-session') {
+                    // V29.110 FEAT: เหมือน comment ใน rolloverDailyFileIfNeeded ด้านบน — housekeeping เงียบๆ
+                    // ไม่ใช่ error ที่ operator ต้องรู้
+                    console.info('[ensure-file-open] ไฟล์ถูกเปิดโดยผู้ใช้อื่นบนเครื่องเดียวกันอยู่แล้ว:', result.message || '');
                 }
                 return result;
             },
@@ -513,6 +528,10 @@ Object.assign(APP, {
                     // V29.97 FEAT: bridge พยายามเปิดไฟล์ให้เองอัตโนมัติแล้วแต่ล้มเหลวจริงๆ (ไฟล์เสีย/ถูกล็อก)
                     // — ไม่ใช่เคส "operator ยังไม่เปิด" อีกต่อไป จึงไม่บอกให้เปิดไฟล์เองแบบเดิม
                     alert(`${result.message || 'เปิดไฟล์ log sheet ใน Excel อัตโนมัติไม่สำเร็จ'}\n\nกรุณาตรวจสอบไฟล์/Excel บนเครื่อง Bridge`);
+                } else if (result.status === 'locked-by-other-session') {
+                    // V29.110 FEAT: ต่างจาก open-failed — ไม่ใช่ไฟล์เสีย แค่ผู้ใช้อื่นบนเครื่องเดียวกัน (คนละ
+                    // Windows account) เปิดไฟล์ค้างอยู่ ให้ข้อความที่บอกทางแก้ตรงๆ แทนที่จะให้ไป "ตรวจสอบไฟล์"
+                    alert(`${result.message || 'ไฟล์นี้กำลังถูกเปิดโดยผู้ใช้อื่นบนเครื่องเดียวกัน (คนละ Windows account) อยู่'}\n\nกรุณารอให้ผู้ใช้ก่อนหน้าปิดไฟล์ก่อน แล้วลองใหม่`);
                 } else if (result.status === 'bridge-offline') {
                     alert('ไม่พบ Local Bridge — กรุณาเปิด excel-bridge.ps1 ก่อน');
                 } else {

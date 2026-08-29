@@ -83,6 +83,17 @@
 # Excel session ที่ถูกสร้างผ่าน `New-Object -ComObject` ตรงๆ แบบนี้ ทั้งที่ตั้งค่าให้โหลดอัตโนมัติไว้แล้วก็ตาม
 # แก้โดยเปลี่ยนมาสั่งเปิด EXCEL.EXE เป็น process จริงก่อน (เหมือน double-click ไอคอน) แล้วค่อย attach ผ่าน
 # GetActiveObject ทีหลัง ให้ Add-in โหลดผ่าน startup path ปกติของ Excel เอง — ดู Find-OrOpenWorkbook ด้านล่าง
+#
+# V29.110 FIX: Find-OrOpenWorkbook เช็คไฟล์เปิดอยู่แล้วหรือยังจาก $excel.Workbooks ของ session ตัวเองเท่านั้น
+# (GetActiveObject ผูกกับ Windows session ที่ script รันอยู่ ข้าม session อื่นไม่ได้ — ดู comment V29.98
+# ด้านบน) เครื่องจริงหน้างานเป็น PC shared ที่ operator หลายคน login คนละ Windows account — operator
+# รายงานว่าไฟล์ที่เปิดอัตโนมัติขึ้น popup "ไฟล์เปิดอยู่แล้ว" แล้วกลายเป็น read-only เพราะ session ก่อนหน้ายัง
+# มี Excel เปิดไฟล์ค้างอยู่ (คนละ session มองไม่เห็นกัน) แต่ Workbooks.Open ที่เรียกซ้ำไม่เคยตั้งค่า
+# Notify (ค่า default = True) ให้ Excel แจ้งเตือนแบบ dialog แทนที่จะ fail เฉยๆ แก้โดยเพิ่ม
+# Test-FileLockedByOtherSession เช็คไฟล์ ~$<ชื่อไฟล์> (lock-owner file ที่ Excel สร้างไว้ตอนมีคนเปิดไฟล์แบบ
+# read/write อยู่ — เห็นได้จาก filesystem ตรงๆ ไม่ต้องพึ่ง COM) ก่อนเรียก Open ทุกครั้ง ถ้าเจอไฟล์ล็อกก็ข้าม
+# การเปิดไปเลยแทนที่จะพยายามเปิดซ้ำ และเผื่อกรณี race (ล็อกเพิ่งเกิดหลังเช็คแต่ก่อน Open จริง) ก็เพิ่ม
+# Notify:=$false ให้ Open โยน exception ที่ดักได้แทน dialog ที่ค้างสคริปต์ไว้
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -389,6 +400,30 @@ function Start-ExcelProcessAndAttach {
     return New-Object -ComObject Excel.Application
 }
 
+# V29.110 FEAT: เช็คไฟล์ ~$<ชื่อไฟล์> ข้างไฟล์จริง — Excel สร้างไฟล์นี้ไว้เสมอตอนมีใครเปิดไฟล์แบบ read/write
+# ค้างอยู่ (ไม่ว่าจะเป็น Excel session ไหน/Windows account ไหนก็ตาม) แล้วลบทิ้งตอนปิดไฟล์ปกติ — เช็คผ่าน
+# filesystem ตรงๆ ด้วย Test-Path จึงเห็นได้ข้าม Windows session ต่างจาก $excel.Workbooks ที่เห็นแค่ session
+# ตัวเอง ใช้แก้ปัญหา cross-session lock ใน Find-OrOpenWorkbook ด้านล่าง (ดู comment V29.110 header ด้านบนของ
+# ไฟล์) เนื้อหาในไฟล์ ~$ ปกติจะเป็นชื่อผู้เปิด — พยายามอ่านมาโชว์ให้ operator เห็นด้วยแบบ best-effort เท่านั้น
+# (ถ้าอ่านไม่ได้ก็ไม่เป็นไร ยังคง detect ว่าไฟล์ถูกล็อกอยู่ได้จากแค่ Test-Path)
+function Test-FileLockedByOtherSession($fullPath) {
+    $folder = Split-Path -Parent $fullPath
+    $lockFilePath = Join-Path $folder ('~$' + (Split-Path -Leaf $fullPath))
+    if (-not (Test-Path -LiteralPath $lockFilePath -PathType Leaf)) {
+        return @{ locked = $false }
+    }
+    $ownerName = $null
+    try {
+        # Encoding.Default = ANSI codepage ของเครื่อง (Windows-874 ถ้าเป็น Thai locale) — Excel เขียนชื่อผู้
+        # เปิดลงไฟล์ ~$ ด้วย codepage นี้ ไม่ใช่ UTF-8 ถ้าใช้ UTF8.GetString กับชื่อ Windows account ที่มี
+        # อักษรไทยจะได้ mojibake แทน (best-effort เท่านั้น — อ่านผิด/อ่านไม่ได้ไม่กระทบ $lockCheck.locked หลัก)
+        $bytes = Read-FileBytesShared $lockFilePath
+        $raw = ([System.Text.Encoding]::Default.GetString($bytes) -replace '[\x00-\x1F]', '').Trim()
+        if (-not [string]::IsNullOrWhiteSpace($raw)) { $ownerName = $raw }
+    } catch { }
+    return @{ locked = $true; ownerName = $ownerName }
+}
+
 # V29.97 FEAT: ใช้เฉพาะ Handle-RolloverDailyFile — ต่างจาก Find-OpenWorkbook ตรงที่ "เปิดไฟล์ให้เองถ้ายัง
 # ไม่มีใครเปิดไว้" แทนที่จะแค่หาแล้วคืน $null ถ้าไม่เจอ ให้ rollover กลางดึกทำงานจบได้เองแม้ operator ยังไม่
 # ได้เปิด Excel เลยก็ตาม (ต่างจาก Handle-WriteRemark ที่ยังคง requirement เดิมไว้โดยเจตนา — ดู comment
@@ -408,13 +443,23 @@ function Find-OrOpenWorkbook($fileName, $fullPath) {
         if ($wb.Name -eq $fileName) { return @{ excel = $excel; wb = $wb } }
     }
 
+    # V29.110 FIX: เช็ค cross-session lock ก่อนเปิดเสมอ — ดู comment เหนือ Test-FileLockedByOtherSession
+    $lockCheck = Test-FileLockedByOtherSession $fullPath
+    if ($lockCheck.locked) {
+        $ownerText = if ($lockCheck.ownerName) { " โดย $($lockCheck.ownerName)" } else { '' }
+        return @{ excel = $excel; wb = $null; locked = $true;
+            errorMessage = "ไฟล์นี้กำลังถูกเปิดอยู่แล้วโดย Excel session อื่นบนเครื่องเดียวกัน (คนละ Windows account)$ownerText — ระบบจะลองใหม่ในรอบถัดไปโดยอัตโนมัติ" }
+    }
+
     $originalDisplayAlerts = $excel.DisplayAlerts
     $excel.DisplayAlerts = $false
     try {
         # UpdateLinks=0: ไม่ต้อง prompt/auto-refresh สูตร PI Datalink ตอนเปิดไฟล์ (เลี่ยง dialog ที่จะค้าง
         # สคริปต์ไว้รอ operator กดตอบ ซึ่งไม่มีใครอยู่หน้าเครื่องตอนกลางดึก) — ReadOnly=$false เพราะต้อง
-        # SaveAs/Save ต่อทันทีหลังเปิด
-        $wb = $excel.Workbooks.Open($fullPath, 0, $false)
+        # SaveAs/Save ต่อทันทีหลังเปิด — Notify=$false (V29.110, ตำแหน่งสุดท้าย) กันเผื่อ race ที่ไฟล์ถูกล็อก
+        # เพิ่มหลัง Test-FileLockedByOtherSession เช็คผ่านไปแล้วแต่ก่อนเรียก Open จริง ให้ throw exception ที่
+        # ดักได้แทนที่จะเป็น native "already open" dialog ที่ค้างสคริปต์ไว้รอ operator กดตอบ
+        $wb = $excel.Workbooks.Open($fullPath, 0, $false, [Type]::Missing, [Type]::Missing, [Type]::Missing, [Type]::Missing, [Type]::Missing, [Type]::Missing, [Type]::Missing, $false)
         return @{ excel = $excel; wb = $wb }
     } catch {
         return @{ excel = $excel; wb = $null; errorMessage = $_.Exception.Message }
@@ -578,6 +623,11 @@ function Handle-RolloverDailyFile {
     $excel = $opened.excel
     $wb = $opened.wb
     if (-not $wb) {
+        # V29.110 FIX: แยกเคส "ไฟล์ถูก session อื่นล็อกอยู่" ออกจาก open-failed ทั่วไป — ไม่ใช่ error จริง
+        # แค่ต้องรอให้ session นั้นปิดไฟล์ก่อน จะลองใหม่เองในรอบ poll ถัดไป
+        if ($opened.locked) {
+            return @{ status = 'locked-by-other-session'; fileName = $file.Name; message = $opened.errorMessage }
+        }
         return @{ status = 'open-failed'; message = "เปิดไฟล์ '$($file.Name)' ใน Excel อัตโนมัติไม่สำเร็จ: $($opened.errorMessage)" }
     }
 
@@ -650,6 +700,10 @@ function Handle-EnsureFileOpen {
 
     $opened = Find-OrOpenWorkbook $file.Name $file.FullName
     if (-not $opened.wb) {
+        # V29.110 FIX: ดู comment เดียวกันใน Handle-RolloverDailyFile ด้านบน
+        if ($opened.locked) {
+            return @{ status = 'locked-by-other-session'; fileName = $file.Name; message = $opened.errorMessage }
+        }
         return @{ status = 'open-failed'; message = "เปิดไฟล์ '$($file.Name)' ใน Excel อัตโนมัติไม่สำเร็จ: $($opened.errorMessage)" }
     }
     # V29.101 FEAT: แนบ warning เดียวกับ Handle-RolloverDailyFile ถ้าไฟล์ที่เพิ่งเปิดให้ดูเหมือนสำเนา
