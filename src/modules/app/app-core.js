@@ -14,6 +14,13 @@ import { APP } from './app.js';
 // รีเซ็ตเมื่อ reload หน้าได้ ไม่กระทบอะไร (แค่ archive ซ้ำอีกครั้งตอนเช็ครอบแรกหลัง reload)
 let lastArchivedMtime = null;
 
+// V29.112 FIX: serialize APP.pushSharedDb calls ผ่าน promise chain นี้ — เดิม push ทุกจุดเป็น fire-and-forget
+// เดี่ยวๆ (ไม่รอกัน) ตอน merge:true เพิ่ม pull ก่อน push (ดู pushSharedDb ด้านล่าง) ทำให้แต่ละ push กลาย
+// เป็น 2 round-trip แทนที่จะเป็น 1 — ถ้ามี push สองรอบยิงใกล้กันมาก (เช่น saveAction ติดกันเร็วๆ หรือ
+// pollAutoImport ยิงพอดีตอน operator กำลัง save remark) รอบหลังอาจ pull ข้อมูลตอนที่รอบแรกยังไม่ทัน push
+// เสร็จ แล้ว mergeAll ทับ id เดียวกันคนละเวอร์ชันสลับกันได้ — เรียงคิวให้ push ทำทีละรอบจริงๆ ปิดช่องนี้
+let pushChain = Promise.resolve();
+
 // V29.87 FEAT: sync-warning banner state — จุดเล็กๆ สีเหลือง "LOCAL MODE" ที่ sidebar (setSyncIndicator เดิม)
 // สังเกตยากมากสำหรับ operator ที่ไม่ได้สนใจรายละเอียดทางเทคนิค ทั้งที่มันแปลว่าการตั้งค่า Tag Master/
 // Resolution Remark ที่เพิ่งบันทึกจะไม่ถูกแชร์ให้เพื่อนร่วมกะที่ login คนละบัญชี (ดู bridge/README.md หัวข้อ
@@ -83,10 +90,15 @@ Object.assign(APP, {
                         const pulled = await EXCEL_SYNC.pullSharedDb();
                         if (pulled.status === 'ok' && pulled.data) {
                             try {
-                                await STORAGE_ENGINE.importAll(pulled.data);
+                                // V29.112 FIX: เดิมใช้ importAll (clear แล้วใส่ของใหม่ทับ) — ถ้าไฟล์กลางบน D:
+                                // ดันเล็กกว่า local ตอนนั้นจริงๆ (เช่น ถูก session อื่นเขียนทับให้เหลือน้อยกว่า
+                                // ที่ควรมาก่อนหน้านี้) local จะโดนล้างข้อมูลที่มีอยู่จริงทิ้งไปเงียบๆ ตาม —
+                                // เปลี่ยนเป็น mergeAll (upsert ทีละ record) กัน record ที่มีจริงใน local แต่ไม่มี
+                                // ในไฟล์กลางหายไป โดยยังได้ของใหม่จากไฟล์กลางมาอัปเดตทับตามปกติ
+                                await STORAGE_ENGINE.mergeAll(pulled.data);
                                 APP.setSyncIndicator('synced');
                             } catch (err) {
-                                console.error('Pull-on-load importAll failed, falling back to local data:', err);
+                                console.error('Pull-on-load mergeAll failed, falling back to local data:', err);
                                 APP.setSyncIndicator('local');
                             }
                         } else {
@@ -170,17 +182,42 @@ Object.assign(APP, {
 
 
             // V29.85 FEAT: push snapshot ปัจจุบันทั้งหมดไปเก็บที่ D: ผ่าน Local Bridge — fire-and-forget
-            // ตอนเรียกจากจุด mutation ทั้ง 10 จุด (saveAction/clearAction/saveMasterSettings/handleFiles/
-            // handleAutoImportedFile/saveCountermeasureEntry/deleteCountermeasureEntry/btn-clear-db/
-            // repairAutoImportedFileNames/restoreData) — ไม่ await เพื่อไม่บล็อก UI ให้ operator รอ
-            // network round-trip
+            // ตอนเรียกจากจุด mutation ส่วนใหญ่ที่เป็นการเพิ่ม/แก้ (merge:true ค่า default — saveAction/
+            // clearAction/saveMasterSettings/handleFiles/handleAutoImportedFile/saveCountermeasureEntry/
+            // repairAutoImportedFileNames) — ไม่ await เพื่อไม่บล็อก UI ให้ operator รอ network round-trip
             // V29.85 FIX: ตั้ง LS_SYNC_DIRTY_KEY ก่อนพยายาม push ทุกครั้ง แล้วเคลียร์เมื่อสำเร็จเท่านั้น —
             // ถ้า push รอบนี้ล้มเหลว (เช่น Bridge ดับพอดี) flag จะค้างไว้ ทำให้ init() รอบต่อไปรู้ว่ามี local
             // change ที่ยังไม่ถูก sync ค้างอยู่ ต้อง retry push ก่อนจะยอม pull ทับ (ดู init() ด้านบน) — กัน
             // pull-on-load ทำลาย edit ที่ operator ทำไว้จริงแต่ push ไม่ทันสำเร็จก่อน reload
-            pushSharedDb: async () => {
+            // V29.112 FIX: เคสจริงที่เจอ — session ที่ local data น้อย/เก่ากว่าไฟล์กลาง (เช่น เพิ่งเปิดเครื่อง
+            // ด้วย browser profile ใหม่, หรือ auto-import ที่เพิ่งเห็นข้อมูลแค่วันเดียว) ทำ mutation อะไรก็ตาม
+            // แล้ว push แบบเดิม (exportAll ของ local ล้วนๆ) จะเขียนทับไฟล์กลางด้วยข้อมูลที่น้อยกว่าทันที ทำให้
+            // ทุกวันย้อนหลังที่คนอื่น push ไว้ก่อนหน้าหายไปเงียบๆ (ดูเคส "Time Breakdown เหลือ 1 วัน") — ค่า
+            // เริ่มต้นตอนนี้เลย pull ไฟล์กลางมา merge (mergeAll, upsert ไม่ clear) เข้า local ก่อนเสมอ แล้วค่อย
+            // export+push ผลลัพธ์ที่ merge แล้ว รับประกันว่า push จะไม่ทำให้ข้อมูลบนไฟล์กลางหดลงได้อีก
+            // ข้อยกเว้น merge:false — ใช้เฉพาะ action ที่ operator ตั้งใจ overwrite/ลบข้อมูลจริง (มี confirm()
+            // ชัดเจนอยู่แล้วทุกจุด): "ล้างฐานข้อมูล" (btn-clear-db), "กู้คืนข้อมูล" (restoreData), และ "ลบ
+            // คำแนะนำ Countermeasure" (deleteCountermeasureEntry — การลบทำให้ id หายไปจาก local ซึ่งตรง
+            // เงื่อนไข "ยังไม่มีใน local" ของ mergeAll พอดี ถ้า push แบบ merge ปกติ รายการที่เพิ่งลบจะถูก
+            // merge เอากลับเข้ามาจากไฟล์กลางทันที) ถ้าใช้ merge แบบปกติกับ 3 จุดนี้ การล้าง/กู้คืน/ลบ จะไม่มี
+            // ผลจริงบนไฟล์กลางเลย
+            // V29.112 FIX: เรียกผ่าน pushChain (module-level, ดูคอมเมนต์ตรง let pushChain ด้านบนไฟล์) แทนการ
+            // ยิง fire-and-forget เดี่ยวๆ ตรงๆ — เรียง execution ให้ push แต่ละรอบ (pull+merge+export+push)
+            // ทำจนจบก่อนรอบถัดไปจะเริ่ม กัน race ระหว่าง 2 push ที่ยิงใกล้กันมากเกินไป
+            pushSharedDb: (opts = {}) => {
+                pushChain = pushChain.then(() => APP._pushSharedDbOnce(opts));
+                return pushChain;
+            },
+
+            _pushSharedDbOnce: async ({ merge = true } = {}) => {
                 localStorage.setItem(LS_SYNC_DIRTY_KEY, '1');
                 try {
+                    if (merge) {
+                        const pulled = await EXCEL_SYNC.pullSharedDb();
+                        if (pulled.status === 'ok' && pulled.data) {
+                            await STORAGE_ENGINE.mergeAll(pulled.data);
+                        }
+                    }
                     const payload = await STORAGE_ENGINE.exportAll();
                     const status = await EXCEL_SYNC.pushSharedDb(payload);
                     if (status === 'ok') {
@@ -591,7 +628,7 @@ Object.assign(APP, {
                         await APP.loadLocalData();
                         STATE.set('timeFilter', getDefaultTimeFilter(STATE.get('records'))); // V29.105 FEAT: default ไปรอบเวลาล่าสุด แทน 'all'
                         APP._autoTimeFilter = STATE.get('timeFilter'); // V29.109 FIX: reset tracking ให้ auto-import เลื่อนตามได้ต่อ
-                        APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget — sync restore ที่เพิ่ง import ไปทับ D: ด้วย
+                        APP.pushSharedDb({ merge: false }); // V29.85 FEAT, V29.112 FIX: force-push (ไม่ merge) — sync restore ที่เพิ่ง import ไปทับ D: ด้วยจริงๆ ไม่ให้ของเก่าบนไฟล์กลาง merge กลับเข้ามา
                         alert("กู้คืนข้อมูลสำเร็จ");
                     } catch (error) {
                         console.error("Restore Failed: ", error);
@@ -659,7 +696,7 @@ Object.assign(APP, {
                             STATE.set('timeFilter', 'all');
                             STATE.set('viewFilter', 'hard-abnormal'); // V29.94: default ใหม่ = เฉพาะ Abnormalities (การ์ด active-state sync ผ่าน renderDashboard เองแล้ว ไม่ต้อง poke DOM แยก)
                             await APP.loadLocalData();
-                            APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
+                            APP.pushSharedDb({ merge: false }); // V29.85 FEAT, V29.112 FIX: force-push (ไม่ merge) — ล้างนี้ต้องสะท้อนไปที่ไฟล์กลางจริงๆ ไม่ให้ของเก่า merge กลับเข้ามา
                         } catch (error) {
                             console.error("Clear DB Failed: ", error);
                             alert("ล้างข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");

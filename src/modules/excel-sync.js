@@ -5,10 +5,17 @@
 // เรียกครั้งเดียวตอน APP.init() ก่อน loadLocalData — เหมือน excel-writeback.js/excel-autoimport.js
 // ไม่มีทางที่ exception จะหลุดไปถึง caller เลย แปลงเป็น status string/object เสมอ
 //
-// Known trade-off (v1, ตั้งใจไม่แก้): push เป็น full-snapshot overwrite เสมอ ไม่ใช่ delta/merge — ถ้ามี 2
-// operator แก้ข้อมูลพร้อมกันจริงๆ (เช่น สลับ user บนเครื่อง shared ผ่าน fast-user-switching) คนที่ push
-// หลังจะเขียนทับของคนก่อนแบบไม่รู้ตัว (last-write-wins) ยอมรับได้เพราะ tool นี้ design ไว้เป็น
-// single-operator-ต่อกะ (ดู context.md) ไม่ใช่ real-time multi-user
+// payload ที่ pushSharedDb ได้รับยังเป็น full-snapshot ของ local เสมอ (ไม่ใช่ delta) — แต่ตั้งแต่ V29.112
+// ผู้เรียก (APP.pushSharedDb ใน app-core.js) จะ pull ไฟล์กลางมาก่อนเสมอ แล้ว merge เข้า local ด้วย
+// STORAGE_ENGINE.mergeAll ซึ่งเติมเฉพาะ id ที่ local "ยังไม่มี" เท่านั้น (id ที่ local มีอยู่แล้วชนะเสมอ ไม่ถูก
+// remote เขียนทับ) ก่อนค่อย export+push ผลลัพธ์ที่ merge แล้ว — แก้ช่องโหว่เดิมที่ session ใดก็ตามที่ local
+// data น้อย/เก่ากว่า (เช่น browser profile ใหม่, หรือ auto-import ที่เพิ่งเห็นข้อมูลแค่วันเดียว) เขียนทับไฟล์
+// กลางด้วยข้อมูลที่น้อยกว่าจนวันเก่าที่คนอื่น push ไว้หายไปเงียบๆ (เคสจริง: "Time Breakdown เหลือ 1 วัน"
+// หลัง refresh หลายรอบ) เหลือ known trade-off เดิมเฉพาะกรณี 2 operator แก้ record เดียวกัน (id เดียวกัน)
+// พร้อมกันจริงๆ เท่านั้น — เพราะ mergeAll ให้ local ชนะเสมอสำหรับ id ที่มีอยู่แล้ว ถ้า operator คนที่ 2 pull
+// ก่อน operator คนที่ 1 จะ push การแก้ไขของคนที่ 1 (สำเร็จ push ไปแล้ว) อาจไม่ถูกดึงมาที่เครื่องคนที่ 2 เลย
+// จนกว่าจะ pull ใหม่อีกรอบ ยอมรับได้เพราะ tool นี้ design ไว้เป็น single-operator-ต่อกะ (ดู context.md)
+// ไม่ใช่ real-time multi-user
 import { BRIDGE_URL, fetchWithTimeout } from './shared.js';
 
 export const EXCEL_SYNC = {

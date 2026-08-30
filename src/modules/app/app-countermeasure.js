@@ -176,13 +176,20 @@ Object.assign(APP, {
 
                     // ถ้าแก้ไข entry เดิมแล้วเปลี่ยน Tag/Direction จน id เปลี่ยนไป ต้องลบ entry เก่าทิ้ง กัน record ค้าง
                     const originalId = APP._activeCountermeasureId;
-                    if (originalId && originalId !== id) {
+                    const idChanged = originalId && originalId !== id;
+                    if (idChanged) {
                         await STORAGE_ENGINE.deleteCountermeasure(originalId);
                     }
 
                     const newList = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
                     STATE.set('userCountermeasures', newList);
-                    APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
+                    // V29.112 FIX: force-push (merge:false) เฉพาะตอน id เปลี่ยน (มี delete ของ originalId
+                    // แฝงอยู่) — เหตุผลเดียวกับ deleteCountermeasureEntry: originalId จะ "ไม่มีใน local"
+                    // ทันทีหลัง delete ตรงเงื่อนไข "ยังไม่มีใน local" ของ mergeAll พอดี ถ้า push แบบ merge ปกติ
+                    // entry เก่าที่เพิ่งลบจะถูก merge กลับเข้ามาจากไฟล์กลางในการ push ครั้งนี้เอง กลายเป็น
+                    // entry ซ้ำ (เก่า+ใหม่) ค้างอยู่ทั้ง local และไฟล์กลาง — ถ้า id ไม่เปลี่ยน (แก้ entry เดิม
+                    // ธรรมดา) ไม่มี delete แฝง ใช้ merge:true ตามปกติได้อย่างปลอดภัย
+                    APP.pushSharedDb({ merge: !idChanged }); // V29.85 FEAT: fire-and-forget
 
                     APP.closeCountermeasureModal();
                 } catch (error) {
@@ -201,7 +208,10 @@ Object.assign(APP, {
                     await STORAGE_ENGINE.deleteCountermeasure(id);
                     const newList = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
                     STATE.set('userCountermeasures', newList);
-                    APP.pushSharedDb(); // V29.85 FEAT: fire-and-forget
+                    // V29.112 FIX: force-push (merge:false) — การลบทำให้ id นี้ "ไม่มีใน local" ซึ่งตรงเงื่อนไข
+                    // "ยังไม่มีใน local" ของ mergeAll พอดี ถ้า push แบบ merge ปกติ (pull ก่อน push) รายการที่
+                    // เพิ่งลบจะถูก merge เอากลับเข้ามาจากไฟล์กลางทันทีในการ push ครั้งเดียวกันนี้เอง
+                    APP.pushSharedDb({ merge: false });
 
                     APP.closeCountermeasureModal();
                 } catch (error) {

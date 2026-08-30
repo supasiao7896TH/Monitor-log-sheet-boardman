@@ -1,5 +1,13 @@
 import { getTagId, STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_IMPORTHISTORY, STORE_COUNTERMEASURES, STORE_ABNORMAL_HISTORY } from './shared.js';
 
+// V29.112 FEAT: pure logic ของ mergeAll แยกออกมาเป็น named export ต่างหาก (เหมือน pattern buildWriteRemarkPayload
+// ใน excel-writeback.js) ให้ test ได้โดยไม่ต้องพึ่ง IndexedDB จริง (repo นี้ไม่มี fake-indexeddb/jsdom
+// ในชุด test — ดู tests/storage-engine.test.js) — คืนเฉพาะ item ที่ id ยังไม่มีใน existingIds เท่านั้น
+// ("local ชนะเสมอสำหรับ id ที่มีอยู่แล้ว" ดูเหตุผลเต็มที่คอมเมนต์ mergeAll ด้านล่าง)
+export function selectMissingById(existingIds, items) {
+    return items.filter(item => !existingIds.has(item.id));
+}
+
 export const STORAGE_ENGINE = {
             db: null,
             init: () => new Promise((resolve, reject) => {
@@ -175,6 +183,50 @@ export const STORAGE_ENGINE = {
                 payload.masterTags.forEach(m => tx.objectStore(STORE_MASTERTAGS).put(m));
                 userCountermeasures.forEach(c => tx.objectStore(STORE_COUNTERMEASURES).put(c));
                 abnormalHistory.forEach(h => tx.objectStore(STORE_ABNORMAL_HISTORY).put(h));
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            }),
+            // V29.112 FEAT, V29.112 FIX (code review รอบแรกจับได้ก่อน commit): เติมเฉพาะ record/tag ที่
+            // "ยังไม่มีใน local" จาก payload ที่ pull มา — id ไหนที่ local มีอยู่แล้วจะถูกข้ามเสมอ ไม่ put()
+            // ทับ ต่างจาก importAll ที่ clear() ทั้งก้อนก่อนเสมอ ใช้กับ background sync pull เท่านั้น
+            // (APP.init และ APP.pushSharedDb ก่อน push จริง — ดู excel-sync.js) ต่างจาก importAll ที่ยังคงไว้
+            // สำหรับ "กู้คืนข้อมูล" (restoreData) ซึ่งเป็น action ที่ operator ตั้งใจ overwrite ทั้งหมดจริงๆ
+            // (มี confirm() ชัดเจน)
+            // เหตุผลที่ต้อง "ข้าม id ที่ local มีอยู่แล้ว" แทนที่จะ put() ทับไปเลยแบบรอบแรก (ตัวแรกที่เขียน
+            // เคยพลาดจุดนี้ — code review จับได้ก่อน commit): ฝั่ง APP.pushSharedDb เรียก mergeAll ด้วยข้อมูล
+            // remote "เก่ากว่า" local เสมอ (pull ก่อน push ของ mutation ที่เพิ่งทำ) ถ้า put() ทับ id ที่ local
+            // เพิ่งแก้ไปหมาดๆ (เช่น remark ที่เพิ่ง saveAction) จะโดนค่าเก่าจาก remote เขียนทับกลับ กลาย
+            // เป็นบั๊ก data-loss ตัวใหม่ที่แย่กว่าเดิม (ทุก saveAction/saveMasterSettings/
+            // saveCountermeasureEntry จะโดนโดยพื้นฐาน ไม่ใช่ edge case) — "local ชนะเสมอสำหรับ id ที่มีอยู่
+            // แล้ว" แก้ปัญหานี้ตรงๆ เพราะ local คือข้อมูลล่าสุดของ id นั้นบนเครื่องนี้เสมอ
+            // ข้อจำกัดที่เหลือ (ยอมรับได้): การ "ลบ" (เช่น deleteCountermeasureEntry, หรือ rename path ใน
+            // saveCountermeasureEntry ที่ลบ originalId ทิ้งตอน id เปลี่ยน — พลาดจุดนี้ในรอบแรกที่เขียน code
+            // review รอบสองจับได้ก่อน commit) ทำให้ id หายไปจาก local ไม่ใช่ "มีอยู่แล้ว" ตาม logic ข้างบน
+            // เข้าเงื่อนไข "ยังไม่มีใน local" กลับกลายเป็น merge เอาของที่เพิ่งลบกลับเข้ามาใหม่ — ทุกจุดที่มี
+            // delete แฝงอยู่ต้อง push แบบ { merge: false } แทน (เหมือน restoreData/btn-clear-db) ไม่ใช่แก้ที่
+            // mergeAll เพราะการลบต้องการ "สะท้อนไปที่ไฟล์กลางจริงๆ" ไม่ใช่ "merge เข้าด้วยกัน" อยู่แล้วโดย
+            // ธรรมชาติ — จุดไหนในอนาคตที่มี delete()/clear() แฝงก่อน pushSharedDb ต้องเช็คแบบนี้เสมอ
+            mergeAll: (payload) => new Promise((resolve, reject) => {
+                if(!STORAGE_ENGINE.db) return resolve();
+                if (!payload || !Array.isArray(payload.tags) || !Array.isArray(payload.records) || !Array.isArray(payload.masterTags)) {
+                    return reject(new Error('Invalid sync payload structure'));
+                }
+                const userCountermeasures = Array.isArray(payload.userCountermeasures) ? payload.userCountermeasures : [];
+                const abnormalHistory = Array.isArray(payload.abnormalHistory) ? payload.abnormalHistory : [];
+                const tx = STORAGE_ENGINE.db.transaction([STORE_TAGS, STORE_RECORDS, STORE_MASTERTAGS, STORE_COUNTERMEASURES, STORE_ABNORMAL_HISTORY], 'readwrite');
+                const putMissingOnly = (storeName, items) => {
+                    const store = tx.objectStore(storeName);
+                    const keysReq = store.getAllKeys();
+                    keysReq.onsuccess = () => {
+                        const existingIds = new Set(keysReq.result);
+                        selectMissingById(existingIds, items).forEach(item => store.put(item));
+                    };
+                };
+                putMissingOnly(STORE_TAGS, payload.tags);
+                putMissingOnly(STORE_RECORDS, payload.records);
+                putMissingOnly(STORE_MASTERTAGS, payload.masterTags);
+                putMissingOnly(STORE_COUNTERMEASURES, userCountermeasures);
+                putMissingOnly(STORE_ABNORMAL_HISTORY, abnormalHistory);
                 tx.oncomplete = resolve;
                 tx.onerror = () => reject(tx.error);
             }),
