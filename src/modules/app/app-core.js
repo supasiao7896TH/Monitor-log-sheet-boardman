@@ -446,7 +446,15 @@ Object.assign(APP, {
             // ไม่ต้องมี retry logic พิเศษ
             checkAndArchiveIfComplete: async (currentMtime) => {
                 const status = getCanonicalTimesStatus(STATE.get('records'));
-                if (!status.isComplete) {
+                // V29.111 FIX: status.dateStr คือ "วันที่ล่าสุดที่มี records ใน STATE" ซึ่งอาจล้าหลังกว่าไฟล์
+                // จริงในดิสก์ — เช่นเพิ่งข้ามคืน rollover เปลี่ยนไฟล์เป็นวันใหม่แล้ว แต่ยังไม่มี record ของวันใหม่
+                // เข้ามาเลย (PI Datalink ยังไม่ทันดึงค่า/auto-import ยังไม่ทัน poll) — เดิมโค้ดจะเห็นว่า "วันเก่า
+                // ครบ 4 รอบแล้ว" (isComplete=true จาก dateStr ของเมื่อวาน) แล้วสั่ง archive ไฟล์ปัจจุบันในดิสก์
+                // (ของวันใหม่ที่ยังไม่มีข้อมูลเลย) ไปเก็บใน archive folder เร็วเกินไปทันทีที่ mtime เปลี่ยนรอบแรก
+                // ต้องเช็คว่า dateStr ที่ "ครบ" ตรงกับวันนี้ (ไฟล์ปัจจุบัน) จริงก่อนเท่านั้นถึงจะยอม archive
+                const now = new Date();
+                const todayDateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+                if (!status.isComplete || status.dateStr !== todayDateStr) {
                     lastArchivedMtime = null; // เผื่อเปลี่ยนวันใหม่ ให้เริ่มนับใหม่รอบหน้า
                     return;
                 }
