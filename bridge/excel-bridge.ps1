@@ -94,6 +94,18 @@
 # read/write อยู่ — เห็นได้จาก filesystem ตรงๆ ไม่ต้องพึ่ง COM) ก่อนเรียก Open ทุกครั้ง ถ้าเจอไฟล์ล็อกก็ข้าม
 # การเปิดไปเลยแทนที่จะพยายามเปิดซ้ำ และเผื่อกรณี race (ล็อกเพิ่งเกิดหลังเช็คแต่ก่อน Open จริง) ก็เพิ่ม
 # Notify:=$false ให้ Open โยน exception ที่ดักได้แทน dialog ที่ค้างสคริปต์ไว้
+#
+# V29.113 FIX: operator รายงานอาการเดียวกับ V29.108 (ribbon "PI DataLink" หายไป) เกิดซ้ำอีกครั้งหลังเที่ยงคืน
+# — วินิจฉัยพบว่า V29.108 แก้แค่กรณี GetActiveObject fail (ไม่มี Excel รันอยู่เลย) เท่านั้น แต่ operator
+# ยืนยันว่ามี Excel ของไฟล์เมื่อวาน (30-08-2026) เปิดค้างอยู่ก่อนเที่ยงคืนอยู่แล้ว — แปลว่า rollover เจอ
+# GetActiveObject สำเร็จ (มี session อยู่) เลยหยิบ session เดิมมาใช้ต่อ (แค่ SaveAs เปลี่ยนชื่อไฟล์ ไม่ได้
+# restart Excel เลย) โดยไม่เคยเช็คว่า session เดิมนั้น PI Datalink โหลดอยู่จริงหรือเปล่า — ถ้า session ไหน
+# เคยพังครั้งเดียว (ไม่ว่าจากสาเหตุอะไร) จะพังค้างต่อไปเรื่อยๆ ทุกวันผ่าน rollover เพราะแทบไม่มีจังหวะไหนที่
+# ไม่มี Excel รันอยู่เลยจริงๆ (design ของระบบนี้ต้องการให้ไฟล์เปิดค้างไว้ตลอด) ยืนยัน ProgId ของ add-in จาก
+# เครื่องจริงผ่าน `$excel.COMAddIns | Select Description, ProgId, Connect` คือ `"PI DataLink"` เป๊ะ (มีช่องว่าง)
+# ตั้งใจ**ไม่**ให้ script ปิด/restart Excel session ที่พังให้เองอัตโนมัติ — เสี่ยงทำลายไฟล์อื่นที่ operator
+# เปิดค้างอยู่ใน Excel instance เดียวกันโดยไม่ได้ตั้งใจ (unsaved work หายได้) แค่ตรวจแล้วแนบ warning กลับไปให้
+# Web App ขึ้น banner ชัดๆ แทน ให้ operator เป็นคนตัดสินใจปิด/เปิด Excel เองแทน — ดู Test-PIDataLinkLoaded ด้านล่าง
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -261,7 +273,20 @@ function Handle-SourceFileInfo {
     $resolved = Resolve-SourceFile
     if ($resolved.status -ne 'ok') { return $resolved }
     $f = $resolved.file
-    return @{ status = 'ok'; fileName = $f.Name; sizeBytes = $f.Length; lastWriteTimeUtc = $f.LastWriteTimeUtc.ToString('o'); looksLikeTemplate = $resolved.looksLikeTemplate }
+    # V29.113 FIX: เช็ค PI Datalink ตรงนี้แทนที่จะเช็คแค่ตอน rollover/ensureFileOpen (trigger point ที่เกิด
+    # แค่ ~1 ครั้ง/วัน หรือ ~1 ครั้ง/page-load) เพราะ route นี้ถูกเรียกทุก poll cycle จริง (ทุก 5 นาที ผ่าน
+    # pollAutoImport ฝั่ง Web App) — ทำให้ banner คงอยู่ตราบที่ปัญหายังไม่ถูกแก้จริง แทนที่จะขึ้นแวบเดียว
+    # แล้วหายไปเองในรอบ poll ถัดไปทั้งที่ยังไม่ได้แก้อะไร (code review รอบสองจับได้ก่อน commit) — ใช้ $null
+    # แยกจาก $false โดยตั้งใจ: $null = "ไม่มี Excel รันอยู่เลยตอนนี้" (สถานะปกติ ไม่ต้องเตือนเรื่องนี้ เดี๋ยว
+    # autosave/ensure-file-open จะเปิดให้เอง) ต่างจาก $false = "มี Excel รันอยู่แต่ add-in ไม่ connect" (ต้อง
+    # เตือนจริง) ดู Test-PIDataLinkLoaded ด้านล่างสำหรับที่มาของ ProgId ที่ใช้เช็ค
+    $piDataLinkLoaded = try {
+        $excel = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
+        Test-PIDataLinkLoaded $excel
+    } catch {
+        $null
+    }
+    return @{ status = 'ok'; fileName = $f.Name; sizeBytes = $f.Length; lastWriteTimeUtc = $f.LastWriteTimeUtc.ToString('o'); looksLikeTemplate = $resolved.looksLikeTemplate; piDataLinkLoaded = $piDataLinkLoaded }
 }
 
 function Handle-ArchiveSourceFile {
@@ -390,7 +415,14 @@ function Start-ExcelProcessAndAttach {
     for ($i = 0; $i -lt 20; $i++) {
         Start-Sleep -Seconds 1
         try {
-            return [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
+            $attached = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
+            # V29.113 FIX: main Application object มักลงทะเบียนใน ROT ก่อน COM add-in (เช่น PI DataLink)
+            # จะ connect เสร็จเล็กน้อย — รอเพิ่มอีกสักครู่ให้ add-in ตามทัน กัน Handle-SourceFileInfo (เรียก
+            # Test-PIDataLinkLoaded แยกในรอบ poll ถัดไปเร็วๆ นี้) เห็น Connect=$false ชั่วคราวทั้งที่กำลังจะ
+            # โหลดเสร็จจริงๆ — ไม่ต้องรอชัวร์ 100% ตรงนี้ ถ้ายังไม่ทันจริงๆ ก็ยัง retry ได้เองจาก poll รอบ
+            # ถัดไปอีก 5 นาทีอยู่ดี (แค่ลดโอกาสเจอ false-positive เฉยๆ ไม่ใช่การรับประกัน)
+            Start-Sleep -Seconds 3
+            return $attached
         } catch {
             # ยังไม่ทันขึ้นทะเบียนใน ROT — ลองรอบถัดไป
         }
@@ -424,10 +456,30 @@ function Test-FileLockedByOtherSession($fullPath) {
     return @{ locked = $true; ownerName = $ownerName }
 }
 
+# V29.113 FEAT: เช็คว่า PI Datalink COM Add-in โหลด/connect อยู่จริงใน Excel session ที่กำลังจะใช้หรือไม่ —
+# ดู comment header ด้านบนของไฟล์สำหรับหลักฐานการวินิจฉัย ProgId "PI DataLink" ยืนยันจากเครื่องจริงแล้ว
+# (มีช่องว่างตรงกลาง) — `-eq` ของ PowerShell เทียบ string แบบ case-insensitive โดย default อยู่แล้ว ไม่ต้อง
+# กังวลเรื่องตัวพิมพ์ใหญ่-เล็ก — คืน $false แบบ best-effort ถ้าเข้าถึง COMAddIns ไม่ได้ด้วยเหตุผลอื่น (ไม่
+# throw ทำให้ route หลักพัง แค่ถือว่า "ไม่ยืนยันว่าโหลด" แล้วส่ง warning ต่อไปเหมือนกัน)
+function Test-PIDataLinkLoaded($excel) {
+    try {
+        $addin = $excel.COMAddIns | Where-Object { $_.ProgId -eq 'PI DataLink' }
+        return [bool]($addin -and $addin.Connect)
+    } catch {
+        return $false
+    }
+}
+
 # V29.97 FEAT: ใช้เฉพาะ Handle-RolloverDailyFile — ต่างจาก Find-OpenWorkbook ตรงที่ "เปิดไฟล์ให้เองถ้ายัง
 # ไม่มีใครเปิดไว้" แทนที่จะแค่หาแล้วคืน $null ถ้าไม่เจอ ให้ rollover กลางดึกทำงานจบได้เองแม้ operator ยังไม่
 # ได้เปิด Excel เลยก็ตาม (ต่างจาก Handle-WriteRemark ที่ยังคง requirement เดิมไว้โดยเจตนา — ดู comment
 # header ด้านบนของไฟล์)
+# V29.113 NOTE: เช็ค PI Datalink (Test-PIDataLinkLoaded) ไม่ได้ทำตรงนี้ตั้งใจ — ลองแนบเข้ากับ
+# Find-OrOpenWorkbook/caller นี้ในรอบแรกที่เขียน แต่พบว่า route นี้ถูกเรียกแค่ตอน rollover จริง (~1
+# ครั้ง/วัน) หรือตอน ensureFileOpen (~1 ครั้ง/page-load) เท่านั้น ทำให้ banner ที่ขึ้นตอนนั้นหายไปเองใน
+# 5 นาทีถัดไปที่ poll รอบใหม่ไม่เจอ warning นี้อีก (code review รอบสองจับได้ก่อน commit) — ย้ายไปเช็คใน
+# Handle-SourceFileInfo แทน (ดู comment ตรงนั้น) เพราะ route นั้นถูกเรียกทุก poll cycle จริง (ทุก 5 นาที)
+# ทำให้ banner คงอยู่ตราบที่ปัญหายังไม่ถูกแก้ ไม่ใช่แค่ขึ้นแวบเดียวตอน trigger point
 function Find-OrOpenWorkbook($fileName, $fullPath) {
     try {
         $excel = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
@@ -672,16 +724,17 @@ function Handle-RolloverDailyFile {
         return @{ status = 'error'; message = "เปลี่ยนชื่อไฟล์เป็น '$newFileName' สำเร็จแล้ว แต่เขียนวันที่ลง W1 ไม่สำเร็จ: $($_.Exception.Message) — กรุณาแก้เองในไฟล์" }
     }
 
+    $warnings = @($commentClearWarning) | Where-Object { $_ }
+
     try {
         Remove-Item -LiteralPath $file.FullName -Force
     } catch {
-        $removeWarning = "ลบไฟล์ชื่อเดิม ($($file.Name)) ไม่สำเร็จ กรุณาลบเองด้วยมือ ไม่งั้นระบบ auto-import จะ error รอบถัดไป (พบไฟล์มากกว่า 1 ไฟล์)"
-        $combinedWarning = if ($commentClearWarning) { "$removeWarning; $commentClearWarning" } else { $removeWarning }
-        return @{ status = 'ok'; oldFileName = $file.Name; newFileName = $newFileName; warning = $combinedWarning }
+        $warnings += "ลบไฟล์ชื่อเดิม ($($file.Name)) ไม่สำเร็จ กรุณาลบเองด้วยมือ ไม่งั้นระบบ auto-import จะ error รอบถัดไป (พบไฟล์มากกว่า 1 ไฟล์)"
+        return @{ status = 'ok'; oldFileName = $file.Name; newFileName = $newFileName; warning = ($warnings -join '; ') }
     }
 
-    if ($commentClearWarning) {
-        return @{ status = 'ok'; oldFileName = $file.Name; newFileName = $newFileName; warning = $commentClearWarning }
+    if ($warnings.Count -gt 0) {
+        return @{ status = 'ok'; oldFileName = $file.Name; newFileName = $newFileName; warning = ($warnings -join '; ') }
     }
     return @{ status = 'ok'; oldFileName = $file.Name; newFileName = $newFileName }
 }

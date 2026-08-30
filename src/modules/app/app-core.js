@@ -397,8 +397,27 @@ Object.assign(APP, {
                     bannerInfo = { status: 'error', message: `ถึงเวลาต้องเปลี่ยนไฟล์ log sheet เป็นวันใหม่แล้ว แต่เปิดไฟล์ใน Excel อัตโนมัติไม่สำเร็จ — กรุณาตรวจสอบไฟล์/Excel บนเครื่อง Bridge (${rollover.message || ''})` };
                 } else if (rollover.status === 'stale-template') {
                     bannerInfo = { status: 'error', message: rollover.message || `ไฟล์ log sheet '${rollover.fileName || ''}' ชื่อเป็นวันนี้แล้ว แต่เนื้อหายังเป็นไฟล์ (master) เปล่าอยู่ — กรุณาตรวจสอบไฟล์เอง` };
+                } else if (info.status === 'ok' && info.piDataLinkLoaded === false) {
+                    // V29.113 FEAT: เช็คทุก poll cycle (ทุก 5 นาที) ผ่าน info (จาก /source-file-info) แทนที่จะ
+                    // เช็คแค่ตอน rollover/ensureFileOpen เท่านั้น (trigger point ที่เกิดแค่ ~1 ครั้ง/วัน หรือ
+                    // ~1 ครั้ง/page-load) — ตอนแรกที่เขียนแนบ warning ไว้ที่ rollover.warning แทน แต่พบว่า
+                    // banner หายไปเองในรอบ poll ถัดไปทันทีที่ rollover.status กลายเป็น 'already-current' (ไม่มี
+                    // warning ติดมาอีกแล้ว) ทั้งที่ปัญหายังไม่ถูกแก้จริง (code review รอบสองจับได้ก่อน commit)
+                    // ตรวจก่อน looksLikeTemplate โดยเจตนา — ถ้าเกิดพร้อมกันทั้งคู่ (ไฟล์วันใหม่ที่ PI ยังไม่ทัน
+                    // ป้อนค่าเข้ามาเพราะ add-in พังพอดี อาจดู byte-identical กับ template ได้ชั่วคราว) ข้อความ
+                    // นี้เจาะจงกว่าและตรง root cause กว่า ดู excel-bridge.ps1 Handle-SourceFileInfo/
+                    // Test-PIDataLinkLoaded สำหรับที่มา ($null คือ "ไม่มี Excel รันอยู่เลย" ไม่ใช่ปัญหานี้)
+                    bannerInfo = { status: 'error', message: `PI Datalink ไม่ได้โหลดใน Excel session ปัจจุบัน (Add-in ไม่ connect) — ค่าที่อ่านได้จากไฟล์ '${info.fileName}' อาจไม่ใช่ค่าล่าสุดจาก PI จริง กรุณาปิด Excel ให้สนิท (เช็ค Task Manager ว่าไม่มี EXCEL.EXE ค้าง) แล้วเปิดใหม่` };
                 } else if (info.status === 'ok' && info.looksLikeTemplate) {
                     bannerInfo = { status: 'error', message: `ไฟล์ log sheet '${info.fileName}' เนื้อหาเหมือนไฟล์ (master) เป๊ะ (ไม่มีข้อมูลจริงอยู่ข้างใน) — กรุณาตรวจสอบไฟล์เอง` };
+                } else if (rollover.status === 'ok' && rollover.warning) {
+                    // V29.113 FIX: rollover สำเร็จปกติแต่มี warning แนบมา (เช่น ลบ comment เดิมของแอปไม่สำเร็จ
+                    // — ดู commentClearWarning ใน excel-bridge.ps1 Handle-RolloverDailyFile) เดิม
+                    // rolloverDailyFileIfNeeded แค่ console.info ทิ้งไว้ ไม่มีใครเห็นตอน rollover เกิดกลางดึก
+                    // ที่ไม่มี operator อยู่หน้าจอเลย ต้องขึ้น banner ด้วยให้เห็นตอนเช้าเมื่อกลับมาเปิดหน้าเว็บ
+                    // (ไม่ใช่จุดที่ใช้เตือนเรื่อง PI Datalink อีกต่อไป — ย้ายไปเช็คทุก poll ผ่าน info ด้านบนแล้ว
+                    // เพราะจุดนี้ trigger แค่ตอน rollover จริงเท่านั้น ไม่พอสำหรับปัญหาที่ต้องคงอยู่ข้ามวัน)
+                    bannerInfo = { status: 'error', message: rollover.warning };
                 } else if (rollover.status === 'locked-by-other-session') {
                     // V29.110 FEAT: priority สูงกว่า autosave.status==='no-file-open' ด้านล่างโดยเจตนา — ถ้า
                     // ปล่อยให้ตกไปที่ branch นั้น operator จะเห็นข้อความ "กรุณาเปิดไฟล์" ทั้งที่ไฟล์เปิดอยู่จริง
