@@ -488,10 +488,18 @@ function Test-PIDataLinkLoaded($excel) {
 # Handle-SourceFileInfo แทน (ดู comment ตรงนั้น) เพราะ route นั้นถูกเรียกทุก poll cycle จริง (ทุก 5 นาที)
 # ทำให้ banner คงอยู่ตราบที่ปัญหายังไม่ถูกแก้ ไม่ใช่แค่ขึ้นแวบเดียวตอน trigger point
 function Find-OrOpenWorkbook($fileName, $fullPath) {
+    # V29.127 FIX: track ว่า $excel ตัวนี้เป็น instance ที่เราเพิ่ง spawn เองในการเรียกครั้งนี้หรือไม่ —
+    # ใช้ตัดสินใจว่า Quit() ได้ปลอดภัยไหมถ้าจบลงโดยไม่ได้เปิดไฟล์อะไรเลย (locked-by-other-session/Open()
+    # ล้มเหลว) ก่อนหน้านี้ไม่เคย Quit() เลยในทั้ง 2 เคส ทำให้ค้างเป็นหน้าต่าง Excel เปล่าไปเรื่อยๆ ถ้า
+    # instance นั้นตายไปทีหลัง (เช่น operator ปิดเองเพราะเห็นว่าไม่มีอะไรในนั้น) รอบ poll ถัดไปจะ spawn ใหม่
+    # ซ้ำอีก สะสมเป็น zombie EXCEL.EXE process ได้ — ห้าม Quit() instance ที่ attach จาก GetActiveObject
+    # (ของ operator เอง อาจมีไฟล์อื่นเปิดอยู่) เด็ดขาด เช็ค Workbooks.Count -eq 0 เป็น safety สำรองอีกชั้น
+    $weSpawnedExcel = $false
     try {
         $excel = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
     } catch {
         $excel = Start-ExcelProcessAndAttach
+        $weSpawnedExcel = $true
     }
     # ตั้ง Visible เสมอไม่ว่าจะ attach ของเดิมหรือสร้างใหม่ — กัน instance ที่ถูกสร้างแบบซ่อนอยู่เบื้องหลัง
     # (ทั้งจากสคริปต์นี้เองตอนไม่มี Excel รันอยู่ หรือจาก process อื่นที่เคยสร้างไว้แบบ invisible) ให้
@@ -505,6 +513,7 @@ function Find-OrOpenWorkbook($fileName, $fullPath) {
     # V29.110 FIX: เช็ค cross-session lock ก่อนเปิดเสมอ — ดู comment เหนือ Test-FileLockedByOtherSession
     $lockCheck = Test-FileLockedByOtherSession $fullPath
     if ($lockCheck.locked) {
+        if ($weSpawnedExcel -and $excel.Workbooks.Count -eq 0) { try { $excel.Quit() } catch {} }
         $ownerText = if ($lockCheck.ownerName) { " โดย $($lockCheck.ownerName)" } else { '' }
         return @{ excel = $excel; wb = $null; locked = $true;
             errorMessage = "ไฟล์นี้กำลังถูกเปิดอยู่แล้วโดย Excel session อื่นบนเครื่องเดียวกัน (คนละ Windows account)$ownerText — ระบบจะลองใหม่ในรอบถัดไปโดยอัตโนมัติ" }
@@ -521,9 +530,13 @@ function Find-OrOpenWorkbook($fileName, $fullPath) {
         $wb = $excel.Workbooks.Open($fullPath, 0, $false, [Type]::Missing, [Type]::Missing, [Type]::Missing, [Type]::Missing, [Type]::Missing, [Type]::Missing, [Type]::Missing, $false)
         return @{ excel = $excel; wb = $wb }
     } catch {
+        if ($weSpawnedExcel -and $excel.Workbooks.Count -eq 0) { try { $excel.Quit() } catch {} }
         return @{ excel = $excel; wb = $null; errorMessage = $_.Exception.Message }
     } finally {
-        $excel.DisplayAlerts = $originalDisplayAlerts
+        # V29.127 FIX: ถ้า catch ด้านบน Quit() ไปแล้ว (weSpawnedExcel + ไม่มี workbook เหลือ) $excel เป็น
+        # COM object ที่ตายแล้ว — ตั้ง property ต่อจะ throw ซ้ำจน error ตัวจริงจาก catch หายไป ต้องห่อ
+        # try/catch เงียบๆ ตรงนี้ด้วย ไม่งั้นจะได้ exception ใหม่ทับ exception เดิมที่ควรจะ return กลับไป
+        try { $excel.DisplayAlerts = $originalDisplayAlerts } catch {}
     }
 }
 
