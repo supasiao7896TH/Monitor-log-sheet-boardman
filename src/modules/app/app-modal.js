@@ -40,6 +40,17 @@ Object.assign(APP, {
                 const aiBadge = document.getElementById('ai-source-badge');
                 if (aiBadge) aiBadge.classList.add('hidden');
 
+                // V29.116 FEAT: Auto-Draft ขึ้นเองอัตโนมัติเฉพาะ record ที่ยังไม่เคยบันทึก remark — ถ้าเคย
+                // action ไปแล้ว ไม่ต้องเสนอซ้ำ (operator ยังกดปุ่ม "Auto-Draft" เดิมเพื่อเรียกดูได้เสมอ)
+                const autodraftBox = document.getElementById('autodraft-suggestion');
+                if (autodraftBox) {
+                    if (!record.remark) {
+                        APP.renderAutoDraftSuggestion(recordId);
+                    } else {
+                        autodraftBox.classList.add('hidden');
+                    }
+                }
+
                 // V29.71 FEAT: เคลียร์สถานะ sync ค้างจาก record ก่อนหน้า
                 const syncStatusEl = document.getElementById('excel-sync-status');
                 if (syncStatusEl) syncStatusEl.textContent = '';
@@ -160,49 +171,71 @@ Object.assign(APP, {
             },
 
 
-            triggerSmartAssist: async () => {
-                const btn = document.getElementById('btn-ai-assist');
-                const input = document.getElementById('action-input');
-                const id = STATE.get('activeRecordId');
-                if(!id || !btn || !input) return;
+            // V29.116 FEAT: คำนวณและโชว์คำแนะนำใน #autodraft-suggestion (ไม่แตะกล่อง Resolution Remark จริง)
+            // ใช้ทั้งตอนเปิด modal อัตโนมัติ (openActionModal) และตอนกดปุ่ม "Auto-Draft" เดิมเพื่อ regenerate
+            renderAutoDraftSuggestion: (recordId) => {
+                const box = document.getElementById('autodraft-suggestion');
+                const textEl = document.getElementById('autodraft-text');
+                const badge = document.getElementById('autodraft-source-badge');
+                if (!recordId || !box || !textEl) return;
 
-                const record = STATE.get('records').find(r => r.id === id);
+                const record = STATE.get('records').find(r => r.id === recordId);
+                if (!record) return;
                 const tags = STATE.get('tags');
                 const masterTagsMap = getMasterMap();
 
                 const tId = getTagId(record);
                 const tDef = tags.find(t => t.id === tId);
                 const master = masterTagsMap.get(tId);
-
                 const { eMin, eMax, eExact } = resolveEffectiveLimits(tDef, master);
 
-                btn.disabled = true;
-                btn.classList.add('opacity-50');
-                const prevHtml = btn.innerHTML;
-                btn.innerHTML = '<i data-lucide="loader-2" class="w-3 h-3 animate-spin text-teal-500"></i> Processing...';
+                const val = parseNum(record.value);
+                const direction = classifyDeviation(val, eMin, eMax);
+                const cm = COUNTERMEASURE_AGENT.find(record.tagNo, direction, record.machine);
+                if (badge) {
+                    if (cm) { badge.textContent = `จากคู่มือ ${cm.sourceDoc}`; badge.classList.remove('hidden'); }
+                    else { badge.classList.add('hidden'); }
+                }
+
+                textEl.textContent = SMART_AGENT.analyze(record, eMin, eMax, eExact);
+                box.classList.remove('hidden');
                 UI_RENDERER.initIcons();
+            },
 
-                setTimeout(() => {
-                    // V29.70 FIX: #action-input/#btn-ai-assist ใช้ element เดียวกันซ้ำทุก record — ถ้า operator
-                    // ปิด modal นี้แล้วเปิด record อื่นภายใน 400ms ผลลัพธ์ของ record เก่าต้องไม่เขียนทับ textarea
-                    // ของ record ใหม่ที่กำลังเปิดอยู่
-                    if (STATE.get('activeRecordId') === id) {
-                        const val = parseNum(record.value);
-                        const direction = classifyDeviation(val, eMin, eMax);
-                        const cm = COUNTERMEASURE_AGENT.find(record.tagNo, direction, record.machine);
-                        const aiBadge = document.getElementById('ai-source-badge');
-                        if (aiBadge) {
-                            if (cm) { aiBadge.textContent = `จากคู่มือ ${cm.sourceDoc}`; aiBadge.classList.remove('hidden'); }
-                            else { aiBadge.classList.add('hidden'); }
-                        }
 
-                        input.value = SMART_AGENT.analyze(record, eMin, eMax, eExact);
-                        autoResizeTextarea(input);
+            // V29.116 FEAT: "ใช้ข้อความนี้" — copy คำแนะนำเข้ากล่อง Resolution Remark จริง ต้องกดเองเสมอ
+            // (human-in-the-loop เพราะข้อความนี้จะกลายเป็นส่วนหนึ่งของบันทึกกะจริงและ sync กลับ Excel comment)
+            applyAutoDraft: () => {
+                const textEl = document.getElementById('autodraft-text');
+                const input = document.getElementById('action-input');
+                const box = document.getElementById('autodraft-suggestion');
+                const aiBadge = document.getElementById('ai-source-badge');
+                const sourceBadge = document.getElementById('autodraft-source-badge');
+                if (!textEl || !input) return;
+
+                input.value = textEl.textContent;
+                autoResizeTextarea(input);
+                if (aiBadge) {
+                    if (sourceBadge && !sourceBadge.classList.contains('hidden')) {
+                        aiBadge.textContent = sourceBadge.textContent;
+                        aiBadge.classList.remove('hidden');
+                    } else {
+                        aiBadge.classList.add('hidden');
                     }
-                    btn.disabled = false;
-                    btn.classList.remove('opacity-50');
-                    btn.innerHTML = prevHtml;
-                    UI_RENDERER.initIcons();
-                }, 400);
+                }
+                if (box) box.classList.add('hidden');
+            },
+
+
+            dismissAutoDraft: () => {
+                const box = document.getElementById('autodraft-suggestion');
+                if (box) box.classList.add('hidden');
+            },
+
+
+            triggerSmartAssist: () => {
+                const id = STATE.get('activeRecordId');
+                if (!id) return;
+                APP.renderAutoDraftSuggestion(id);
             },
 });

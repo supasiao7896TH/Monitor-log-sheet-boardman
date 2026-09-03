@@ -787,6 +787,8 @@ Object.assign(APP, {
                 assignEvent('btn-save-action', APP.saveAction);
                 assignEvent('btn-clear-action', APP.clearAction);
                 assignEvent('btn-ai-assist', APP.triggerSmartAssist);
+                assignEvent('btn-autodraft-accept', APP.applyAutoDraft);
+                assignEvent('btn-autodraft-dismiss', APP.dismissAutoDraft);
                 assignEvent('action-input', (e) => autoResizeTextarea(e.target), 'input');
 
                 assignEvent('btn-cancel-master', APP.closeMasterModal);
