@@ -142,4 +142,14 @@ describe('_recomputeFlags Statistical Deviation integration (V29.84 FEAT, V29.92
         expect(STATE.data.abnormalRecords.some(r => r.id === 'rec_26')).toBe(true);
         expect(STATE.data.abnormalRecords.some(r => r.id === 'rec_25')).toBe(false);
     });
+
+    it('abnormalRecords is never the same array object as records, even with viewFilter/timeFilter both "all" (V29.123 FIX)', () => {
+        STATE.data.tags = [makeTag(TAG_ID, 'BM2', 'TI-2301', 'PV', 220, 262)];
+        STATE.data.masterTags = [];
+        STATE.set('viewFilter', 'all');
+        STATE.set('timeFilter', 'all');
+        STATE.set('records', BASELINE);
+
+        expect(STATE.data.abnormalRecords).not.toBe(STATE.data.records);
+    });
 });

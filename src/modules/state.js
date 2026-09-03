@@ -141,7 +141,12 @@ export const STATE = {
                 STATE.data.records = updatedRecords;
             },
             _applyFilterSort: () => {
-                let list = STATE.data.records;
+                // V29.123 FIX: เดิมถ้า viewFilter==='all' && timeFilter==='all' (ไม่เข้า filter branch ไหน
+                // เลย) list จะยังเป็น reference เดียวกับ STATE.data.records ตรงๆ แล้ว list.sort() ด้านล่าง
+                // mutate in-place ทำให้ STATE.data.abnormalRecords กลายเป็น array object เดียวกับ
+                // STATE.data.records — โค้ดในอนาคตที่ mutate abnormalRecords (sort/reverse/splice เพื่อแสดงผล)
+                // จะพัง records จริงไปด้วยแบบไม่รู้ตัว บังคับ shallow copy เสมอกันปัญหานี้ล่วงหน้า
+                let list = STATE.data.records.slice();
                 if (STATE.data.viewFilter === 'abnormal') {
                     // V29.84/V29.92: ต้องครอบคลุมทั้ง hard-limit violation, Statistical Deviation และ Trend
                     // Warning — operator ดู Web App แทนกระดาษ 100% แล้ว ห้ามพลาดอะไรเพราะ default filter
