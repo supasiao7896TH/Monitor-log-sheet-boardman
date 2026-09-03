@@ -183,13 +183,14 @@ Object.assign(APP, {
 
                     const newList = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
                     STATE.set('userCountermeasures', newList);
-                    // V29.112 FIX: force-push (merge:false) เฉพาะตอน id เปลี่ยน (มี delete ของ originalId
-                    // แฝงอยู่) — เหตุผลเดียวกับ deleteCountermeasureEntry: originalId จะ "ไม่มีใน local"
-                    // ทันทีหลัง delete ตรงเงื่อนไข "ยังไม่มีใน local" ของ mergeAll พอดี ถ้า push แบบ merge ปกติ
-                    // entry เก่าที่เพิ่งลบจะถูก merge กลับเข้ามาจากไฟล์กลางในการ push ครั้งนี้เอง กลายเป็น
-                    // entry ซ้ำ (เก่า+ใหม่) ค้างอยู่ทั้ง local และไฟล์กลาง — ถ้า id ไม่เปลี่ยน (แก้ entry เดิม
-                    // ธรรมดา) ไม่มี delete แฝง ใช้ merge:true ตามปกติได้อย่างปลอดภัย
-                    APP.pushSharedDb({ merge: !idChanged }); // V29.85 FEAT: fire-and-forget
+                    // V29.112 เดิมใช้ force-push (merge:false) เฉพาะตอน id เปลี่ยน (มี delete ของ originalId
+                    // แฝงอยู่) กัน mergeAll เอา entry เก่าที่เพิ่งลบกลับมาจากไฟล์กลาง — แต่ merge:false เขียน
+                    // ทับไฟล์กลางทั้งก้อนด้วย snapshot เครื่องนี้เฉยๆ เสี่ยงทับข้อมูลใหม่จาก session อื่น
+                    // V29.119 FIX: เปลี่ยนมาใช้ reapplyAfterMerge แทน — pull+merge ตามปกติก่อนเสมอ (ได้ข้อมูล
+                    // ใหม่จาก session อื่นครบ) แล้วค่อยลบ originalId ซ้ำอีกครั้งหลัง merge ก่อน push
+                    APP.pushSharedDb(idChanged
+                        ? { merge: true, reapplyAfterMerge: () => STORAGE_ENGINE.deleteCountermeasure(originalId) }
+                        : {}); // V29.85 FEAT: fire-and-forget
 
                     APP.closeCountermeasureModal();
                 } catch (error) {
@@ -208,10 +209,12 @@ Object.assign(APP, {
                     await STORAGE_ENGINE.deleteCountermeasure(id);
                     const newList = await STORAGE_ENGINE.getAll(STORE_COUNTERMEASURES);
                     STATE.set('userCountermeasures', newList);
-                    // V29.112 FIX: force-push (merge:false) — การลบทำให้ id นี้ "ไม่มีใน local" ซึ่งตรงเงื่อนไข
-                    // "ยังไม่มีใน local" ของ mergeAll พอดี ถ้า push แบบ merge ปกติ (pull ก่อน push) รายการที่
-                    // เพิ่งลบจะถูก merge เอากลับเข้ามาจากไฟล์กลางทันทีในการ push ครั้งเดียวกันนี้เอง
-                    APP.pushSharedDb({ merge: false });
+                    // V29.112 เดิมใช้ force-push (merge:false) เพราะการลบทำให้ id นี้ "ไม่มีใน local" ตรง
+                    // เงื่อนไข mergeAll ที่จะ merge กลับเข้ามาจากไฟล์กลางทันที — แต่ merge:false เขียนทับไฟล์
+                    // กลางทั้งก้อนด้วย snapshot เครื่องนี้เฉยๆ เสี่ยงทับข้อมูลใหม่จาก session อื่น
+                    // V29.119 FIX: เปลี่ยนมาใช้ reapplyAfterMerge แทน — pull+merge ตามปกติก่อนเสมอ แล้วค่อยลบ
+                    // id ซ้ำอีกครั้งหลัง merge ก่อน push
+                    APP.pushSharedDb({ merge: true, reapplyAfterMerge: () => STORAGE_ENGINE.deleteCountermeasure(id) });
 
                     APP.closeCountermeasureModal();
                 } catch (error) {

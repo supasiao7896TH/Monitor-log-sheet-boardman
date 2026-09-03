@@ -209,13 +209,20 @@ Object.assign(APP, {
                 return pushChain;
             },
 
-            _pushSharedDbOnce: async ({ merge = true } = {}) => {
+            // V29.119 FEAT: reapplyAfterMerge (optional callback) — ใช้แทน merge:false สำหรับเคส "ตั้งใจลบ
+            // record เดียว" (เช่น deleteCountermeasureEntry) เดิม merge:false ข้าม pull ไปเลย ทำให้ push
+            // เขียนทับไฟล์กลางทั้งก้อนด้วย snapshot ของเครื่องนี้เฉยๆ (เสี่ยงทับข้อมูลใหม่จาก session อื่นที่
+            // ยังไม่ทันถูก pull เข้ามา) — ตอนนี้ pull+merge ตามปกติก่อนเสมอ แล้วค่อยเรียก reapplyAfterMerge()
+            // ลบ id ที่ตั้งใจลบซ้ำอีกครั้งหลัง merge (กัน mergeAll เอา id นั้นกลับมาจากไฟล์กลาง) ก่อน export+push
+            // — ได้ข้อมูลใหม่จาก session อื่นครบ แต่ยังลบสิ่งที่ตั้งใจลบได้จริง
+            _pushSharedDbOnce: async ({ merge = true, reapplyAfterMerge } = {}) => {
                 localStorage.setItem(LS_SYNC_DIRTY_KEY, '1');
                 try {
                     if (merge) {
                         const pulled = await EXCEL_SYNC.pullSharedDb();
                         if (pulled.status === 'ok' && pulled.data) {
                             await STORAGE_ENGINE.mergeAll(pulled.data);
+                            if (reapplyAfterMerge) await reapplyAfterMerge();
                             // V29.118 FIX: เดิมไม่เรียก loadLocalData() ต่อ ทำให้ STATE (ตัวขับ Dashboard)
                             // ไม่เห็นข้อมูลที่เพิ่ง merge เข้ามาจาก session อื่นเลยจนกว่าจะมี trigger อื่นบังเอิญ
                             // เกิดขึ้น (เช่น reload หน้าเว็บ) — บนเครื่องที่ใช้ร่วมกันหลาย Windows account
