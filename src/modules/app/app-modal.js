@@ -40,16 +40,10 @@ Object.assign(APP, {
                 const aiBadge = document.getElementById('ai-source-badge');
                 if (aiBadge) aiBadge.classList.add('hidden');
 
-                // V29.116 FEAT: Auto-Draft ขึ้นเองอัตโนมัติเฉพาะ record ที่ยังไม่เคยบันทึก remark — ถ้าเคย
-                // action ไปแล้ว ไม่ต้องเสนอซ้ำ (operator ยังกดปุ่ม "Auto-Draft" เดิมเพื่อเรียกดูได้เสมอ)
-                const autodraftBox = document.getElementById('autodraft-suggestion');
-                if (autodraftBox) {
-                    if (!record.remark) {
-                        APP.renderAutoDraftSuggestion(recordId);
-                    } else {
-                        autodraftBox.classList.add('hidden');
-                    }
-                }
+                // V29.116 FEAT, V29.117 เปลี่ยนให้โชว์เสมอ: Auto-Draft ขึ้นเองอัตโนมัติทุกครั้งที่เปิด modal
+                // ไม่ว่า record จะเคยบันทึก remark ไว้แล้วหรือไม่ — ยังต้องกด "ใช้ข้อความนี้" เองอยู่ดีก่อนจะ
+                // เขียนทับกล่อง Resolution Remark จริง (human-in-the-loop เดิม ไม่เปลี่ยน)
+                APP.renderAutoDraftSuggestion(recordId);
 
                 // V29.71 FEAT: เคลียร์สถานะ sync ค้างจาก record ก่อนหน้า
                 const syncStatusEl = document.getElementById('excel-sync-status');
