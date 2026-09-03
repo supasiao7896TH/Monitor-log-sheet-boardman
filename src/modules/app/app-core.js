@@ -520,6 +520,12 @@ Object.assign(APP, {
                 // ครบ 4 รอบแล้ว" (isComplete=true จาก dateStr ของเมื่อวาน) แล้วสั่ง archive ไฟล์ปัจจุบันในดิสก์
                 // (ของวันใหม่ที่ยังไม่มีข้อมูลเลย) ไปเก็บใน archive folder เร็วเกินไปทันทีที่ mtime เปลี่ยนรอบแรก
                 // ต้องเช็คว่า dateStr ที่ "ครบ" ตรงกับวันนี้ (ไฟล์ปัจจุบัน) จริงก่อนเท่านั้นถึงจะยอม archive
+                // V29.126 NOTE (code review): เช็คนี้พึ่งนาฬิกาเครื่อง operator (new Date()) อย่างเดียว ไม่มี
+                // cross-check กับแหล่งเวลาอื่น — ยอมรับความเสี่ยงนี้ไว้ตั้งใจ ไม่ใช่มองข้าม: สถาปัตยกรรมนี้เป็น
+                // Local-First ไม่มี server กลาง Local Bridge (excel-bridge.ps1) กับ Web App รันบนเครื่องเดียวกัน
+                // เสมอ นาฬิกาทั้งสองฝั่งจึงเป็นตัวเดียวกันเป๊ะ เทียบกันเองไม่ช่วยอะไร ทางแก้จริงต้องพึ่ง NTP/time
+                // server ภายนอกซึ่งขัดกับหลักการ zero network dependency ของโปรเจกต์นี้ — ไม่คุ้มเพิ่ม dependency
+                // ใหม่เพื่อความเสี่ยงระดับต่ำนี้ (นาฬิกาเครื่อง operator คลาดเคลื่อนเป็นเคสหายากมาก)
                 const now = new Date();
                 const todayDateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
                 if (!status.isComplete || status.dateStr !== todayDateStr) {
