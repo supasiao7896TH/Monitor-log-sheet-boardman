@@ -12,6 +12,11 @@ import { BRIDGE_URL, fetchWithTimeout } from './shared.js';
 // ติดชื่อผิดนี้ไปแก้ไขย้อนหลังได้ ไม่ต้อง hardcode ซ้ำ
 export const LEGACY_UNKNOWN_FILENAME = 'source-file.xlsm';
 
+// V29.131 FIX: longer than the shared 4s default — Handle-AutosaveSourceFile now runs
+// $excel.CalculateFullRebuild() (the Ctrl+Alt+F9 equivalent) before saving, which can take longer
+// than a plain Save() alone. See the comment on autosaveSourceFile below for why that was added.
+const AUTOSAVE_TIMEOUT_MS = 20000;
+
 export const EXCEL_AUTOIMPORT = {
 
     // ข้อมูลไฟล์ปัจจุบัน (ชื่อ/ขนาด/เวลาแก้ไขล่าสุด) — ใช้เทียบว่าไฟล์เปลี่ยนไปจากรอบก่อนหรือยัง
@@ -107,9 +112,15 @@ export const EXCEL_AUTOIMPORT = {
     // ใหม่แสดงบนจอ Excel แบบ live ได้เองแต่ไม่เขียนกลับไฟล์บนดิสก์จนกว่าจะมีคน Save จริง ทำให้ pollAutoImport
     // (เช็คแค่ mtime บนดิสก์) มองไม่เห็นค่าใหม่จนกว่า operator จะกด Ctrl+S เอง เรียกเป็นก้าวแรกสุดของทุก
     // poll cycle ก่อนเช็ค getSourceFileInfo (ดู APP.pollAutoImport ใน app-core.js)
+    // V29.131 FIX: operator รายงานว่าถึงเวลาหลัก (03:00/09:00/15:00/21:00) แล้วค่า PI Datalink ยังไม่ขึ้นให้
+    // อัตโนมัติ ต้องไปกด Ctrl+Alt+F9 (Full Calculate) เองเสมอ — เพราะ .Save() ฝั่ง bridge (Handle-
+    // AutosaveSourceFile) เขียนแค่ค่าที่อยู่ใน memory ตอนนั้นลงดิสก์ ไม่เคยสั่งคำนวณสูตรใหม่เลย ตอนที่ operator
+    // ยังนั่งอยู่หน้าเครื่องคอยคลิก/พิมพ์เป็นระยะ การ recalculate จึงเกิดขึ้นเองปนไปโดยบังเอิญ พอเปลี่ยนมาให้
+    // bridge auto-save แทนโดยไม่มีคนแตะไฟล์เลย ก็เลยไม่มี trigger ให้คำนวณใหม่อีก ตอนนี้ bridge เรียก
+    // CalculateFullRebuild() (เทียบเท่า Ctrl+Alt+F9 พอดี) ก่อน Save() ทุกรอบ poll แทน
     autosaveSourceFile: async () => {
         try {
-            const res = await fetchWithTimeout(`${BRIDGE_URL}/autosave-source-file`, { method: 'POST' });
+            const res = await fetchWithTimeout(`${BRIDGE_URL}/autosave-source-file`, { method: 'POST' }, AUTOSAVE_TIMEOUT_MS);
             if (!res.ok) return { status: 'error' };
             return await res.json();
         } catch (err) {

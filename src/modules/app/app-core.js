@@ -382,6 +382,11 @@ Object.assign(APP, {
                 const autosave = await EXCEL_AUTOIMPORT.autosaveSourceFile();
                 if (autosave.status !== 'ok') {
                     console.warn('[auto-save] autosaveSourceFile:', autosave.status, autosave.message || '');
+                } else if (autosave.warning) {
+                    // V29.131 FEAT: 'ok' หมายถึงแค่ Save() สำเร็จ — CalculateFullRebuild() (บังคับคำนวณสูตร
+                    // PI Datalink ใหม่ก่อน save) เป็น best-effort แยกต่างหาก ล้มเหลวได้โดยไม่ทำให้ save ทั้ง
+                    // รอบพัง แต่ยังอยากเห็นใน console ถ้าพลาดบ่อยๆ เพื่อวินิจฉัยว่าทำไมค่ายังไม่อัปเดตทันเวลา
+                    console.warn('[auto-save] autosaveSourceFile recalc warning:', autosave.warning);
                 }
 
                 // V29.96 FEAT: เช็ค/ทำ rollover ไฟล์ log sheet วันใหม่เป็นก้าวถัดมาของทุก poll (idempotent

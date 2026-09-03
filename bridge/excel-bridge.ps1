@@ -128,6 +128,13 @@
 # ส่วนอาการที่ 2 ที่ operator รายงานมาพร้อมกัน (restart แล้วมี popup ค้างว่ามีไฟล์ Excel เปิดอยู่ ทั้งที่ปิด
 # ทุกอย่างแล้ว) วินิจฉัยแล้วน่าจะเป็นอาการของความเสี่ยงที่ยอมรับไว้แล้วใน V29.128 (COM reference ไม่เคยถูก
 # ปล่อย) ไม่ใช่บั๊กใหม่ — ตกลงกับ operator แล้วว่ายังไม่แก้จุดนั้นตอนนี้
+#
+# V29.131 FIX: operator รายงานว่าถึงเวลาหลัก (03:00/09:00/15:00/21:00) แล้วค่า PI Datalink ไม่ขึ้นให้เอง
+# ต้องกด Ctrl+Alt+F9 เองทุกครั้ง — วินิจฉัยพบว่า Handle-AutosaveSourceFile (V29.102/V29.107) มีแค่ .Save()
+# ไม่เคยสั่งคำนวณสูตรใหม่เลย ตอน operator ยังนั่งอยู่หน้าเครื่องคอยคลิก/พิมพ์เป็นระยะ recalculation เกิดขึ้น
+# ปนไปโดยบังเอิญ พอเปลี่ยนมาให้ bridge auto-save แทนโดยไม่มีคนแตะไฟล์เลยก็เลยไม่มี trigger ให้คำนวณใหม่อีก —
+# เพิ่ม CalculateFullRebuild() (เทียบเท่า Ctrl+Alt+F9 พอดี) ก่อน Save() ทุกรอบ poll (ทุก 5 นาที) แบบ
+# best-effort (ไม่ทำให้ save ทั้งรอบพังถ้า recalc ล้มเหลว)
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -834,6 +841,15 @@ function Handle-EnsureFileOpen {
 # V29.107 FIX: เดิมเช็ค $wb.Saved ก่อนแล้วข้าม .Save() ถ้าเป็น $true (สมมติว่า Excel จะ set เป็น $false เอง
 # ตอน PI Datalink refresh) — พิสูจน์แล้วว่าเชื่อไม่ได้ (ดู comment header ด้านบนของไฟล์) เรียก .Save() แบบ
 # ไม่มีเงื่อนไขทุกครั้งแทน
+# V29.131 FIX: operator รายงานว่าถึงเวลาหลัก (03:00/09:00/15:00/21:00) แล้วค่า PI Datalink ยังไม่ขึ้นให้
+# อัตโนมัติ ต้องกด Ctrl+Alt+F9 (Full Calculate) เองทุกครั้ง — เพราะฟังก์ชันนี้มีแค่ .Save() ไม่เคยสั่งคำนวณ
+# สูตรใหม่เลย .Save() แค่เขียนค่าที่อยู่ใน memory ตอนนั้นลงดิสก์เฉยๆ ไม่ต่างจาก Ctrl+S ปกติ ตอนที่ operator
+# ยังนั่งอยู่หน้าเครื่องคอยคลิก/พิมพ์เป็นระยะ การ recalculate จึงเกิดขึ้นปนไปโดยบังเอิญ พอเปลี่ยนมาให้ bridge
+# auto-save แทนโดยไม่มีคนแตะไฟล์เลย ก็เลยไม่มี trigger ให้คำนวณใหม่อีก — เพิ่ม CalculateFullRebuild()
+# (เทียบเท่า Ctrl+Alt+F9 พอดี ต่างจาก Calculate()/F9 ปกติตรงที่บังคับคำนวณทุกสูตรใหม่หมดแม้ Excel จะคิดว่า
+# เซลล์นั้นไม่ dirty — quirk ที่รู้จักกันดีของฟังก์ชัน external-data อย่าง PI DataLink ที่บางทีไม่ถูก flag ว่า
+# ต้องคำนวณใหม่ผ่าน dependency chain ปกติ) ก่อน Save() ทุกรอบ poll ไม่ทำให้ทั้งฟังก์ชัน fail ถ้า recalc พลาด
+# (best-effort เหมือน Clear-AppComments) เพราะอย่างน้อย Save() ค่าที่มีอยู่แล้วยังดีกว่าไม่ save อะไรเลย
 function Handle-AutosaveSourceFile {
     $resolved = Resolve-SourceFile
     if ($resolved.status -ne 'ok') { return $resolved }
@@ -844,9 +860,18 @@ function Handle-AutosaveSourceFile {
         return @{ status = 'no-file-open'; message = "ไม่พบไฟล์ '$($file.Name)' เปิดอยู่ใน Excel" }
     }
 
+    $recalcWarning = $null
+    try {
+        $excel.CalculateFullRebuild()
+    } catch {
+        $recalcWarning = "บังคับคำนวณสูตรใหม่ทั้งหมด (เทียบเท่า Ctrl+Alt+F9) ไม่สำเร็จ: $($_.Exception.Message) — ค่าที่ save ไปอาจไม่ใช่ค่าล่าสุดจาก PI"
+    }
+
     try {
         $wb.Save()
-        return @{ status = 'ok'; saved = $true }
+        $result = @{ status = 'ok'; saved = $true }
+        if ($recalcWarning) { $result.warning = $recalcWarning }
+        return $result
     } catch {
         if (Test-IsSharingViolation $_.Exception) {
             return @{ status = 'file-locked'; message = 'ไฟล์กำลังถูกเขียนอยู่ (Excel/PI กำลังรีเฟรชข้อมูล) กรุณาลองใหม่ในรอบถัดไป' }
