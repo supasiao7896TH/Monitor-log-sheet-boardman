@@ -823,6 +823,23 @@ Write-Host "Excel Bridge กำลังทำงานที่ http://localhos
 # มองไม่เห็น (คนละ session) ทำให้ write-remark พังทันที วิธีนี้แก้ปัญหาได้เพราะ operator คนแรกที่ login
 # เข้ามาแล้วเปิด bridge เอง (Task Scheduler "At log on" ของตัวเอง หรือกด HYPERLINK start-bridge.bat) จะ
 # trigger rollover ด้วย Excel session ของตัวเอง ไม่มีปัญหาข้าม session เลย
+# V29.120 FIX: poll cycle ปกติ (ทุก 5 นาทีจาก Web App) เรียก Handle-AutosaveSourceFile ก่อน rollover เสมอ
+# (ดู APP.pollAutoImport) แต่ตอน bridge เพิ่งเริ่มทำงานตรงนี้เดิมข้ามขั้นตอนนี้ไปเลย — ถ้า operator restart
+# bridge (เช่น เปลี่ยนกะ) ในจังหวะที่ Excel เพิ่งคำนวณค่า PI Datalink รอบใหม่ในหน่วยความจำแต่ยังไม่ save ลง
+# ดิสก์ Handle-ArchiveSourceFile (ที่ rollover เรียกก่อนเปลี่ยนชื่อไฟล์) จะ archive ไฟล์เก่าที่ยังไม่มีข้อมูล
+# รอบนั้น แล้วลบไฟล์ต้นฉบับทิ้ง ทำให้ข้อมูลรอบนั้นหายถาวร — เพิ่ม autosave ก่อนเสมอเหมือน poll cycle ปกติ
+# ไม่ fatal ถ้าพลาด (สถานะ 'no-file-open' เป็นปกติตอน startup ก่อนมีใครเปิดไฟล์เลย)
+try {
+    $startupAutosave = Handle-AutosaveSourceFile
+    if ($startupAutosave.status -eq 'ok' -and $startupAutosave.saved) {
+        Write-Host "[autosave] บันทึกไฟล์ log sheet ก่อน rollover ตอนเริ่ม bridge สำเร็จ"
+    } elseif ($startupAutosave.status -notin @('ok', 'no-file-open')) {
+        Write-Host "[autosave] บันทึกไฟล์ log sheet ก่อน rollover ตอนเริ่ม bridge ไม่สำเร็จ: $($startupAutosave.status) $($startupAutosave.message)"
+    }
+} catch {
+    Write-Host "[autosave] บันทึกไฟล์ log sheet ก่อน rollover ตอนเริ่ม bridge เกิด error: $($_.Exception.Message)"
+}
+
 try {
     $startupRollover = Handle-RolloverDailyFile
     if ($startupRollover.status -eq 'ok') {
