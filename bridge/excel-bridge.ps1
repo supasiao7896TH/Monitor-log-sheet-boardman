@@ -463,8 +463,15 @@ function Test-FileLockedByOtherSession($fullPath) {
 # throw ทำให้ route หลักพัง แค่ถือว่า "ไม่ยืนยันว่าโหลด" แล้วส่ง warning ต่อไปเหมือนกัน)
 function Test-PIDataLinkLoaded($excel) {
     try {
-        $addin = $excel.COMAddIns | Where-Object { $_.ProgId -eq 'PI DataLink' }
-        return [bool]($addin -and $addin.Connect)
+        # V29.121 FIX: ถ้า COMAddIns มี ProgId 'PI DataLink' ซ้ำ 2 entries ขึ้นไป (add-in registration
+        # เสีย/ซ้ำ) Where-Object จะคืน array แล้ว [bool] ของ array ที่มีสมาชิก >=1 ตัวเป็น $true เสมอไม่ว่า
+        # ค่า .Connect ข้างในจะเป็นอะไร (แม้ทุกตัว Connect=$false) — บังคับเป็น array ด้วย @(...) แล้วเช็คว่า
+        # มีอย่างน้อย 1 ตัวที่ Connect จริงแทน ไม่เช็ค truthy ของทั้งก้อน
+        $addins = @($excel.COMAddIns | Where-Object { $_.ProgId -eq 'PI DataLink' })
+        if ($addins.Count -eq 0) { return $false }
+        # ต้องห่อ @(...) รอบนี้ด้วย — ถ้าเจอ match พอดี 1 ตัว Where-Object จะคืน object เดี่ยว ไม่ใช่ array
+        # ทำให้ .Count เป็น $null (บั๊กแบบเดียวกับต้นฉบับที่กำลังแก้) ไม่ใช่แค่กรณี multi-match เท่านั้น
+        return @($addins | Where-Object { $_.Connect }).Count -gt 0
     } catch {
         return $false
     }
