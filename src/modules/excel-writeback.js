@@ -12,6 +12,9 @@
 import { BRIDGE_URL, fetchWithTimeout } from './shared.js';
 
 const APP_COMMENT_AUTHOR = 'Plant Log Analyzer (Web App)';
+// V29.129 FIX: longer than the shared 4s default — see the comment on fetchWithTimeout in
+// shared.js for why /write-remark specifically needs the extra headroom.
+const WRITE_REMARK_TIMEOUT_MS = 20000;
 
 export const EXCEL_WRITEBACK = {
 
@@ -46,7 +49,7 @@ export const EXCEL_WRITEBACK = {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
-                    });
+                    }, WRITE_REMARK_TIMEOUT_MS);
                     if (!res.ok) return 'error';
                     const data = await res.json();
                     return data.status || 'error';

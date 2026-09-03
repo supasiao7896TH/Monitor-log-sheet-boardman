@@ -5,9 +5,17 @@ import { STATE } from './state.js';
 // here once instead of being duplicated per module.
 export const BRIDGE_URL = 'http://localhost:5175';
 const FETCH_TIMEOUT_MS = 4000;
-export async function fetchWithTimeout(url, options) {
+// V29.129 FIX: timeoutMs override — /write-remark ends in Handle-WriteRemark's `$wb.Save()`
+// (bridge/excel-bridge.ps1), which forces Excel to recalc any live OSIsoft PI Datalink formulas
+// before saving; that can legitimately run past 4s, and the bridge's request loop is
+// single-threaded so a queued /source-file or /save-shared-db call in front of it adds more delay
+// on top. Operators saw "ไม่พบ Local Bridge" even though the comment had actually been written —
+// the browser gave up and reported bridge-offline while the PowerShell side kept working and
+// finished successfully after the client had already disconnected. /ping stays at the short
+// default since it must still detect a genuinely offline bridge quickly.
+export async function fetchWithTimeout(url, options, timeoutMs = FETCH_TIMEOUT_MS) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
         return await fetch(url, { ...options, signal: controller.signal });
     } finally {
