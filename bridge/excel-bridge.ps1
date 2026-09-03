@@ -106,6 +106,18 @@
 # ตั้งใจ**ไม่**ให้ script ปิด/restart Excel session ที่พังให้เองอัตโนมัติ — เสี่ยงทำลายไฟล์อื่นที่ operator
 # เปิดค้างอยู่ใน Excel instance เดียวกันโดยไม่ได้ตั้งใจ (unsaved work หายได้) แค่ตรวจแล้วแนบ warning กลับไปให้
 # Web App ขึ้น banner ชัดๆ แทน ให้ operator เป็นคนตัดสินใจปิด/เปิด Excel เองแทน — ดู Test-PIDataLinkLoaded ด้านล่าง
+#
+# V29.128 NOTE (code review, known limitation — ตั้งใจไม่แก้ตอนนี้): COM object ที่ได้จาก GetActiveObject/
+# Workbooks/Sheets/Comments/Range ทั่วทั้งไฟล์นี้ไม่เคยถูกปล่อยด้วย
+# [Runtime.InteropServices.Marshal]::ReleaseComObject() หรือ set เป็น $null เลยสักจุด — ในทางทฤษฎี script ที่
+# รันยาวข้ามวัน (poll ทุก 5 นาที + เขียน remark เป็นระยะ) อาจสะสม RCW reference จนกระทบการปล่อย handle ของ
+# Excel แม้ปิดหน้าต่างไปแล้ว — พิจารณาแล้ว**ไม่แก้ตอนนี้** เพราะ: (1) การปล่อย COM reference มือเองใน
+# PowerShell เสี่ยงกว่าที่คิด ปล่อยเร็วไปขณะโค้ดส่วนอื่นยังอ้างอิงอยู่จะได้ "COM object separated from its
+# underlying RCW" ทันที (crash จริง หนักกว่า resource leak เดิม) (2) ต้องแก้กระจายแทบทุกฟังก์ชันที่แตะ COM ใน
+# ไฟล์นี้ ไม่ใช่จุดเดียว เสี่ยงเกิน scope ที่ทดสอบได้จริงในสภาพแวดล้อมนี้ (ไม่มี Excel/COM ให้ทดสอบเลย) (3)
+# ความเสี่ยงจริงต่ำกว่าที่ดูตอนแรก เพราะ operator แต่ละคน login/logout เปลี่ยนกะจริง (bridge restart ตาม
+# ธรรมชาติทุกกะ) จำกัด window ของปัญหานี้ไปมากในทางปฏิบัติ — ถ้าจะแก้จริงในอนาคต ต้องมีเครื่องจริง + Excel
+# จริงให้ทดสอบหลายรอบ ไม่ใช่แก้แบบเดาแล้ว commit เฉยๆ
 
 $Port = 5175
 $AllowedOrigins = @(
