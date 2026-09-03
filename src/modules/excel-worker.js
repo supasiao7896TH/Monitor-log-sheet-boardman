@@ -265,9 +265,41 @@ export const EXCEL_WORKER = {
                         
                         let validPvCount = 0;
                         let rowDataExtracted = {};
-                        // V29.69 FIX: เดิม cell ข้างเคียงที่ถูก "ยืม" ไม่ถูก mark ว่าใช้แล้ว ทำให้ 2 tag ที่ค่า
-                        // หายพร้อมกันในแถวเดียวกันอาจแอบยืมค่าเดียวกันซ้ำ (duplicate ค่าดิบเข้า 2 tag)
-                        const consumedNeighborIdx = new Set();
+
+                        // V29.122 FIX: เดิม tag ที่ column น้อยกว่าประมวลผลก่อนเสมอ (ตามลำดับ for...in ของ
+                        // activeTagsMap) แล้วยึด neighbor cell ที่กำกวมไปก่อนใครเสมอ (ผ่าน consumedNeighborIdx)
+                        // — ถ้า tag 2 ตัวไม่ติดกันเป๊ะแต่มี "ช่องว่าง" คั่นกลางแค่ 1 คอลัมน์ที่มีค่าเลขค้างอยู่
+                        // (เช่น tag A คอลัมน์ 3, tag B คอลัมน์ 5, ค่าเลขอยู่คอลัมน์ 4) ทั้งคู่มองเห็นคอลัมน์ 4
+                        // เป็น neighbor ที่ยืมได้เหมือนกัน แต่ tag A (index น้อยกว่า) จะได้ไปเสมอไม่ว่าค่านั้น
+                        // จะเป็นของใครจริงๆ — เปลี่ยนเป็น 2 รอบ: รอบแรกหาว่าแต่ละ tag "อยากยืม" cell ไหน (ไม่
+                        // ยึดจริง) แล้วนับว่า cell ไหนถูกอยากยืมโดยกี่ tag ถ้ามากกว่า 1 (กำกวมจริง แยกไม่ออกว่า
+                        // เป็นของใคร) ให้ทั้งคู่ไม่ได้ค่านั้นไปเลย (แถวนั้น value หายไปแทนที่จะยืมผิดตัวแบบเงียบๆ
+                        // — บนแอปตรวจ log sheet โรงงาน ค่าที่หายไปเห็นได้ชัดกว่าค่าที่ผูกผิด tag)
+                        const claimCounts = {};
+                        const intendedClaim = {}; // tagIdx -> neighbor idx it would borrow, if uncontested
+
+                        for (let idxStr in activeTagsMap) {
+                            let idx = parseInt(idxStr);
+                            let vStr = (cols[idx] || '').trim();
+                            if (!isNaN(parseNum(vStr)) && vStr !== '') continue; // own cell already valid, no need to borrow
+
+                            let leftIdx = idx - 1;
+                            let rightIdx = idx + 1;
+                            let leftStr = (cols[leftIdx] || '').trim();
+                            let rightStr = (cols[rightIdx] || '').trim();
+
+                            let candidateIdx = null;
+                            if (!activeTagsMap[leftIdx] && leftStr !== '' && !isNaN(parseNum(leftStr))) {
+                                candidateIdx = leftIdx;
+                            } else if (!activeTagsMap[rightIdx] && rightStr !== '' && !isNaN(parseNum(rightStr))) {
+                                candidateIdx = rightIdx;
+                            }
+
+                            if (candidateIdx !== null) {
+                                intendedClaim[idx] = candidateIdx;
+                                claimCounts[candidateIdx] = (claimCounts[candidateIdx] || 0) + 1;
+                            }
+                        }
 
                         for (let idxStr in activeTagsMap) {
                             let idx = parseInt(idxStr);
@@ -277,18 +309,10 @@ export const EXCEL_WORKER = {
                             let val = parseNum(vStr);
 
                             if (isNaN(val) || vStr === '') {
-                                let leftIdx = idx - 1;
-                                let rightIdx = idx + 1;
-
-                                let leftStr = (cols[leftIdx] || '').trim();
-                                let rightStr = (cols[rightIdx] || '').trim();
-
-                                if (!activeTagsMap[leftIdx] && !consumedNeighborIdx.has(leftIdx) && leftStr !== '' && !isNaN(parseNum(leftStr))) {
-                                    vStr = leftStr; val = parseNum(leftStr);
-                                    consumedNeighborIdx.add(leftIdx);
-                                } else if (!activeTagsMap[rightIdx] && !consumedNeighborIdx.has(rightIdx) && rightStr !== '' && !isNaN(parseNum(rightStr))) {
-                                    vStr = rightStr; val = parseNum(rightStr);
-                                    consumedNeighborIdx.add(rightIdx);
+                                const candidateIdx = intendedClaim[idx];
+                                if (candidateIdx !== undefined && claimCounts[candidateIdx] === 1) {
+                                    vStr = (cols[candidateIdx] || '').trim();
+                                    val = parseNum(vStr);
                                 }
                             }
 

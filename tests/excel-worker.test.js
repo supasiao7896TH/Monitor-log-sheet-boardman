@@ -168,6 +168,26 @@ describe('EXCEL_WORKER.processData — header/ignore word-boundary (V29.69 FIX)'
   });
 });
 
+describe('EXCEL_WORKER.processData — contested neighbor-borrow disambiguation (V29.122 FIX)', () => {
+  it('leaves both tags without a value when two non-adjacent tags could both claim the same gap cell', () => {
+    // col1=time, col2=buffer(empty), col3=FI-2001(blank), col4=gap(stray "50"), col5=FI-2002(blank),
+    // col6=FI-2003(own valid value, unaffected control) — both FI-2001 and FI-2002 could plausibly
+    // borrow col4, so neither should silently claim it as their own reading.
+    const csv = [
+      'Name,,,FI-2001,,FI-2002,FI-2003',
+      'Tag No,,,FI-2001,,FI-2002,FI-2003',
+      'note,07:00,,,50,,77',
+    ].join('\n');
+    return EXCEL_WORKER.processData(csv, 'Unit1', 'test.csv', '08/03/2026').then(({ records }) => {
+      expect(records.find(r => r.tagNo === 'FI-2001')).toBeUndefined();
+      expect(records.find(r => r.tagNo === 'FI-2002')).toBeUndefined();
+      const control = records.find(r => r.tagNo === 'FI-2003');
+      expect(control).toBeTruthy();
+      expect(control.value).toBe(77);
+    });
+  });
+});
+
 describe('EXCEL_WORKER.processData — invalid timestamp guard (V29.67 FIX)', () => {
   it('skips a row whose computed timestamp is NaN instead of storing a broken one', () => {
     const csv = [
