@@ -118,6 +118,16 @@
 # ความเสี่ยงจริงต่ำกว่าที่ดูตอนแรก เพราะ operator แต่ละคน login/logout เปลี่ยนกะจริง (bridge restart ตาม
 # ธรรมชาติทุกกะ) จำกัด window ของปัญหานี้ไปมากในทางปฏิบัติ — ถ้าจะแก้จริงในอนาคต ต้องมีเครื่องจริง + Excel
 # จริงให้ทดสอบหลายรอบ ไม่ใช่แก้แบบเดาแล้ว commit เฉยๆ
+#
+# V29.130 FIX: operator รายงานว่าทุกครั้งที่ login เครื่องจะมีไฟล์ Excel เปิดขึ้นมา 2 ไฟล์ — log sheet ตัวจริง
+# กับไฟล์เปล่าอีก 1 ไฟล์ — วินิจฉัยพบว่าเป็นผลข้างเคียงของ Start-ExcelProcessAndAttach (V29.108) ที่เปิด
+# EXCEL.EXE เป็น process จริงเพื่อให้ add-in PI DataLink โหลดติด แต่การเปิดแบบนี้ทำให้ Excel เด้ง workbook
+# เปล่า ("Book1") ขึ้นมาเองตาม default startup behavior เสมอ ก่อนที่ Find-OrOpenWorkbook จะเปิดไฟล์ log sheet
+# ตัวจริงเข้าไปในอีก instance เดียวกันต่อ — เพิ่ม Close-BlankStartupWorkbooks ปิด workbook เปล่านี้ทิ้งทันที
+# หลัง spawn เสร็จ เฉพาะ instance ที่ script spawn เองเท่านั้น (ไม่แตะ Excel ที่ operator เปิดเองอยู่ก่อนแล้ว)
+# ส่วนอาการที่ 2 ที่ operator รายงานมาพร้อมกัน (restart แล้วมี popup ค้างว่ามีไฟล์ Excel เปิดอยู่ ทั้งที่ปิด
+# ทุกอย่างแล้ว) วินิจฉัยแล้วน่าจะเป็นอาการของความเสี่ยงที่ยอมรับไว้แล้วใน V29.128 (COM reference ไม่เคยถูก
+# ปล่อย) ไม่ใช่บั๊กใหม่ — ตกลงกับ operator แล้วว่ายังไม่แก้จุดนั้นตอนนี้
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -499,6 +509,22 @@ function Test-PIDataLinkLoaded($excel) {
 # 5 นาทีถัดไปที่ poll รอบใหม่ไม่เจอ warning นี้อีก (code review รอบสองจับได้ก่อน commit) — ย้ายไปเช็คใน
 # Handle-SourceFileInfo แทน (ดู comment ตรงนั้น) เพราะ route นั้นถูกเรียกทุก poll cycle จริง (ทุก 5 นาที)
 # ทำให้ banner คงอยู่ตราบที่ปัญหายังไม่ถูกแก้ ไม่ใช่แค่ขึ้นแวบเดียวตอน trigger point
+# V29.130 FIX: Start-ExcelProcessAndAttach เปิด EXCEL.EXE เป็น process จริง (เหมือน double-click ไอคอน,
+# V29.108) เพื่อให้ add-in PI DataLink โหลดติด — ผลข้างเคียงที่ operator รายงานเข้ามาคือ Excel เปิดมาพร้อม
+# workbook เปล่า ("Book1") เสมอตาม default startup behavior ของ Excel เอง ก่อนที่ script จะ Workbooks.Open()
+# ไฟล์ log sheet ตัวจริงเข้าไปใน instance เดียวกันต่อ ทำให้ operator เห็น 2 ไฟล์ทุกครั้งที่ login (log sheet
+# ตัวจริง + Book1 เปล่า) เพราะไม่มีจุดไหนในโค้ดเดิมปิด workbook เปล่านี้ทิ้งเลย — ปิดมันทิ้งทันทีหลัง spawn
+# เสร็จ เช็คทั้ง .Path -eq '' (ยังไม่เคย save ลงดิสก์เลย = ต้องเป็น BookN เปล่าที่ Excel เปิดให้เอง ไม่ใช่ไฟล์
+# ของ operator) และ .Saved (safety สำรอง กันเผื่อ race ที่ operator ทันเข้ามาพิมพ์อะไรใส่ Book1 ก่อน script
+# จะปิดพอดี — ถ้ามีคนแก้แล้วจะไม่ปิดให้ ปล่อยเป็นหน้าที่ operator เอง)
+function Close-BlankStartupWorkbooks($excel) {
+    foreach ($wb in @($excel.Workbooks)) {
+        if ($wb.Path -eq '' -and $wb.Saved) {
+            try { $wb.Close($false) } catch {}
+        }
+    }
+}
+
 function Find-OrOpenWorkbook($fileName, $fullPath) {
     # V29.127 FIX: track ว่า $excel ตัวนี้เป็น instance ที่เราเพิ่ง spawn เองในการเรียกครั้งนี้หรือไม่ —
     # ใช้ตัดสินใจว่า Quit() ได้ปลอดภัยไหมถ้าจบลงโดยไม่ได้เปิดไฟล์อะไรเลย (locked-by-other-session/Open()
@@ -517,6 +543,7 @@ function Find-OrOpenWorkbook($fileName, $fullPath) {
     # (ทั้งจากสคริปต์นี้เองตอนไม่มี Excel รันอยู่ หรือจาก process อื่นที่เคยสร้างไว้แบบ invisible) ให้
     # operator เห็นไฟล์เปิดอยู่จริงเมื่อมาถึงเครื่อง
     $excel.Visible = $true
+    if ($weSpawnedExcel) { Close-BlankStartupWorkbooks $excel }
 
     foreach ($wb in $excel.Workbooks) {
         if ($wb.Name -eq $fileName) { return @{ excel = $excel; wb = $wb } }
