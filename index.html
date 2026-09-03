@@ -736,8 +736,10 @@
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
                             <li><strong>แถบ Time Breakdown:</strong> ด้านบนของ Dashboard ใช้สำหรับกรองเวลาของแต่ละกะ</li>
-                            <li><strong>การ์ดสีแดง (Abnormal):</strong> คือพารามิเตอร์ที่หลุดเกณฑ์ <strong>คลิกที่การ์ด</strong> เพื่อดูกราฟแนวโน้มสถิติ (UCL/LCL)</li>
-                            <li><strong>Action Remark:</strong> พิมพ์บันทึกการแก้ไขปัญหา การ์ดจะเปลี่ยนเป็น "สีส้ม (Acknowledged)" เพื่อบ่งบอกว่ารับทราบปัญหาแล้ว</li>
+                            <li><strong>การ์ดสีแดง (Abnormal):</strong> คือพารามิเตอร์ที่หลุดเกณฑ์ Min/Max ตามสเปกที่ตั้งไว้ <strong>คลิกที่การ์ด</strong> เพื่อดูกราฟแนวโน้มสถิติ (UCL/LCL)</li>
+                            <li><strong>การ์ดสีม่วง (Statistical Deviation):</strong> ค่ายังอยู่ใน Min/Max ปกติ แต่<strong>ห่างจากค่าเฉลี่ยที่เครื่องเดินอยู่จริงเกิน 3σ</strong> (คำนวณจาก baseline 120 samples ล่าสุดของ Tag นั้นเอง) ใช้จับความผิดปกติของเครื่องที่สเปกกว้างกว่าพฤติกรรมจริงมาก เช่น สเปกกว้าง 220-262 แต่ปกติเดินแค่ 253-254 พอตกลงมา 238 ทั้งที่ยังไม่หลุดสเปก การ์ดนี้จะจับได้ก่อน — จะจับ<strong>จุดเดียวที่กระโดดเกิน 3σ</strong>ก็ได้ ไม่จำเป็นต้องเห็นแนวโน้มไต่ขึ้น/ลงมาก่อน</li>
+                            <li><strong>การ์ดสีฟ้า (Trend Warning):</strong> ระดับเตือนเบากว่าการ์ดม่วง เกิดจากรูปแบบ<strong>แนวโน้ม</strong>จริงๆ 2 แบบ คือค่าห่างเกิน 2σ ไปทางเดียวกัน 2 ใน 3 จุดล่าสุด หรือค่าไต่ขึ้น/ไต่ลงต่อเนื่องกัน 6 จุดติด — เหมาะกับ "เห็นค่าเริ่มขยับผิดปกติ" ก่อนที่จะรุนแรงถึงขั้นการ์ดม่วง (การ์ดม่วง/ฟ้าจะไม่ขึ้นซ้อนกัน และจะไม่ขึ้นถ้าการ์ดแดงขึ้นอยู่แล้ว)</li>
+                            <li><strong>Action Remark:</strong> พิมพ์บันทึกการแก้ไขปัญหา การ์ดจะเปลี่ยนเป็น "สีส้ม (Acknowledged)" เพื่อบ่งบอกว่ารับทราบปัญหาแล้ว (ใช้สีเดียวกันไม่ว่าการ์ดเดิมจะเป็นแดง/ม่วง/ฟ้า)</li>
                         </ul>
                     </div>
 
@@ -823,6 +825,20 @@
                             <li>ปุ่ม <strong>"ล้างฐานข้อมูล"</strong> ลบเฉพาะ Records (ข้อมูล reading ที่ import มา) เท่านั้น — Tag Database และ Master Tag overrides จะไม่ถูกลบ ไม่ต้องตั้งค่าลิมิตใหม่ทุกกะ</li>
                             <li>หากไม่ได้สำรองข้อมูลมานาน จะมีแบนเนอร์แจ้งเตือนสีเหลืองขึ้นที่ด้านบนของ Dashboard ให้กดสำรองได้ทันที</li>
                             <li>หน้า "นำเข้าข้อมูล" มีพาแนล <strong>"ประวัติการนำเข้าไฟล์ (Import History)"</strong> ไว้ตรวจสอบย้อนหลังว่าเคย import ไฟล์ไหนไปแล้วบ้าง</li>
+                        </ul>
+                    </div>
+
+                    <!-- Step 10 -->
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-emerald-300 transition-colors">
+                        <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
+                            <span class="bg-emerald-100 text-emerald-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">10</span>
+                            <i data-lucide="users" class="w-5 h-5 text-emerald-500"></i> Sync Indicator สำหรับเครื่องที่ใช้ร่วมกันหลายคน (Shared PC)
+                        </h3>
+                        <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
+                            <li>ข้อมูลที่บันทึกไว้อยู่ใน IndexedDB ของเบราว์เซอร์ ซึ่งผูกกับ<strong>บัญชี Windows</strong> ที่ล็อกอินอยู่ ถ้าเครื่องเดียวกันมีหลายคนสลับกันใช้คนละ Windows account แต่ละคนจะเห็นข้อมูลคนละชุดกัน — จุดสีที่มุมล่างซ้าย (ข้าง sidebar) คือตัวบอกว่าตอนนี้ข้อมูลถูกแชร์ให้เพื่อนร่วมกะเห็นด้วยหรือไม่</li>
+                            <li><strong>จุดสีเขียว "SYNCED":</strong> ระบบ push/pull ข้อมูลทั้งหมดผ่าน Local Bridge ไปเก็บเป็นไฟล์กลางบน Shared Drive สำเร็จ ทุกครั้งที่มีการแก้ไข (บันทึก remark, import ไฟล์ใหม่ ฯลฯ) ข้อมูลจะถูก push ให้เพื่อนร่วมกะที่เปิดหน้าเว็บอยู่เห็นตามได้</li>
+                            <li><strong>จุดสีเหลือง "LOCAL MODE":</strong> ไม่พบ Local Bridge ทำงานอยู่ (ยังไม่ได้เปิด หรือเปิดไม่สำเร็จ) ข้อมูลที่แก้จะ<strong>อยู่แค่ในเครื่อง/บัญชี Windows นี้เท่านั้น</strong> — จะมีแบนเนอร์เตือนสีเหลืองขึ้นบน Dashboard ด้วย และมีปุ่ม "เปิด Excel Bridge" ให้กดเปิดได้จากหน้าเว็บโดยตรง (ต้อง import <code class="bg-slate-100 px-1.5 py-0.5 rounded text-emerald-600">bridge/register-protocol.reg</code> ในเครื่องก่อนใช้ครั้งแรก)</li>
+                            <li>ถ้าเห็นสถานะเป็น LOCAL MODE ระหว่างกะ ควรรีบตรวจสอบ Local Bridge ก่อน เพราะ Resolution Remark ที่บันทึกไว้ช่วงนั้นจะยังไม่ถูกส่งให้กะถัดไปเห็น จนกว่าจะกลับมาเป็น SYNCED</li>
                         </ul>
                     </div>
 
