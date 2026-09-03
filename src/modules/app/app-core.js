@@ -216,6 +216,11 @@ Object.assign(APP, {
                         const pulled = await EXCEL_SYNC.pullSharedDb();
                         if (pulled.status === 'ok' && pulled.data) {
                             await STORAGE_ENGINE.mergeAll(pulled.data);
+                            // V29.118 FIX: เดิมไม่เรียก loadLocalData() ต่อ ทำให้ STATE (ตัวขับ Dashboard)
+                            // ไม่เห็นข้อมูลที่เพิ่ง merge เข้ามาจาก session อื่นเลยจนกว่าจะมี trigger อื่นบังเอิญ
+                            // เกิดขึ้น (เช่น reload หน้าเว็บ) — บนเครื่องที่ใช้ร่วมกันหลาย Windows account
+                            // ทำให้ operator เห็นจำนวน Abnormal/ข้อมูลค้างเก่าอยู่หลังคนอื่น push เข้ามาใหม่
+                            await APP.loadLocalData();
                         }
                     }
                     const payload = await STORAGE_ENGINE.exportAll();
