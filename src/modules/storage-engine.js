@@ -199,13 +199,19 @@ export const STORAGE_ENGINE = {
             // เป็นบั๊ก data-loss ตัวใหม่ที่แย่กว่าเดิม (ทุก saveAction/saveMasterSettings/
             // saveCountermeasureEntry จะโดนโดยพื้นฐาน ไม่ใช่ edge case) — "local ชนะเสมอสำหรับ id ที่มีอยู่
             // แล้ว" แก้ปัญหานี้ตรงๆ เพราะ local คือข้อมูลล่าสุดของ id นั้นบนเครื่องนี้เสมอ
-            // ข้อจำกัดที่เหลือ (ยอมรับได้): การ "ลบ" (เช่น deleteCountermeasureEntry, หรือ rename path ใน
-            // saveCountermeasureEntry ที่ลบ originalId ทิ้งตอน id เปลี่ยน — พลาดจุดนี้ในรอบแรกที่เขียน code
-            // review รอบสองจับได้ก่อน commit) ทำให้ id หายไปจาก local ไม่ใช่ "มีอยู่แล้ว" ตาม logic ข้างบน
-            // เข้าเงื่อนไข "ยังไม่มีใน local" กลับกลายเป็น merge เอาของที่เพิ่งลบกลับเข้ามาใหม่ — ทุกจุดที่มี
-            // delete แฝงอยู่ต้อง push แบบ { merge: false } แทน (เหมือน restoreData/btn-clear-db) ไม่ใช่แก้ที่
-            // mergeAll เพราะการลบต้องการ "สะท้อนไปที่ไฟล์กลางจริงๆ" ไม่ใช่ "merge เข้าด้วยกัน" อยู่แล้วโดย
-            // ธรรมชาติ — จุดไหนในอนาคตที่มี delete()/clear() แฝงก่อน pushSharedDb ต้องเช็คแบบนี้เสมอ
+            // ข้อจำกัดที่เหลือ (ยอมรับได้ — ไม่มีระบบ tombstone จริง แค่ upsert-by-id ล้วนๆ): การ "ลบ" ทำให้ id
+            // หายไปจาก local ไม่ใช่ "มีอยู่แล้ว" ตาม logic ข้างบน เข้าเงื่อนไข "ยังไม่มีใน local" กลับกลายเป็น
+            // merge เอาของที่เพิ่งลบกลับเข้ามาใหม่ — จุดไหนในอนาคตที่มี delete()/clear() แฝงก่อน pushSharedDb
+            // ต้องเลือก 1 ใน 2 ทางนี้เสมอ (ไม่ใช่แก้ที่ mergeAll เพราะการลบต้องการ "สะท้อนไปที่ไฟล์กลางจริงๆ"
+            // ไม่ใช่ "merge เข้าด้วยกัน" อยู่แล้วโดยธรรมชาติ):
+            //   1) "ลบ entity เดียว" (เช่น deleteCountermeasureEntry, rename path ใน saveCountermeasureEntry
+            //      ที่ลบ originalId ทิ้งตอน id เปลี่ยน) — V29.119 FIX: ใช้ pushSharedDb({ merge: true,
+            //      reapplyAfterMerge }) แทน — pull+merge ข้อมูลใหม่จาก session อื่นตามปกติก่อน แล้วค่อยลบ id
+            //      นั้นซ้ำอีกครั้งหลัง merge (ดู app-core.js _pushSharedDbOnce) ปลอดภัยกว่า merge:false เพราะ
+            //      ไม่ทิ้งข้อมูลใหม่จาก session อื่นที่ pull เข้ามาไปเปล่าๆ
+            //   2) "แทนที่ข้อมูลทั้งหมดจริงๆ ตามเจตนาผู้ใช้" (restoreData, btn-clear-db — มี confirm() ชัดเจน
+            //      อยู่แล้วทั้งคู่) — ใช้ pushSharedDb({ merge: false }) แบบเดิม เพราะเจตนาคือ "เครื่องนี้กลาย
+            //      เป็นความจริงใหม่ทั้งก้อน" จริงๆ ไม่ใช่แค่ลบ 1 รายการ
             mergeAll: (payload) => new Promise((resolve, reject) => {
                 if(!STORAGE_ENGINE.db) return resolve();
                 if (!payload || !Array.isArray(payload.tags) || !Array.isArray(payload.records) || !Array.isArray(payload.masterTags)) {
