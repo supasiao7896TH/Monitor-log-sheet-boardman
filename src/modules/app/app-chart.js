@@ -82,6 +82,16 @@ Object.assign(APP, {
                     });
                 }
 
+                // V29.115 FIX: แกน Y เดิมยึดตาม eMin/eMax (spec limit เต็มช่วง) ทำให้ tag ที่ spec กว้างแต่ค่า
+                // จริงแกว่งแคบ (เช่น TI-2301 spec 220-262 แต่จริงวิ่งแค่ 253-254) เส้น Recorded Value ถูกบีบจน
+                // ดูเหมือนเส้นตรง มองไม่เห็นความผิดปกติที่ Statistical Deviation จับได้ — เปลี่ยนมายึดตามช่วง
+                // ค่าจริงที่วัดได้ (data ∪ UCL/LCL) แทน ด้วย hard min/max ปล่อยให้เส้น Spec วิ่งพ้นกรอบไปได้ถ้า
+                // อยู่ไกลเกินช่วงข้อมูลจริงมาก (record ที่หลุด spec จริงจะรวมอยู่ใน data อยู่แล้ว แกนขยายให้เอง)
+                const dataMin = Math.min(...data), dataMax = Math.max(...data);
+                const rangeMin = Math.min(dataMin, lcl);
+                const rangeMax = Math.max(dataMax, ucl);
+                const pad = Math.max((rangeMax - rangeMin) * 0.15, Math.abs(mean) * 0.01, 0.5);
+
                 trendChartInstance = new Chart(canvas.getContext('2d'), {
                     type: 'line',
                     data: { labels, datasets },
@@ -94,10 +104,10 @@ Object.assign(APP, {
                         },
                         scales: {
                             x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10, weight: 'bold' } } },
-                            y: { 
-                                suggestedMin: eMin !== null ? eMin - (Math.abs(eMin)*0.1) : undefined,
-                                suggestedMax: eMax !== null ? eMax + (Math.abs(eMax)*0.1) : undefined,
-                                grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Inter', size: 10 } } 
+                            y: {
+                                min: rangeMin - pad,
+                                max: rangeMax + pad,
+                                grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Inter', size: 10 } }
                             }
                         }
                     }
