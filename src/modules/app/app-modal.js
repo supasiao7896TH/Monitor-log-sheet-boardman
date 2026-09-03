@@ -207,6 +207,13 @@ Object.assign(APP, {
                 const sourceBadge = document.getElementById('autodraft-source-badge');
                 if (!textEl || !input) return;
 
+                // V29.125 FIX: กล่อง Auto-Draft ขึ้นเองอัตโนมัติทุกครั้งที่เปิด modal ตั้งแต่ V29.117 (แม้
+                // record จะมี remark ที่ operator เขียนเองไว้แล้ว) — ถ้าไม่เช็คตรงนี้ operator ที่เผลอกดปุ่ม
+                // "ใช้ข้อความนี้" ซ้ำๆ ตามความเคยชินอาจเขียนทับ remark จริงที่ตั้งใจไว้แบบไม่มี undo โดยไม่รู้ตัว
+                // — ยืนยันก่อนเฉพาะกรณีกล่อง Remark มีข้อความอยู่แล้วเท่านั้น (แพทเทิร์นเดียวกับ confirm()
+                // ที่ใช้อยู่แล้วใน restoreData/btn-clear-db/deleteCountermeasureEntry)
+                if (input.value.trim() && !confirm('กล่อง Resolution Remark มีข้อความอยู่แล้ว ต้องการเขียนทับด้วยคำแนะนำอัตโนมัตินี้หรือไม่?')) return;
+
                 input.value = textEl.textContent;
                 autoResizeTextarea(input);
                 if (aiBadge) {

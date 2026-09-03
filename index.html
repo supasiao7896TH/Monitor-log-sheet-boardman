@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Log Analyzer | Ultimate Edition (V29.124)</title>
+    <title>Plant Log Analyzer | Ultimate Edition (V29.125)</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -294,7 +294,7 @@
             </div>
             <div class="flex items-center gap-3">
                 <div class="px-3 py-1.5 bg-sky-50 border border-sky-100 rounded-full text-[10px] font-bold text-sky-700 flex items-center shadow-sm">
-                    <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-sky-500"></i> V29.124
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-sky-500"></i> V29.125
                 </div>
             </div>
         </header>
@@ -827,7 +827,7 @@
                     </div>
 
                     <div class="text-center pt-8 pb-4">
-                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.124 • Enterprise Edition</p>
+                        <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase">System Version V29.125 • Enterprise Edition</p>
                         <p class="text-[9px] text-slate-300 font-medium mt-1">Architected by A(i)CODER</p>
                     </div>
                 </div>
@@ -897,10 +897,12 @@
                     </div>
                 </div>
 
-                <!-- V29.116 FEAT: Auto-Draft ขึ้นเองอัตโนมัติตอนเปิด modal (ถ้า record ยังไม่เคยบันทึก remark)
-                     แยกกล่องต่างหากจาก Resolution Remark เดิมโดยตั้งใจ — ไม่เขียนทับกล่อง remark จริง
-                     อัตโนมัติ ต้องให้ operator กด "ใช้ข้อความนี้" เองก่อนถึงจะ copy เข้ากล่องจริง (human-in-the-loop
-                     เพราะข้อความนี้จะถูก sync กลับเป็น Excel comment และเป็นส่วนหนึ่งของบันทึกกะจริง) -->
+                <!-- V29.116 FEAT, V29.117 เปลี่ยนให้โชว์เสมอ: Auto-Draft ขึ้นเองอัตโนมัติทุกครั้งที่เปิด modal
+                     ไม่ว่า record จะเคยบันทึก remark ไว้แล้วหรือไม่ — แยกกล่องต่างหากจาก Resolution Remark
+                     เดิมโดยตั้งใจ ไม่เขียนทับกล่อง remark จริงอัตโนมัติ ต้องให้ operator กด "ใช้ข้อความนี้"
+                     เองก่อนถึงจะ copy เข้ากล่องจริง (human-in-the-loop เพราะข้อความนี้จะถูก sync กลับเป็น
+                     Excel comment และเป็นส่วนหนึ่งของบันทึกกะจริง — V29.125 FIX: ถ้ากล่อง remark มีข้อความ
+                     อยู่แล้วจะขึ้น confirm() ถามยืนยันก่อนเขียนทับด้วย ดู APP.applyAutoDraft) -->
                 <div id="autodraft-suggestion" class="hidden mb-4 bg-gradient-to-r from-teal-50/70 to-sky-50/70 border border-teal-100 rounded-2xl p-4">
                     <div class="flex justify-between items-center mb-2">
                         <label class="text-xs font-black text-teal-700 uppercase tracking-wide flex items-center gap-1.5">
