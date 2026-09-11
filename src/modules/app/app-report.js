@@ -6,7 +6,7 @@ import { APP } from './app.js';
 
 // V29.76 FEAT: toggle ระหว่าง Card (เดิม, เน้นภาพสำหรับแชร์ผู้บริหาร) กับ Table (ใหม่, เน้นความหนาแน่น
 // ของข้อมูลเวลามี Tag ผิดปกติเยอะ) — เก็บนอก STATE เพราะเป็นแค่ preference ของ modal นี้ตอนเปิดอยู่
-// ไม่ต้อง persist ข้าม session และไม่ต้องผ่าน STATE.set/_deriveAbnormal ที่หนักเกินจำเป็น
+// ไม่ต้อง persist ข้าม session และไม่ต้องผ่าน STATE.set/_recomputeFlags ที่หนักเกินจำเป็น
 let reportLayoutMode = 'card';
 
 Object.assign(APP, {
