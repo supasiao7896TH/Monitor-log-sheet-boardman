@@ -19,6 +19,34 @@ describe('EXCEL_WORKER.parseCSV', () => {
   });
 });
 
+describe('EXCEL_WORKER.normalizeYear', () => {
+  it('treats a 2-digit year <= 49 as 2000s Christian era', () => {
+    expect(EXCEL_WORKER.normalizeYear('24')).toBe(2024);
+  });
+
+  it('treats a 2-digit year > 49 as Buddhist era (25xx - 543)', () => {
+    // "67" is meant as พ.ศ. 2567, i.e. ค.ศ. 2024
+    expect(EXCEL_WORKER.normalizeYear('67')).toBe(2024);
+  });
+
+  it('handles the 2-digit boundary at 49/50', () => {
+    expect(EXCEL_WORKER.normalizeYear('49')).toBe(2049);
+    expect(EXCEL_WORKER.normalizeYear('50')).toBe(2007); // 2500 + 50 - 543
+  });
+
+  it('converts a 4-digit Buddhist-era year (> 2500) to Christian era', () => {
+    expect(EXCEL_WORKER.normalizeYear('2567')).toBe(2024);
+  });
+
+  it('leaves a 4-digit Christian-era year (<= 2500) unchanged', () => {
+    expect(EXCEL_WORKER.normalizeYear('2024')).toBe(2024);
+  });
+
+  it('leaves the 4-digit boundary at exactly 2500 unchanged', () => {
+    expect(EXCEL_WORKER.normalizeYear('2500')).toBe(2500);
+  });
+});
+
 describe('isValidDayMonth (V29.67 FIX)', () => {
   it('rejects day 31 in a 30-day month', () => {
     expect(isValidDayMonth(31, 4, 2026)).toBe(false); // April has 30 days
