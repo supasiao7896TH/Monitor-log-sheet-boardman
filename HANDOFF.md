@@ -1,9 +1,9 @@
 # HANDOFF — Plant Log Analyzer
 
 ## 📅 อัปเดตล่าสุด
-2026-08-24 — เพิ่ม "เรื่องที่ 23" (V29.108, fix Bridge auto-open Excel ไม่โหลด PI DataLink Add-in ทำให้ค่าขึ้น `#NAME?`) — commit, push **และทดสอบหน้างานจริงยืนยันแก้ได้แล้ว** วันเดียวกัน (ต่างจาก "เรื่องที่ 22"/V29.107 ก่อนหน้าที่ยัง pending field test อยู่ — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 20 ซึ่งยังไม่เปลี่ยนสถานะ)
-Branch: `main` | Commit ล่าสุดบน `origin/main`: `6d29af1` "Confirm V29.108 Bridge auto-open fix on real hardware" — **push แล้ว** (`git status` ตอนเขียนส่วนนี้: working tree clean)
-เวอร์ชันแอปปัจจุบัน: **V29.108**
+2026-10-04 — บันทึก "เรื่องที่ 24" (Roadmap ยกระดับ Automation 5 ทิศทางสู่ V30 ตามแนวคิด Vibe Coding ของพี่ A)
+Branch: `main` | Commit ล่าสุดบน `origin/main`: `f859e2b` "Enlarge sidebar brand mark card — was rendering smaller than its own documented minimum"
+เวอร์ชันแอปปัจจุบัน: **V29.131**
 URL production จริง: **https://monitor-log-sheet-boardman.supasiao.workers.dev** (ยืนยันจาก `AllowedOrigins` ใน `bridge/excel-bridge.ps1` + output จริงของ Cloudflare deploy job ล่าสุด commit `3d4792a` — ลิงก์นี้ถูก embed ไว้ใน Excel log sheet ของโรงงานผ่านสูตร `HYPERLINK` ให้ operator กดเปิดแอป ห้ามเปลี่ยนชื่อ worker ใน `wrangler.jsonc` เด็ดขาดเพราะจะทำให้ลิงก์เดิมใน Excel ใช้ไม่ได้)
 สูตร Hyperlink ที่ใช้งานจริงตอนนี้ในไฟล์ Excel log sheet (พี่ A ยืนยันเอง 2026-08-13):
 ```
@@ -375,6 +375,50 @@ URL production จริง: **https://monitor-log-sheet-boardman.supasiao.worke
 **สถานะ:** shipped + push แล้ว + **ทดสอบหน้างานจริงยืนยันแก้ได้แล้ว** ไม่มีงานค้างสำหรับเรื่องนี้
 
 **หมายเหตุ (ขอบเขตที่ยังไม่ทดสอบแยก):** เคสที่ทดสอบคือ scenario "ปิด Bridge แล้วเปิดใหม่ตอนไม่มี Excel รันอยู่เลย" (ตรงกับ `/ensure-file-open` ที่รันตอน bridge startup) — ยังไม่เคยทดสอบแยกกรณี `/rollover-daily-file` เรียก `Find-OrOpenWorkbook` เอง (เที่ยงคืนข้ามวันตอนไม่มีใครเปิด Excel ไว้เลย) ตรงๆ แต่ใช้ฟังก์ชันร่วมกันตัวเดียวกันเป๊ะ คาดว่าน่าจะแก้ได้เหมือนกัน — ควรเฝ้าสังเกตรอบเที่ยงคืนถัดไปว่าไม่มีปัญหาเช่นกัน (ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 21 ใหม่ด้านล่าง)
+
+---
+
+## 💡 เรื่องที่ 24 — Roadmap ข้อเสนอแนะยกระดับ Automation สู่ V30 (Next-Level Plant Automation)
+
+**บริบท (2026-10-04, ออกกะดึก):** พี่ A ได้รีวิวภาพรวมของระบบและพูดคุยถึงวิสัยทัศน์ของ Web App นี้ ซึ่งสร้างขึ้นด้วยแนวคิด **"Vibe Coding"** เพื่อลดภาระงานแบบเดิมของ Boardman/Engineer หน้างานให้เป็น Automation มากที่สุดเท่าที่จะทำได้ ปัจจุบันระบบอยู่ที่เวอร์ชัน **V29.131** มีความเสถียรสูงมาก (Vitest 154/154 tests ผ่านครบ) รับมือกับข้อจำกัดเฉพาะของโรงงานได้ดีเยี่ยม (PI Datalink formula caching, Excel COM Bridge, Multi-user Shared PC)
+
+เพื่อเตรียมความพร้อมสำหรับก้าวต่อไปสู่ **V30** ได้บันทึกข้อเสนอแนะ 5 ทิศทางการยกระดับ Automation ไว้พิจารณาในการทำงานรอบถัดไป:
+
+### 🚀 5 ทิศทาง Automation เพื่อลดเวลาการทำงานหน้างานให้เหลือศูนย์
+
+```
+[ Excel / PI Datalink ]
+         │ (Auto-Save & Poll)
+         ▼
+[ Web App Analyzer ] ──► ① Zero-Click Auto-Draft Remarks (แนะนำการแก้ไขทันที)
+         │           ──► ② Browser Audio / Desktop Push Alerts (เตือนเมื่อค่าหลุด)
+         │           ──► ③ Auto-Generated Handover Summary (สรุปเวรพร้อมส่ง Lotus Notes)
+         ▼
+[ Local Bridge COM ] ──► ④ Auto-Archive Infographic Report (เซฟภาพรายงานลง Shared Drive อัตโนมัติ)
+         │
+         ▼
+[ Process Insight ]  ──► ⑤ Tag Correlation Explorer (วิเคราะห์ความสัมพันธ์ของ Tag พ่วง)
+```
+
+1. **Zero-Click Auto-Draft for Known Countermeasures (กรอก Remark ให้อัตโนมัติ):**
+   - *Pain Point:* เมื่อมี Tag ผิดปกติ Operator ต้องเปิดการ์ดทีละตัวแล้วกด "Auto-Draft Remark" เพื่อดึงข้อความจาก `COUNTERMEASURE_DB` แล้วจึงกดบันทึก
+   - *Next Automation:* หาก Tag และทิศทางความผิดปกติ (High/Low) มีคู่มือตรงกับ `COUNTERMEASURE_DB` 100% ให้ระบบ Auto-Draft ข้อความ Remark ไว้ล่วงหน้าทันทีที่ Auto-Import ข้อมูลเข้ามา Operator มีหน้าที่เพียงแค่ตรวจทานแล้วกดยืนยัน (Confirm/Sync) ทั้งหมดในคลิกเดียว
+
+2. **Auto-Save Infographic Report to Shared Drive (เซฟรายงานกะลงไดรฟ์อัตโนมัติ):**
+   - *Pain Point:* เมื่อครบ 4 รอบเวลา (หรือจบกะ) วิศวกรต้องกดเปิดหน้า "สร้างรายงาน" ปรับ Layout แล้วกด "บันทึกเป็นรูปภาพ" จากนั้นลากไฟล์ไปเก็บหรือส่งต่อ
+   - *Next Automation:* เมื่อตรวจพบว่ารอบเวลาสุดท้ายของกะ (Canonical times complete) ถูกบันทึกเรียบร้อย ให้ Web App สั่ง Bridge ให้ Render และเซฟไฟล์ภาพ `.jpg` หรือ `.pdf` ลงโฟลเดอร์ Archive บน Shared Drive (`$ArchiveFolder`) ให้ทันทีแบบ Headless Background Operator เพียงแค่เปิดโฟลเดอร์แล้วแชร์เข้า LINE กลุ่มเวร
+
+3. **Shift Handover Text Generator (ร่างข้อความส่งเวรลง Logbook / Lotus Notes):**
+   - *Pain Point:* นอกจากภาพ Infographic แล้ว Boardman ต้องพิมพ์ข้อความสรุปอาการของพารามิเตอร์ผิดปกติและสิ่งที่ดำเนินการไปแล้วลงใน DCS Logbook, Shift Handover Book หรือ Lotus Notes
+   - *Next Automation:* เพิ่มปุ่ม "คัดลอกสรุปส่งเวร (Copy Shift Logbook)" ที่รวบรวม Tag ผิดปกติ จัดกลุ่มตาม Machine/Unit (เช่น Oxidation, Purification, Waste Water) พร้อมสรุป Action taken สั้นกระชับตามมาตรฐาน GC-M PTA ให้พร้อมคลิกเดียวแล้ว Paste ได้ทันที
+
+4. **Real-Time Audio Chime & Desktop Push Notification (แจ้งเตือนด้วยเสียง/ป็อปอัป):**
+   - *Pain Point:* กรณีเปิด Web App ทิ้งไว้ในแท็บหลัง (Background Tab) จะไม่รู้ว่ารอบ 5 นาทีล่าสุดมี Tag ค่าพุ่ง (Hard Limit หรือ >3σ Deviation) หรือไม่ จนกว่าจะสลับแท็บกลับมาดู
+   - *Next Automation:* ใช้ Web Audio API (เล่นเสียง Beep นุ่มๆ สไตล์ Plant Control Room) ร่วมกับ Web Notifications API แสดงป็อปอัปมุมจอ Windows แจ้งเตือน Tag ที่ผิดปกติทันทีที่ผลการตรวจวัดรอบล่าสุดหลุดสเปก
+
+5. **Multi-Tag Correlation & Root Cause Grouping (วิเคราะห์ Tag ที่ผิดปกติร่วมกัน):**
+   - *Pain Point:* Dashboard แสดง Tag เรียงเดี่ยวๆ แยกเป็นการ์ด ทำให้ต้องสลับดูหลายจุดเพื่อหาสาเหตุ
+   - *Next Automation:* เชื่อมโยง Tag ใน Loop กระบวนการเดียวกัน (เช่น อุณหภูมิ Reactor `TI-xxxx` สัมพันธ์กับ Cooling Water Flow `FI-yyyy` และ Pressure `PI-zzzz`) แสดงเคียงข้างกันในการ์ด เพื่อช่วยให้ Boardman วินิจฉัย Root Cause ได้ในหน้าจอเดียว
 
 ---
 
