@@ -1,4 +1,4 @@
-# Plant Log Analyzer — Local Excel Bridge (V29.74)
+﻿# Plant Log Analyzer — Local Excel Bridge (V29.74)
 #
 # ทำไมต้องมีสคริปต์นี้: การทดลองจริงพบว่าไม่มีไลบรารี JavaScript ฟรีตัวไหน (SheetJS, exceljs)
 # เขียนไฟล์ log sheet ของโรงงานกลับได้ครบถ้วนปลอดภัย — ไฟล์เหล่านี้มีสูตรเชื่อมต่อ OSIsoft PI System
