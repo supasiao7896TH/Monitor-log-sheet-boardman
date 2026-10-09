@@ -1,9 +1,8 @@
 # HANDOFF — Plant Log Analyzer
 
 ## 📅 อัปเดตล่าสุด
-2026-08-24 — เพิ่ม "เรื่องที่ 23" (V29.108, fix Bridge auto-open Excel ไม่โหลด PI DataLink Add-in ทำให้ค่าขึ้น `#NAME?`) — commit, push **และทดสอบหน้างานจริงยืนยันแก้ได้แล้ว** วันเดียวกัน (ต่างจาก "เรื่องที่ 22"/V29.107 ก่อนหน้าที่ยัง pending field test อยู่ — ดู "🚧 ค้างอยู่ตรงไหน" ข้อ 20 ซึ่งยังไม่เปลี่ยนสถานะ)
-Branch: `main` | Commit ล่าสุดบน `origin/main`: `6d29af1` "Confirm V29.108 Bridge auto-open fix on real hardware" — **push แล้ว** (`git status` ตอนเขียนส่วนนี้: working tree clean)
-เวอร์ชันแอปปัจจุบัน: **V29.108**
+2026-10-09 — เพิ่ม "เรื่องที่ 26" (V29.132 — ระบบ Automated SharePoint Sync ผ่าน OneDrive Shortcut นำไฟล์ log sheet ส่งเข้าคลังเอกสารแผนก PE `PEDoc/02 - Plant 1/Log sheet digital PTA#1` อัตโนมัติทุกวัน และกวาดไฟล์ย้อนหลัง Sep 26, Oct 26 ขึ้น Cloud สำเร็จ 39 ไฟล์)
+Branch: `main` | เวอร์ชันแอปปัจจุบัน: **V29.132**
 URL production จริง: **https://monitor-log-sheet-boardman.supasiao.workers.dev** (ยืนยันจาก `AllowedOrigins` ใน `bridge/excel-bridge.ps1` + output จริงของ Cloudflare deploy job ล่าสุด commit `3d4792a` — ลิงก์นี้ถูก embed ไว้ใน Excel log sheet ของโรงงานผ่านสูตร `HYPERLINK` ให้ operator กดเปิดแอป ห้ามเปลี่ยนชื่อ worker ใน `wrangler.jsonc` เด็ดขาดเพราะจะทำให้ลิงก์เดิมใน Excel ใช้ไม่ได้)
 สูตร Hyperlink ที่ใช้งานจริงตอนนี้ในไฟล์ Excel log sheet (พี่ A ยืนยันเอง 2026-08-13):
 ```
@@ -557,4 +556,27 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "bridge\excel-bridge.ps1"
 ### 3. 🕒 ระเบิดเวลาเรื่อง Date/Time & Locale (Culture Drift)
 - **ปัญหา:** การแปลงวันที่ระหว่าง Windows OS, Excel, และ PI DataLink บนเครื่องโรงงานไทยมีความเสี่ยงจาก format ปี พ.ศ./ค.ศ. (`th-TH` vs `en-US`) แม้จะเคยแก้ด้วย `InvariantCulture` ในบางจุดแล้ว แต่ยังต้องเฝ้าระวังทุกครั้งที่มีการเพิ่ม Tag หรือคำนวณ Time slot ใหม่
 - **แนวทางแก้ไขในอนาคต:** ทำ Date normalization wrapper กลางให้ทุกโมดูลต้องเรียกผ่านฟังก์ชันเดียวกัน เพื่อการันตีว่าไม่มีการ parse วันที่แบบ raw ในระดับ module ใดๆ เลย
+
+---
+
+## 🚀 เรื่องที่ 26 — V29.132: ระบบ Automated SharePoint Sync ผ่าน OneDrive Shortcut
+
+**บริบท (2026-10-09):** พี่ A แจ้งความต้องการว่าปกติในแต่ละวันจะต้องนำไฟล์ Excel Log Sheet ของกะไปอัปโหลดเก็บไว้ที่ SharePoint ของแผนก PE ด้วยมือทุกวัน:
+`https://pttgcgroup.sharepoint.com/sites/GCMPIntranet/pe/SitePages/Home.aspx?RootFolder=%2Fsites%2FGCMPIntranet%2Fpe%2FPEDoc%2F02%20-%20Plant%201%2FLog%20sheet%20digital%20PTA%231`
+
+**สิ่งที่ทำ:**
+1. ให้พี่ A เชื่อมต่อโฟลเดอร์ปลายทางจาก SharePoint ลงมาที่เครื่องคอมพิวเตอร์ผ่านฟังก์ชัน **Add shortcut to OneDrive** ซึ่งได้โฟลเดอร์ Shortcut มาที่:
+   `C:\Users\26007294\OneDrive - PTT Global Chemical Public Company Limited\Shortcuts\Production - PE Documents\02 - Plant 1\Log sheet digital PTA#1`
+2. อัปเดต `bridge/excel-bridge.ps1`:
+   - เพิ่มตัวแปร `$SharePointTargetFolder` พร้อมระบบ fallback ข้าม user profile สำหรับเครื่อง Shared PC
+   - ปรับปรุง `Get-FileNameDateInfo` ให้รองรับทั้ง 1 และ 2 หลัก เช่น `(30-9-26)` และ `(01-10-26)`
+   - เพิ่มฟังก์ชัน `Sync-FileToSharePoint` สร้างโฟลเดอร์เดือนตามรูปแบบของแผนก (เช่น `9.Sep'26`, `10.Oct'26`) ให้อัตโนมัติ และคัดลอกไฟล์ `.xlsm` เข้าโฟลเดอร์นั้น
+   - เชื่อมต่อเข้ากับ `Handle-ArchiveSourceFile` ทำให้การ archive ทุกครั้ง (เมื่อครบ 4 เวลา หรือเมื่อเกิด Rollover เที่ยงคืน) จะส่งสำเนาขึ้น SharePoint ทันที
+   - เพิ่มฟังก์ชัน `Sync-PendingArchivedFilesToSharePoint` และ endpoint `/sync-sharepoint` เพื่อกวาดไฟล์ย้อนหลังที่ตกค้างใน `$ArchiveFolder` ขึ้น SharePoint ทั้งหมด
+3. **ผลการทดสอบ Catch-Up Sync สดบนเครื่อง:**
+   - กวาดไฟล์ย้อนหลังตั้งแต่ 1 กันยายน ถึง 9 ตุลาคม 2026 ขึ้นโฟลเดอร์ `9.Sep'26` และ `10.Oct'26` สำเร็จครบถ้วนรวม **39 ไฟล์**
+   - ตัว OneDrive Client ของ Windows ทำการซิงก์ไฟล์ขึ้นสู่ SharePoint Cloud ให้แผนกอัตโนมัติ 100% โดยไม่ต้องเปิดเบราว์เซอร์ลากวางเองอีกต่อไป
+4. Bump เวอร์ชันเป็น **V29.132** (`index.html` 3 จุด, `excel-bridge.ps1`, `HANDOFF.md`)
+5. ทดสอบ `npm test` ผ่านครบ **154/154 tests** (8 test files)
+
 

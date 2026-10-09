@@ -1,4 +1,4 @@
-﻿# Plant Log Analyzer — Local Excel Bridge (V29.74)
+# Plant Log Analyzer — Local Excel Bridge (V29.74)
 #
 # ทำไมต้องมีสคริปต์นี้: การทดลองจริงพบว่าไม่มีไลบรารี JavaScript ฟรีตัวไหน (SheetJS, exceljs)
 # เขียนไฟล์ log sheet ของโรงงานกลับได้ครบถ้วนปลอดภัย — ไฟล์เหล่านี้มีสูตรเชื่อมต่อ OSIsoft PI System
@@ -135,6 +135,10 @@
 # ปนไปโดยบังเอิญ พอเปลี่ยนมาให้ bridge auto-save แทนโดยไม่มีคนแตะไฟล์เลยก็เลยไม่มี trigger ให้คำนวณใหม่อีก —
 # เพิ่ม CalculateFullRebuild() (เทียบเท่า Ctrl+Alt+F9 พอดี) ก่อน Save() ทุกรอบ poll (ทุก 5 นาที) แบบ
 # best-effort (ไม่ทำให้ save ทั้งรอบพังถ้า recalc ล้มเหลว)
+#
+# V29.132 FEAT: ระบบ Auto-Sync ไฟล์ log sheet ประจำวันไปยังโฟลเดอร์ SharePoint ของแผนก PE
+# (PEDoc/02 - Plant 1/Log sheet digital PTA#1) ผ่าน OneDrive Shortcut ในเครื่องอัตโนมัติเมื่อครบ 4 เวลา
+# หรือเมื่อมี Rollover ข้ามวัน พร้อมฟังก์ชัน Catch-up Sync กวาดไฟล์ย้อนหลัง (Sep 26, Oct 26) ขึ้น SharePoint
 
 $Port = 5175
 $AllowedOrigins = @(
@@ -151,6 +155,17 @@ $WatchFolder = "D:\PTA COMMONT WORK\Log sheet Digital"
 # V29.95 CONFIG: ย้าย archive มารวมกับ $WatchFolder ตามคำขอ — ยังคง subfolder รายเดือน (เช่น "Aug 26")
 # ไว้เหมือนเดิม กันไฟล์ archive ปนกับไฟล์ live ที่ root ของโฟลเดอร์นี้
 $ArchiveFolder = "D:\PTA COMMONT WORK\Log sheet Digital"
+
+# V29.132 FEAT: path สำหรับ Auto-Sync ไฟล์ log sheet ไปยัง SharePoint แผนกผ่าน OneDrive Shortcut
+# ชี้ไปยัง: Production - PE Documents\02 - Plant 1\Log sheet digital PTA#1
+$SharePointShortcutSubPath = "OneDrive - PTT Global Chemical Public Company Limited\Shortcuts\Production - PE Documents\02 - Plant 1\Log sheet digital PTA#1"
+$SharePointTargetFolder = Join-Path $env:USERPROFILE $SharePointShortcutSubPath
+if (-not (Test-Path -LiteralPath $SharePointTargetFolder -PathType Container)) {
+    $altSpPath = "C:\Users\26007294\$SharePointShortcutSubPath"
+    if (Test-Path -LiteralPath $altSpPath -PathType Container) {
+        $SharePointTargetFolder = $altSpPath
+    }
+}
 
 # V29.85 FEAT: path เก็บ shared-db snapshot กลาง (Tags/Records/MasterTags/UserCountermeasures ทั้งหมด)
 # — ไม่ผูกกับ Windows account คนใดคนหนึ่ง แก้ปัญหา operator login คนละ account บนเครื่อง shared แล้วเห็น
@@ -282,8 +297,9 @@ function Test-IsSharingViolation($exception) {
 # V29.96 FEAT: parse วันที่แบบ "(DD-MM-YY)" จากชื่อไฟล์ log sheet (เช่น "P1-F-2002-22 (18-08-26) (Digital)")
 # ใช้เทียบกับวันที่ปัจจุบันของเครื่องใน Handle-RolloverDailyFile ด้านล่าง — คืน $null ถ้าไม่เจอ pattern
 # หรือ parse ไม่ได้เป็นวันที่จริง ไม่เดา (เหมือนปรัชญาของ Resolve-SourceFile ด้านบน)
+# V29.132 FIX: รองรับทั้ง (\d{2}) และ (\d{1,2}) เช่น (30-9-26)
 function Get-FileNameDateInfo($fileName) {
-    if ($fileName -notmatch '\((\d{2})-(\d{2})-(\d{2})\)') {
+    if ($fileName -notmatch '\((\d{1,2})-(\d{1,2})-(\d{2})\)') {
         return $null
     }
     $matchText = $Matches[0]
@@ -296,6 +312,62 @@ function Get-FileNameDateInfo($fileName) {
         return $null
     }
     return @{ date = $date.Date; matchText = $matchText }
+}
+
+# V29.132 FEAT: ซิงก์ไฟล์ Log Sheet ไปยังโฟลเดอร์ SharePoint แผนก PE ผ่าน OneDrive Shortcut
+function Sync-FileToSharePoint($sourceFilePath, $targetDate = $null) {
+    if (-not (Test-Path -LiteralPath $SharePointTargetFolder -PathType Container)) {
+        return @{ status = 'skipped'; message = 'ไม่พบโฟลเดอร์ OneDrive Shortcut บนเครื่องนี้' }
+    }
+    if (-not (Test-Path -LiteralPath $sourceFilePath -PathType Leaf)) {
+        return @{ status = 'error'; message = "ไม่พบไฟล์ต้นทาง: $sourceFilePath" }
+    }
+
+    $file = Get-Item -LiteralPath $sourceFilePath
+    $date = $targetDate
+    if (-not $date) {
+        $dateInfo = Get-FileNameDateInfo $file.Name
+        if ($dateInfo) {
+            $date = $dateInfo.date
+        } else {
+            $date = (Get-Date).Date
+        }
+    }
+
+    # รูปแบบชื่อโฟลเดอร์เดือนของแผนกบน SharePoint: เช่น "8.Aug'26", "9.Sep'26", "10.Oct'26"
+    $monthFolderName = "{0}.{1}'{2}" -f $date.Month, $date.ToString("MMM", [System.Globalization.CultureInfo]::InvariantCulture), $date.ToString("yy")
+    $monthFolder = Join-Path $SharePointTargetFolder $monthFolderName
+    if (-not (Test-Path -LiteralPath $monthFolder -PathType Container)) {
+        New-Item -ItemType Directory -Path $monthFolder -Force | Out-Null
+    }
+
+    $destPath = Join-Path $monthFolder $file.Name
+    try {
+        Copy-Item -LiteralPath $file.FullName -Destination $destPath -Force
+        return @{ status = 'ok'; fileName = $file.Name; destPath = $destPath }
+    } catch {
+        return @{ status = 'error'; message = $_.Exception.Message }
+    }
+}
+
+# V29.132 FEAT: กวาดไฟล์ย้อนหลังทั้งหมดใน $ArchiveFolder ขึ้น SharePoint ถ้ายังไม่มี
+function Sync-PendingArchivedFilesToSharePoint {
+    if (-not (Test-Path -LiteralPath $SharePointTargetFolder -PathType Container)) {
+        return @{ status = 'skipped'; message = 'ไม่พบโฟลเดอร์ OneDrive Shortcut บนเครื่องนี้'; count = 0 }
+    }
+    $syncedCount = 0
+    $subFolders = Get-ChildItem -LiteralPath $ArchiveFolder -Directory -ErrorAction SilentlyContinue
+    foreach ($folder in $subFolders) {
+        $files = Get-ChildItem -LiteralPath $folder.FullName -Filter "*.xlsm" -ErrorAction SilentlyContinue
+        foreach ($file in $files) {
+            if ($file.Name -like '*(master)*' -or $file.Name -like '~$*') { continue }
+            $res = Sync-FileToSharePoint $file.FullName
+            if ($res.status -eq 'ok') {
+                $syncedCount++
+            }
+        }
+    }
+    return @{ status = 'ok'; count = $syncedCount }
 }
 
 function Handle-SourceFileInfo {
@@ -339,7 +411,12 @@ function Handle-ArchiveSourceFile {
     try {
         # Copy-Item เปิดไฟล์ต้นทางอ่านเองภายใน จึงชน sharing violation ได้แบบเดียวกับ Read-FileBytesShared
         Copy-Item -LiteralPath $resolved.file.FullName -Destination $destPath -Force
-        return @{ status = 'ok'; fileName = $resolved.file.Name; archivedPath = $destPath }
+
+        # V29.132 FEAT: ซิงก์สำเนาขึ้น SharePoint ของแผนกผ่าน OneDrive Shortcut อัตโนมัติ
+        $spResult = Sync-FileToSharePoint $resolved.file.FullName
+        $spPath = if ($spResult.status -eq 'ok') { $spResult.destPath } else { $null }
+
+        return @{ status = 'ok'; fileName = $resolved.file.Name; archivedPath = $destPath; sharePointPath = $spPath }
     } catch {
         if (Test-IsSharingViolation $_.Exception) {
             return @{ status = 'file-locked'; message = 'ไฟล์กำลังถูกเขียนอยู่ (Excel/PI กำลังรีเฟรชข้อมูล) กรุณาลองใหม่ในรอบถัดไป' }
@@ -947,6 +1024,16 @@ try {
     Write-Host "[auto-rollover] เช็ค rollover ตอนเริ่ม bridge เกิด error: $($_.Exception.Message)"
 }
 
+# V29.132 FEAT: ซิงก์ไฟล์ Log Sheet ที่ยังค้างอยู่ใน $ArchiveFolder ขึ้น SharePoint อัตโนมัติตอนเริ่ม Bridge
+try {
+    $spCatchup = Sync-PendingArchivedFilesToSharePoint
+    if ($spCatchup.status -eq 'ok' -and $spCatchup.count -gt 0) {
+        Write-Host "[sharepoint-sync] ซิงก์ไฟล์ Log Sheet ย้อนหลังขึ้น SharePoint สำเร็จ: $($spCatchup.count) ไฟล์"
+    }
+} catch {
+    Write-Host "[sharepoint-sync] ซิงก์ไฟล์ขึ้น SharePoint เกิด error: $($_.Exception.Message)"
+}
+
 try {
     while ($listener.IsListening) {
         $context = $listener.GetContext()
@@ -1016,6 +1103,12 @@ try {
             # แล้วว่าข้อมูลครบ 4 เวลาของวันนั้น (คู่ขนานกับที่ operator อัปโหลด SharePoint เองด้วยมือตามปกติ)
             if ($request.Url.AbsolutePath -eq '/archive-source-file' -and $request.HttpMethod -eq 'POST') {
                 Send-JsonResponse $response 200 (Handle-ArchiveSourceFile)
+                continue
+            }
+
+            # V29.132 FEAT: trigger ซิงก์ไฟล์ Log Sheet ทั้งหมดไปยัง SharePoint ของแผนก PE
+            if ($request.Url.AbsolutePath -eq '/sync-sharepoint' -and $request.HttpMethod -eq 'POST') {
+                Send-JsonResponse $response 200 (Sync-PendingArchivedFilesToSharePoint)
                 continue
             }
 
