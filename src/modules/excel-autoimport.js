@@ -16,6 +16,7 @@ export const LEGACY_UNKNOWN_FILENAME = 'source-file.xlsm';
 // $excel.CalculateFullRebuild() (the Ctrl+Alt+F9 equivalent) before saving, which can take longer
 // than a plain Save() alone. See the comment on autosaveSourceFile below for why that was added.
 const AUTOSAVE_TIMEOUT_MS = 20000;
+const ENSURE_OPEN_TIMEOUT_MS = 60000; // V29.135: spawn Excel (สูงสุด ~25s) + Workbooks.Open
 
 export const EXCEL_AUTOIMPORT = {
 
@@ -99,7 +100,9 @@ export const EXCEL_AUTOIMPORT = {
     // already-current แล้วไม่เปิด Excel ให้ — เรียก endpoint นี้แยกต่างหากตอน APP.init() เพื่อปิดช่องว่างนี้
     ensureFileOpen: async () => {
         try {
-            const res = await fetchWithTimeout(`${BRIDGE_URL}/ensure-file-open`, { method: 'POST' });
+            // V29.135 FIX: เดิมใช้ timeout 4s ทั้งที่ bridge ต้อง spawn Excel (หน่วง 4s+) + เปิดไฟล์ —
+            // client abort ก่อนแล้วรายงาน 'bridge-offline' ผิดๆ ทั้งที่ bridge ยังทำงานต่อ
+            const res = await fetchWithTimeout(`${BRIDGE_URL}/ensure-file-open`, { method: 'POST' }, ENSURE_OPEN_TIMEOUT_MS);
             if (!res.ok) return { status: 'error' };
             return await res.json();
         } catch (err) {

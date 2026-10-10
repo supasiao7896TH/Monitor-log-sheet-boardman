@@ -389,6 +389,14 @@ Object.assign(APP, {
                     console.warn('[auto-save] autosaveSourceFile recalc warning:', autosave.warning);
                 }
 
+                // V29.135 FIX: เดิม ensureFileOpen ถูกเรียกครั้งเดียวตอน init() — ถ้าล้มเหลว (หรือ Excel/ไฟล์ถูก
+                // ปิดทีหลัง) จะไม่มีใครลองเปิดซ้ำอีกเลยจนกว่าจะข้ามเที่ยงคืน แล้วยังเงียบ (console.warn อย่างเดียว)
+                // ตอนนี้ถ้า autosave บอกว่าไม่มีไฟล์เปิดอยู่ ให้ลองเปิดใหม่ทุก poll และเก็บผลไว้ขึ้น banner
+                let ensureOpen = null;
+                if (autosave.status === 'no-file-open') {
+                    ensureOpen = await APP.ensureExcelFileOpen();
+                }
+
                 // V29.96 FEAT: เช็ค/ทำ rollover ไฟล์ log sheet วันใหม่เป็นก้าวถัดมาของทุก poll (idempotent
                 // ฝั่ง bridge เอง — no-op ถ้าวันที่ในชื่อไฟล์ตรงกับวันนี้อยู่แล้ว) ก่อนเช็ค getSourceFileInfo
                 // เพื่อให้ถ้ามี rename เกิดขึ้นพอดีรอบนี้ ส่วนที่เหลือของ poll เดียวกันเห็นไฟล์ใหม่ทันที
@@ -441,7 +449,12 @@ Object.assign(APP, {
                     // (แค่เปิดโดย Excel session อื่นบนเครื่องเดียวกัน) ผิดบริบทตรงๆ — ระบบจะลองเปิดใหม่เองอัตโนมัติ
                     // ในรอบ poll ถัดไปหลัง session นั้นปิดไฟล์ ไม่ต้องรอ operator ทำอะไรเพิ่ม
                     bannerInfo = { status: 'error', message: rollover.message || `ไฟล์ log sheet ถูก Excel session อื่นบนเครื่องเดียวกัน (คนละ Windows account) เปิดค้างอยู่ — ระบบจะลองเปิดใหม่เองอัตโนมัติในรอบถัดไป` };
-                } else if (autosave.status === 'no-file-open') {
+                } else if (ensureOpen && ensureOpen.status === 'open-failed') {
+                    // V29.135 FIX: ไฟล์ไม่ถูกเปิดอัตโนมัติและ Bridge รายงานเหตุผลจริง — แสดงเหตุผลนั้นแทน
+                    // ข้อความ "กรุณาเปิดไฟล์เอง" ทั่วไปด้านล่าง เพื่อให้ operator/ผู้ดูแลเห็นสาเหตุจริง
+                    bannerInfo = { status: 'error', message: ensureOpen.message || 'Bridge เปิดไฟล์ log sheet ใน Excel อัตโนมัติไม่สำเร็จ — กรุณาเปิดไฟล์เอง' };
+                } else if (autosave.status === 'no-file-open' && !(ensureOpen && ensureOpen.status === 'ok')) {
+                    // (V29.135: ถ้า ensureOpen เพิ่งเปิดไฟล์สำเร็จในรอบนี้ ไม่ต้องเตือน — autosave รอบถัดไปจะเห็นเอง)
                     // V29.107 FEAT: priority ต่ำกว่าเคสข้างบนทั้งหมดเพราะเคสเหล่านั้นเจาะจงกว่า — เคสนี้แค่
                     // "ไม่มีไฟล์เปิดอยู่ใน Excel เลย" ซึ่งทำให้ autosave (และ Handle-WriteRemark) ทำอะไรไม่ได้
                     // เลยจนกว่า operator จะเปิดไฟล์ log sheet ค้างไว้ที่เครื่อง Bridge

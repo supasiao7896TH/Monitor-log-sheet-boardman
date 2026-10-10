@@ -651,6 +651,31 @@ function Start-ExcelProcessAndAttach {
     return New-Object -ComObject Excel.Application
 }
 
+# V29.135 FIX: ลบ entry ใน HKCU\Software\Microsoft\Office\<ver>\Excel\Resiliency\DisabledItems ที่ชี้ไปยัง
+# path ของไฟล์ที่ระบุเท่านั้น (เทียบ path แบบ case-insensitive จาก value ไบนารี UTF-16 — Excel เก็บเป็น lowercase)
+# entry อื่น (add-in/ไฟล์อื่น) ไม่ถูกแตะ — คืนจำนวน entry ที่ลบ, best-effort ไม่ throw
+function Clear-DisabledItemEntryForFile($fullPath) {
+    $removed = 0
+    try {
+        $needle = $fullPath.ToLowerInvariant()
+        foreach ($ver in @('16.0', '15.0', '14.0')) {
+            $key = "HKCU:\Software\Microsoft\Office\$ver\Excel\Resiliency\DisabledItems"
+            if (-not (Test-Path -LiteralPath $key)) { continue }
+            $props = Get-ItemProperty -LiteralPath $key
+            foreach ($p in @($props.PSObject.Properties | Where-Object { $_.Name -notmatch '^PS' })) {
+                $v = $p.Value
+                if ($v -isnot [byte[]]) { continue }
+                $text = [System.Text.Encoding]::Unicode.GetString($v).ToLowerInvariant()
+                if ($text.Contains($needle)) {
+                    Remove-ItemProperty -LiteralPath $key -Name $p.Name -ErrorAction Stop
+                    $removed++
+                }
+            }
+        }
+    } catch { }
+    return $removed
+}
+
 # V29.110 FEAT: เช็คไฟล์ ~$<ชื่อไฟล์> ข้างไฟล์จริง — Excel สร้างไฟล์นี้ไว้เสมอตอนมีใครเปิดไฟล์แบบ read/write
 # ค้างอยู่ (ไม่ว่าจะเป็น Excel session ไหน/Windows account ไหนก็ตาม) แล้วลบทิ้งตอนปิดไฟล์ปกติ — เช็คผ่าน
 # filesystem ตรงๆ ด้วย Test-Path จึงเห็นได้ข้าม Windows session ต่างจาก $excel.Workbooks ที่เห็นแค่ session
@@ -764,15 +789,25 @@ function Find-OrOpenWorkbook($fileName, $fullPath) {
             errorMessage = "ไฟล์นี้กำลังถูกเปิดอยู่แล้วโดย Excel session อื่นบนเครื่องเดียวกัน (คนละ Windows account)$ownerText — ระบบจะลองใหม่ในรอบถัดไปโดยอัตโนมัติ" }
     }
 
+    # V29.135 FIX (สาเหตุ 2): Excel จำไฟล์ที่เคยทำให้ crash ไว้ใน Resiliency\DisabledItems แล้วถามตอนเปิดครั้ง
+    # ถัดไปว่า "caused a serious error. Do you still want to open it?" — DisplayAlerts=$false ด้านล่างตอบ No
+    # ให้เงียบๆ ทำให้ Open() fail 0x800A03EC ทุกครั้งจนกว่าจะมีคนกด Yes เอง ลบเฉพาะ entry ของไฟล์นี้ก่อนเปิด
+    $disabledItemsCleared = Clear-DisabledItemEntryForFile $fullPath
+    if ($disabledItemsCleared -gt 0) {
+        Write-Host "[ensure-file-open] ล้าง flag 'ไฟล์เคยทำให้ Excel crash' ของ $fullPath ($disabledItemsCleared entry)"
+    }
+
     $originalDisplayAlerts = $excel.DisplayAlerts
     $excel.DisplayAlerts = $false
     try {
         # UpdateLinks=0: ไม่ต้อง prompt/auto-refresh สูตร PI Datalink ตอนเปิดไฟล์ (เลี่ยง dialog ที่จะค้าง
         # สคริปต์ไว้รอ operator กดตอบ ซึ่งไม่มีใครอยู่หน้าเครื่องตอนกลางดึก) — ReadOnly=$false เพราะต้อง
-        # SaveAs/Save ต่อทันทีหลังเปิด — Notify=$false (V29.110, ตำแหน่งสุดท้าย) กันเผื่อ race ที่ไฟล์ถูกล็อก
-        # เพิ่มหลัง Test-FileLockedByOtherSession เช็คผ่านไปแล้วแต่ก่อนเรียก Open จริง ให้ throw exception ที่
-        # ดักได้แทนที่จะเป็น native "already open" dialog ที่ค้างสคริปต์ไว้รอ operator กดตอบ
-        $wb = $excel.Workbooks.Open($fullPath, 0, $false, [Type]::Missing, [Type]::Missing, [Type]::Missing, [Type]::Missing, [Type]::Missing, [Type]::Missing, [Type]::Missing, $false)
+        # SaveAs/Save ต่อทันทีหลังเปิด
+        # V29.135 FIX (สาเหตุ 1): V29.110 เพิ่ม positional args ยาว 11 ตัว (Missing x7 + Notify) — ทดสอบบนเครื่อง
+        # จริง 2026-10-10 พบว่าล้มเหลวด้วย 0x800A03EC ทุกกรณี (Notify ทั้ง $true/$false) แม้กับไฟล์ปกติ ขณะที่
+        # Open($p) และ Open($p, 0, $false) เปิดได้ — กลับมาใช้รูปสั้น race ของไฟล์ถูกล็อกหลัง
+        # Test-FileLockedByOtherSession ถูกดักโดย DisplayAlerts=$false + catch ด้านล่างแทน
+        $wb = $excel.Workbooks.Open($fullPath, 0, $false)
         return @{ excel = $excel; wb = $wb }
     } catch {
         if ($weSpawnedExcel -and $excel.Workbooks.Count -eq 0) { try { $excel.Quit() } catch {} }
