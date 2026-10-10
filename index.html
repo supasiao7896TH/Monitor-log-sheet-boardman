@@ -706,7 +706,7 @@
                     <!-- Step 1 -->
                     <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-sky-300 transition-colors">
                         <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
-                            <span class="bg-sky-100 text-sky-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">1</span>
+                            <span class="bg-sky-100 text-sky-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black">1</span>
                             <i data-lucide="upload-cloud" class="w-5 h-5 text-sky-500"></i> การนำเข้าข้อมูลอย่างเข้มงวด (Strict Import)
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
@@ -719,8 +719,8 @@
                     <!-- Step 2 -->
                     <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-indigo-300 transition-colors">
                         <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
-                            <span class="bg-indigo-100 text-indigo-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">2</span>
-                            <i data-lucide="settings-2" class="w-5 h-5 text-indigo-500"></i> การตั้งค่าเกณฑ์ควบคุม & จัดการ Standby
+                            <span class="bg-indigo-100 text-indigo-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black">2</span>
+                            <i data-lucide="settings-2" class="w-5 h-5 text-indigo-500"></i> การตั้งค่าเกณฑ์ควบคุม & จัดการ Standby (Tag Master)
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
                             <li><strong>เมนู Tag Master:</strong> หากไฟล์ Excel ระบุค่า Min/Max ผิด สามารถกดปุ่ม "Edit Overrides" เพื่อบังคับใช้ค่าควบคุมใหม่ได้ — ค่าที่ตั้งไว้จะ<strong>อยู่ถาวร</strong> ไม่ถูกลบเมื่อ import ไฟล์ใหม่ หรือกดปุ่ม "ล้างฐานข้อมูล" (ปุ่มนั้นล้างเฉพาะ Records เท่านั้น)</li>
@@ -732,36 +732,50 @@
                     <!-- Step 3 -->
                     <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-orange-300 transition-colors">
                         <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
-                            <span class="bg-orange-100 text-orange-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">3</span>
-                            <i data-lucide="activity" class="w-5 h-5 text-orange-500"></i> วิเคราะห์และบันทึกปัญหา (Dashboard)
+                            <span class="bg-orange-100 text-orange-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black">3</span>
+                            <i data-lucide="activity" class="w-5 h-5 text-orange-500"></i> วิเคราะห์และบันทึกปัญหา (Dashboard & Interactive Filtering)
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
-                            <li><strong>แถบ Time Breakdown:</strong> ด้านบนของ Dashboard ใช้สำหรับกรองเวลาของแต่ละกะ</li>
-                            <li><strong>การ์ดสีแดง (Abnormal):</strong> คือพารามิเตอร์ที่หลุดเกณฑ์ Min/Max ตามสเปกที่ตั้งไว้ <strong>คลิกที่การ์ด</strong> เพื่อดูกราฟแนวโน้มสถิติ (UCL/LCL)</li>
-                            <li><strong>การ์ดสีม่วง (Statistical Deviation):</strong> ค่ายังอยู่ใน Min/Max ปกติ แต่<strong>ห่างจากค่าเฉลี่ยที่เครื่องเดินอยู่จริงเกิน 3σ</strong> (คำนวณจาก baseline 120 samples ล่าสุดของ Tag นั้นเอง) ใช้จับความผิดปกติของเครื่องที่สเปกกว้างกว่าพฤติกรรมจริงมาก เช่น สเปกกว้าง 220-262 แต่ปกติเดินแค่ 253-254 พอตกลงมา 238 ทั้งที่ยังไม่หลุดสเปก การ์ดนี้จะจับได้ก่อน — จะจับ<strong>จุดเดียวที่กระโดดเกิน 3σ</strong>ก็ได้ ไม่จำเป็นต้องเห็นแนวโน้มไต่ขึ้น/ลงมาก่อน</li>
-                            <li><strong>การ์ดสีฟ้า (Trend Warning):</strong> ระดับเตือนเบากว่าการ์ดม่วง เกิดจากรูปแบบ<strong>แนวโน้ม</strong>จริงๆ 2 แบบ คือค่าห่างเกิน 2σ ไปทางเดียวกัน 2 ใน 3 จุดล่าสุด หรือค่าไต่ขึ้น/ไต่ลงต่อเนื่องกัน 6 จุดติด — เหมาะกับ "เห็นค่าเริ่มขยับผิดปกติ" ก่อนที่จะรุนแรงถึงขั้นการ์ดม่วง (การ์ดม่วง/ฟ้าจะไม่ขึ้นซ้อนกัน และจะไม่ขึ้นถ้าการ์ดแดงขึ้นอยู่แล้ว)</li>
-                            <li><strong>Action Remark:</strong> พิมพ์บันทึกการแก้ไขปัญหา การ์ดจะเปลี่ยนเป็น "สีส้ม (Acknowledged)" เพื่อบ่งบอกว่ารับทราบปัญหาแล้ว (ใช้สีเดียวกันไม่ว่าการ์ดเดิมจะเป็นแดง/ม่วง/ฟ้า)</li>
+                            <li><strong>แถบ Time Breakdown & Missing Rounds:</strong> ด้านบนของ Dashboard ใช้สำหรับกรองเวลาของแต่ละกะ พร้อมระบบตรวจจับรอบเวลาที่ตกหล่น (Missing Rounds Radar) และเลื่อนไฮไลท์รอบเวลาล่าสุดให้อัตโนมัติเมื่อมีข้อมูลใหม่เข้ามา</li>
+                            <li><strong>การ์ดสีแดง (Abnormal):</strong> พารามิเตอร์ที่หลุดเกณฑ์ Min/Max ตามสเปกที่ตั้งไว้ <strong>คลิกที่การ์ด</strong> เพื่อดูรายละเอียดและกราฟแนวโน้ม</li>
+                            <li><strong>การ์ดสีม่วง (Statistical Deviation):</strong> ค่ายังอยู่ใน Min/Max ปกติ แต่<strong>ห่างจากค่าเฉลี่ยที่เครื่องเดินอยู่จริงเกิน 3σ</strong> (คำนวณจาก baseline 120 samples ล่าสุดของ Tag นั้นเอง) ใช้จับความผิดปกติของเครื่องที่สเปกกว้างกว่าพฤติกรรมจริง เช่น อุณหภูมิหรือสเปกระดับที่ตกลงมาผิดสังเกต</li>
+                            <li><strong>การ์ดสีฟ้า (Trend Warning):</strong> สัญญาณเตือนเบากว่าการ์ดม่วง ตรวจจับพฤติกรรมโน้มเอียง เช่น ค่าห่างเกิน 2σ ไปทางเดียวกัน 2 ใน 3 จุดล่าสุด หรือค่าไต่ขึ้น/ลงต่อเนื่องกัน 6 จุดติด</li>
+                            <li><strong>Interactive Stat Cards:</strong> สามารถ<strong>คลิกที่ตัวเลขสรุปบน Header Cards</strong> (Abnormal, Stat Deviation, Trend Warning, Standby) เพื่อสั่งกรองแสดงเฉพาะกลุ่มนั้นบน Dashboard ได้ทันที</li>
+                            <li><strong>Action Remark:</strong> พิมพ์บันทึกการแก้ไขปัญหา การ์ดจะเปลี่ยนเป็น <strong>"สีส้ม (Acknowledged)"</strong> เพื่อบ่งบอกว่ารับทราบปัญหาแล้ว</li>
                         </ul>
                     </div>
 
                     <!-- Step 4 -->
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-sky-300 transition-colors">
+                        <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
+                            <span class="bg-sky-100 text-sky-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black">4</span>
+                            <i data-lucide="calendar-clock" class="w-5 h-5 text-sky-500"></i> ค้นหาและดูประวัติย้อนหลัง (History View)
+                        </h3>
+                        <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
+                            <li>เมนู <strong>"ประวัติ Abnormal"</strong> ที่แถบซ้ายมือ สำหรับสืบค้นและวิเคราะห์พารามิเตอร์ที่เคยผิดปกติย้อนหลังแบบเจาะลึก</li>
+                            <li><strong>เลือกช่วงวันที่ได้อิสระ (Custom Date Range):</strong> ไม่จำกัดเฉพาะ 3 วันล่าสุดเหมือนในหน้า Dashboard สามารถเลือกดูย้อนหลังเป็นสัปดาห์หรือเป็นเดือนได้ตามต้องการ</li>
+                            <li><strong>เก็บบันทึกแยกส่วนถาวร:</strong> ประวัติความผิดปกติจะถูกเก็บไว้ในคลังข้อมูล IndexedDB เฉพาะ แม้จะมีการเคลียร์หน้า Dashboard หรือเปลี่ยนรอบวัน ข้อมูลประวัติการวิเคราะห์และ Remark เดิมจะไม่สูญหาย</li>
+                        </ul>
+                    </div>
+
+                    <!-- Step 5 -->
                     <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-amber-300 transition-colors">
                         <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
-                            <span class="bg-amber-100 text-amber-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">4</span>
+                            <span class="bg-amber-100 text-amber-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black">5</span>
                             <i data-lucide="zap" class="w-5 h-5 text-amber-500"></i> ระบบคัดกรองวิกฤตอัตโนมัติ (Auto-Select)
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
                             <li>ใช้ <strong>"เมนูคัดเลือกอัตโนมัติ ⚡"</strong> เพื่อเลือกจำนวนพารามิเตอร์เข้าสู่รายงาน (Top 3, Top 5, Top 10)</li>
                             <li>ระบบจะคำนวณเปอร์เซ็นต์ความหลุดขอบ และคัด <strong>พารามิเตอร์ที่ไม่ซ้ำกัน</strong> ที่อาการหนักที่สุดให้แบบอัตโนมัติ (ข้ามค่า Standby เด็ดขาด)</li>
                             <li>หากต้องการเริ่มเลือกใหม่ สามารถกดปุ่ม <strong>"✕ ล้างการเลือก"</strong> เพื่อเคลียร์เครื่องหมายถูกออกทั้งหมด</li>
-                            <li>ต้องการรวมทุกพารามิเตอร์ที่มองเห็นในตารางตอนนี้เข้ารายงาน ไม่ว่าจะปกติหรือผิดปกติ ให้กดปุ่ม <strong>"เลือกทั้งหมด"</strong> แทนการเลือกทีละแถว</li>
+                            <li>ต้องการรวมทุกพารามิเตอร์ที่มองเห็นในตารางตอนนี้เข้ารายงาน ให้กดปุ่ม <strong>"เลือกทั้งหมด"</strong> แทนการเลือกทีละแถว</li>
                         </ul>
                     </div>
 
-                    <!-- Step 5 -->
+                    <!-- Step 6 -->
                     <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-brand-300 transition-colors">
                         <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
-                            <span class="bg-brand-100 text-brand-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">5</span>
+                            <span class="bg-brand-100 text-brand-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black">6</span>
                             <i data-lucide="image" class="w-5 h-5 text-brand-500"></i> สร้าง Infographic Report ส่งกะ
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
@@ -773,73 +787,77 @@
                         </ul>
                     </div>
 
-                    <!-- Step 6 -->
+                    <!-- Step 7 -->
                     <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-teal-300 transition-colors">
                         <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
-                            <span class="bg-teal-100 text-teal-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">6</span>
-                            <i data-lucide="lightbulb" class="w-5 h-5 text-teal-500"></i> ระบบแนะนำการแก้ไข (Countermeasure)
+                            <span class="bg-teal-100 text-teal-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black">7</span>
+                            <i data-lucide="lightbulb" class="w-5 h-5 text-teal-500"></i> ระบบแนะนำการแก้ไข (Smart Countermeasure & Auto-Draft Card)
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
-                            <li>ในหน้าต่างบันทึกปัญหา กดปุ่ม <strong>"Auto-Draft"</strong> เพื่อให้ระบบดึงคำแนะนำที่ผูกกับ Tag No และทิศทาง (สูง/ต่ำ) มาเติมในช่อง Resolution Remark ให้อัตโนมัติ</li>
-                            <li>หากคำแนะนำมาจากฐานข้อมูลที่ทีมวิศวกรรมคิวเรทไว้ล่วงหน้า จะมี Badge <strong>"จากคู่มือ"</strong> กำกับไว้ — คำแนะนำกลุ่มนี้มีความสำคัญเหนือกว่าเสมอ</li>
-                            <li>เมนู <strong>"Countermeasure"</strong> ที่แถบซ้าย เป็นตารางให้เพิ่ม/แก้ไข/ลบคำแนะนำของตัวเองสำหรับ Tag ที่ยังไม่มีในคู่มือ — <strong>ข้อควรระวัง:</strong> ถ้า Tag+ทิศทางนั้นมีคำแนะนำจากคู่มืออยู่แล้ว ข้อมูลที่เพิ่มเองจะยังไม่ถูกใช้งาน จนกว่าคำแนะนำจากคู่มือจะถูกลบออกก่อน</li>
-                        </ul>
-                    </div>
-
-                    <!-- Step 7 -->
-                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-violet-300 transition-colors">
-                        <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
-                            <span class="bg-violet-100 text-violet-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">7</span>
-                            <i data-lucide="refresh-cw" class="w-5 h-5 text-violet-500"></i> ซิงก์ข้อมูลกลับ Excel อัตโนมัติ (Excel Bridge)
-                        </h3>
-                        <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
-                            <li>เมื่อกด <strong>"Save Remark"</strong> ระบบจะพยายามเขียน Resolution Remark กลับไปเป็น Comment บน cell ต้นฉบับใน Excel ให้อัตโนมัติ (ไม่ต้องพิมพ์ซ้ำในไฟล์ Excel เอง)</li>
-                            <li><strong>ข้อกำหนดก่อนใช้งาน:</strong> ต้องรันโปรแกรม <strong>Local Bridge</strong> (<code class="bg-slate-100 px-1.5 py-0.5 rounded text-violet-600">bridge/excel-bridge.ps1</code>) ค้างไว้บนเครื่อง และต้องเปิดไฟล์ Excel ต้นฉบับค้างไว้ระหว่างซิงก์ (ดูวิธีติดตั้ง/ตั้ง autostart ใน <code class="bg-slate-100 px-1.5 py-0.5 rounded text-violet-600">bridge/README.md</code>)</li>
-                            <li>ข้อความสถานะที่ขึ้นใต้ช่อง Resolution Remark บอกผลลัพธ์ 6 แบบ: บันทึกสำเร็จ / ไฟล์เก่าที่ import มาก่อนฟีเจอร์นี้ (ต้อง import ใหม่) / ไม่พบ Local Bridge เปิดอยู่ / ไม่พบไฟล์นี้เปิดอยู่ใน Excel / มีคนพิมพ์คอมเมนต์ไว้ในเซลล์แล้ว (ระบบจะไม่เขียนทับให้) / และ error ทั่วไป</li>
-                            <li>สำหรับเครื่องที่ใช้ร่วมกันหลายคน (Shared PC) มีไฟล์ launcher ผ่าน Excel Hyperlink ให้เปิด Bridge ได้ง่ายโดยไม่ต้องเข้า PowerShell เอง</li>
-                            <li><strong>เปิด Bridge จากหน้า Web App ได้เลย (V29.103):</strong> ปุ่ม <strong>"เปิด Excel Bridge"</strong> ข้าง sync indicator มุมล่างซ้าย (โผล่เฉพาะตอนสถานะเป็น "LOCAL MODE") — ต้อง import <code class="bg-slate-100 px-1.5 py-0.5 rounded text-violet-600">bridge/register-protocol.reg</code> ในเครื่องก่อนใช้งานครั้งแรก (ไม่ต้องใช้สิทธิ์ Admin) ดูวิธีตั้งค่าใน <code class="bg-slate-100 px-1.5 py-0.5 rounded text-violet-600">bridge/README.md</code></li>
+                            <li><strong>การ์ดพรีวิว Auto-Draft อัตโนมัติ:</strong> เมื่อคลิกเปิดการ์ดความผิดปกติ ระบบจะดึงคำแนะนำที่ตรงกับ Tag No และทิศทาง (สูง/ต่ำ) มาแสดงเป็นการ์ดพรีวิวให้เห็นทันที ไม่ต้องกดปุ่มค้นหาเอง</li>
+                            <li><strong>นำข้อความไปใช้สะดวก & ปลอดภัย:</strong> หากต้องการใช้คำแนะนำ ให้กดปุ่ม <strong>"ใช้ข้อความนี้"</strong> — กรณีในช่องมีบันทึกเดิมอยู่แล้ว ระบบจะแสดงข้อความเตือนให้ยืนยันก่อนเสมอ เพื่อป้องกันการเขียนทับโดยไม่ตั้งใจ</li>
+                            <li>หากคำแนะนำมาจากคู่มือกระบวนการผลิต (MPS) จะมี Badge <strong>"จากคู่มือ"</strong> กำกับไว้เสมอ</li>
+                            <li><strong>Trend Chart สเกลจริง:</strong> กราฟแนวโน้มในหน้าต่างบันทึกปัญหาจะปรับสเกลแกน Y อัตโนมัติตามช่วงค่าจริง (Auto-Scaled) ช่วยให้เห็นความผันผวนของค่าได้อย่างชัดเจนแม้จะอยู่ในช่วงแคบ</li>
+                            <li>เมนู <strong>"Countermeasure"</strong> ที่แถบซ้าย เป็นตารางสำหรับเพิ่ม/แก้ไข/ลบคำแนะนำของตัวเองสำหรับ Tag นอกเหนือจากคู่มือ</li>
                         </ul>
                     </div>
 
                     <!-- Step 8 -->
-                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-cyan-300 transition-colors">
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-violet-300 transition-colors">
                         <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
-                            <span class="bg-cyan-100 text-cyan-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">8</span>
-                            <i data-lucide="refresh-ccw-dot" class="w-5 h-5 text-cyan-500"></i> นำเข้าข้อมูลอัตโนมัติจาก Excel (Auto-Import)
+                            <span class="bg-violet-100 text-violet-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black">8</span>
+                            <i data-lucide="refresh-cw" class="w-5 h-5 text-violet-500"></i> ซิงก์ข้อมูลกลับ Excel อัตโนมัติ (Excel Bridge)
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
-                            <li>เมื่อรัน <strong>Local Bridge</strong> ค้างไว้ (ดูข้อกำหนดใน Step 7) และเปิดไฟล์ log sheet ต้นฉบับค้างไว้ใน Excel ตามปกติ ระบบจะ <strong>ดึงข้อมูลจากไฟล์เข้า Web App ให้เองอัตโนมัติทุก ~5 นาที</strong> ไม่ต้องลากไฟล์เข้าหน้า "นำเข้าข้อมูล" ซ้ำเองอีก</li>
-                            <li><strong>สั่ง Save ให้เองก่อนดึงข้อมูลทุกรอบ (V29.107):</strong> สูตร PI Datalink ในไฟล์คำนวณค่าล่าสุดแสดงบนจอ Excel แบบสดได้เอง แต่ค่านั้นจะยังไม่ถูกเขียนลงไฟล์จริงจนกว่าจะมีการ Save — Bridge จะสั่ง Excel บันทึกไฟล์ให้เองแบบไม่มีเงื่อนไขทุกรอบที่เช็คข้อมูลใหม่ (ทุก ~5 นาที) <strong>ไม่ต้องกด Ctrl+S เองอีกต่อไป</strong> ค่าตามเวลาที่ควรมี (เช่น 03:00/09:00/15:00/21:00) จะขึ้นในแดชบอร์ดให้เองภายในไม่กี่นาที</li>
-                            <li><strong>เปลี่ยนไฟล์วันใหม่ให้เองทุกเที่ยงคืน:</strong> ไม่ต้องเปลี่ยนชื่อไฟล์หรือแก้วันที่ในชีตเองทุกเช้า ระบบจัดการให้อัตโนมัติ (รวมถึงเปิดไฟล์ให้เองถ้ายังไม่มีใครเปิดไว้ตอนเปลี่ยนกะ)</li>
-                            <li>ถ้ามีปัญหา (เช่น เจอไฟล์มากกว่า 1 ไฟล์ในโฟลเดอร์ที่ Bridge เฝ้าดูอยู่ หรือไฟล์ที่เปิดยังเป็นไฟล์ template เปล่า) จะมี<strong>แบนเนอร์แจ้งเตือนสีเหลือง/แดง</strong>ขึ้นด้านบนของ Dashboard บอกสาเหตุให้ตรวจสอบ</li>
+                            <li>เมื่อกด <strong>"Save Remark"</strong> ระบบจะพยายามเขียน Resolution Remark กลับไปเป็น Comment บน cell ต้นฉบับใน Excel ให้อัตโนมัติ (ไม่ต้องพิมพ์ซ้ำในไฟล์ Excel เอง)</li>
+                            <li><strong>ข้อกำหนดก่อนใช้งาน:</strong> ต้องรันโปรแกรม <strong>Local Bridge</strong> (<code class="bg-slate-100 px-1.5 py-0.5 rounded text-violet-600">bridge/excel-bridge.ps1</code>) ค้างไว้บนเครื่อง และต้องเปิดไฟล์ Excel ต้นฉบับค้างไว้ระหว่างซิงก์</li>
+                            <li>ข้อความสถานะที่ขึ้นใต้ช่อง Resolution Remark บอกผลลัพธ์ 6 แบบ: บันทึกสำเร็จ / ไฟล์เก่าที่ import มาก่อนฟีเจอร์นี้ / ไม่พบ Local Bridge / ไม่พบไฟล์เปิดใน Excel / เซลล์มีคอมเมนต์เดิมอยู่แล้ว (ระบบจะไม่เขียนทับ) / error ทั่วไป</li>
+                            <li><strong>เปิด Bridge จากหน้า Web App ได้เลย (1-Click Launch):</strong> คลิกปุ่ม <strong>"เปิด Excel Bridge"</strong> ข้าง sync indicator มุมล่างซ้าย (แสดงเฉพาะตอน LOCAL MODE) เพื่อสั่งเปิดโปรแกรมได้ทันทีโดยไม่ต้องเข้า PowerShell เอง</li>
                         </ul>
                     </div>
 
                     <!-- Step 9 -->
-                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-rose-300 transition-colors">
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-cyan-300 transition-colors">
                         <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
-                            <span class="bg-rose-100 text-rose-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">9</span>
-                            <i data-lucide="database-backup" class="w-5 h-5 text-rose-500"></i> สำรอง/กู้คืนข้อมูล & ประวัติการนำเข้า
+                            <span class="bg-cyan-100 text-cyan-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black">9</span>
+                            <i data-lucide="refresh-ccw-dot" class="w-5 h-5 text-cyan-500"></i> นำเข้าข้อมูลอัตโนมัติ & ตรวจสอบ PI DataLink (Auto-Import)
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
-                            <li>แถบซ้ายล่างมีปุ่ม <strong>"สำรองข้อมูล"</strong> (ดาวน์โหลดไฟล์สำรอง) และ <strong>"กู้คืนข้อมูล"</strong> (นำไฟล์สำรองกลับเข้าระบบ) — แนะนำให้สำรองก่อนเปลี่ยนเครื่องหรือล้าง browser data</li>
-                            <li>ปุ่ม <strong>"ล้างฐานข้อมูล"</strong> ลบเฉพาะ Records (ข้อมูล reading ที่ import มา) เท่านั้น — Tag Database และ Master Tag overrides จะไม่ถูกลบ ไม่ต้องตั้งค่าลิมิตใหม่ทุกกะ</li>
-                            <li>หากไม่ได้สำรองข้อมูลมานาน จะมีแบนเนอร์แจ้งเตือนสีเหลืองขึ้นที่ด้านบนของ Dashboard ให้กดสำรองได้ทันที</li>
-                            <li>หน้า "นำเข้าข้อมูล" มีพาแนล <strong>"ประวัติการนำเข้าไฟล์ (Import History)"</strong> ไว้ตรวจสอบย้อนหลังว่าเคย import ไฟล์ไหนไปแล้วบ้าง</li>
+                            <li>เมื่อรัน Local Bridge และเปิดไฟล์ log sheet ไว้ ระบบจะ <strong>ดึงข้อมูลจาก Excel เข้า Web App ให้อัตโนมัติทุก ~5 นาที</strong> ไม่ต้องลากไฟล์เอง</li>
+                            <li><strong>คำนวณและบันทึกอัตโนมัติ (Full Recalc & Auto-Save):</strong> Bridge จะสั่ง Excel ทำการคำนวณสูตร PI DataLink ใหม่ทั้งหมดและบันทึกไฟล์ให้เองทุกรอบ <strong>ไม่ต้องกด Ctrl+S เองอีกต่อไป</strong> ค่าตามเวลา (03:00, 09:00, 15:00, 21:00) จะอัปเดตเข้าแดชบอร์ดอย่างแม่นยำ</li>
+                            <li><strong>ระบบเฝ้าระวัง Add-in PI DataLink:</strong> ระบบจะตรวจสอบสถานะ Add-in ใน Excel ตลอดเวลา หากพบว่า Add-in หลุดหรือไม่ทำงาน จะมีแบนเนอร์แจ้งเตือนสีแดงขึ้นบน Dashboard ทันทีเพื่อป้องกันปัญหาตัวเลขค้าง</li>
+                            <li><strong>สลับไฟล์วันใหม่อัตโนมัติ (Daily Rollover):</strong> ระบบเปลี่ยนชื่อไฟล์และแก้วันที่ในชีตให้เองทุกเที่ยงคืน พร้อมเปิดไฟล์ขึ้นมาให้อัตโนมัติแม้จะมีการเปลี่ยนกะ</li>
                         </ul>
                     </div>
 
                     <!-- Step 10 -->
                     <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-emerald-300 transition-colors">
                         <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
-                            <span class="bg-emerald-100 text-emerald-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm">10</span>
-                            <i data-lucide="users" class="w-5 h-5 text-emerald-500"></i> Sync Indicator สำหรับเครื่องที่ใช้ร่วมกันหลายคน (Shared PC)
+                            <span class="bg-emerald-100 text-emerald-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black">10</span>
+                            <i data-lucide="cloud-cog" class="w-5 h-5 text-emerald-500"></i> ซิงก์สำเนา Daily Log Sheet สู่ SharePoint แผนก (SharePoint Auto-Sync)
                         </h3>
                         <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
-                            <li>ข้อมูลที่บันทึกไว้อยู่ใน IndexedDB ของเบราว์เซอร์ ซึ่งผูกกับ<strong>บัญชี Windows</strong> ที่ล็อกอินอยู่ ถ้าเครื่องเดียวกันมีหลายคนสลับกันใช้คนละ Windows account แต่ละคนจะเห็นข้อมูลคนละชุดกัน — จุดสีที่มุมล่างซ้าย (ข้าง sidebar) คือตัวบอกว่าตอนนี้ข้อมูลถูกแชร์ให้เพื่อนร่วมกะเห็นด้วยหรือไม่</li>
-                            <li><strong>จุดสีเขียว "SYNCED":</strong> ระบบ push/pull ข้อมูลทั้งหมดผ่าน Local Bridge ไปเก็บเป็นไฟล์กลางบน Shared Drive สำเร็จ ทุกครั้งที่มีการแก้ไข (บันทึก remark, import ไฟล์ใหม่ ฯลฯ) ข้อมูลจะถูก push ให้เพื่อนร่วมกะที่เปิดหน้าเว็บอยู่เห็นตามได้</li>
-                            <li><strong>จุดสีเหลือง "LOCAL MODE":</strong> ไม่พบ Local Bridge ทำงานอยู่ (ยังไม่ได้เปิด หรือเปิดไม่สำเร็จ) ข้อมูลที่แก้จะ<strong>อยู่แค่ในเครื่อง/บัญชี Windows นี้เท่านั้น</strong> — จะมีแบนเนอร์เตือนสีเหลืองขึ้นบน Dashboard ด้วย และมีปุ่ม "เปิด Excel Bridge" ให้กดเปิดได้จากหน้าเว็บโดยตรง (ต้อง import <code class="bg-slate-100 px-1.5 py-0.5 rounded text-emerald-600">bridge/register-protocol.reg</code> ในเครื่องก่อนใช้ครั้งแรก)</li>
-                            <li>ถ้าเห็นสถานะเป็น LOCAL MODE ระหว่างกะ ควรรีบตรวจสอบ Local Bridge ก่อน เพราะ Resolution Remark ที่บันทึกไว้ช่วงนั้นจะยังไม่ถูกส่งให้กะถัดไปเห็น จนกว่าจะกลับมาเป็น SYNCED</li>
+                            <li><strong>สำรองขึ้น Cloud อัตโนมัติ:</strong> เมื่อข้อมูลใน Log Sheet ถูกบันทึกครบทั้ง 4 รอบเวลา หรือเมื่อเกิดการตัดรอบวัน (Rollover) ไฟล์จะถูก Archive และ<strong>ส่งสำเนาเข้าสู่ SharePoint แผนก PE อัตโนมัติ</strong> ผ่าน OneDrive Shortcut</li>
+                            <li><strong>จัดหมวดหมู่แยกตามโฟลเดอร์เดือน:</strong> ระบบจะสร้างและแยกเก็บไฟล์ลงโฟลเดอร์ประจำเดือนให้เอง (เช่น <code class="bg-slate-100 px-1.5 py-0.5 rounded text-emerald-700">9.Sep'26</code>, <code class="bg-slate-100 px-1.5 py-0.5 rounded text-emerald-700">10.Oct'26</code>) โดยที่ผู้ปฏิบัติงานไม่ต้องเปิดบราวเซอร์เพื่อลากไฟล์ขึ้น SharePoint ด้วยตัวเองทุกวัน</li>
+                            <li><strong>Zero-Downtime & Catch-Up:</strong> หากช่วงใดไม่มีสัญญาณเน็ต เมื่อเชื่อมต่อสำเร็จระบบมีกลไกตรวจสอบและกวาดไฟล์ย้อนหลังที่ตกค้างส่งขึ้น SharePoint จนครบถ้วน 100%</li>
+                        </ul>
+                    </div>
+
+                    <!-- Step 11 -->
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-rose-300 transition-colors">
+                        <h3 class="text-lg font-black text-slate-800 flex items-center gap-2 mb-4">
+                            <span class="bg-rose-100 text-rose-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black">11</span>
+                            <i data-lucide="users" class="w-5 h-5 text-rose-500"></i> Sync Indicator สำหรับเครื่องแชร์หลายคน (Shared PC) & การสำรองข้อมูล
+                        </h3>
+                        <ul class="list-disc list-inside text-sm text-slate-600 space-y-2 ml-4 font-medium leading-relaxed">
+                            <li>ข้อมูลในระบบจะถูกผูกกับบัญชี Windows ที่ล็อกอินอยู่ — จุดแสดงสถานะที่มุมล่างซ้าย (Sidebar) คือตัวบอกว่าข้อมูลกำลังเชื่อมโยงกับเพื่อนร่วมกะหรือไม่:
+                                <ul class="list-circle list-inside ml-6 mt-1 space-y-1 text-xs">
+                                    <li><span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 mr-1.5"></span><strong>SYNCED (สีเขียว):</strong> ซิงก์ผ่าน Local Bridge ไปยัง Shared Drive กลางสำเร็จ เพื่อนร่วมกะทุกคนจะเห็นข้อมูลและการแก้ไขตรงกันแบบ Real-time</li>
+                                    <li><span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 mr-1.5"></span><strong>LOCAL MODE (สีเหลือง):</strong> ไม่พบ Bridge ข้อมูลจะอยู่เฉพาะในเครื่องนี้ ให้กดปุ่ม "เปิด Excel Bridge" เพื่อกลับสู่สถานะซิงก์</li>
+                                </ul>
+                            </li>
+                            <li><strong>สำรอง/กู้คืนข้อมูล (Backup & Restore):</strong> แถบซ้ายล่างมีปุ่ม "สำรองข้อมูล" แนะนำให้ดาวน์โหลดไฟล์สำรองเก็บไว้ใน OneDrive สม่ำเสมอหรือก่อนมีการเปลี่ยนเครื่องคอมพิวเตอร์</li>
+                            <li><strong>ปุ่ม "ล้างฐานข้อมูล":</strong> จะล้างเฉพาะ Records ของรอบวันเท่านั้น ข้อมูลลิมิตใน Tag Master และคำแนะนำ Countermeasure จะไม่ถูกลบ</li>
                         </ul>
                     </div>
 
