@@ -214,6 +214,70 @@ function Send-BinaryResponse($response, $statusCode, $bytes, $fileName) {
 # operator ต้องเปิดไฟล์ log sheet ค้างไว้ใน Excel ตลอดกะอยู่แล้ว (เพื่อให้ sync remark กลับ Excel ทำงานได้)
 # — ถ้าไม่ข้ามไฟล์ lock นี้ Resolve-SourceFile จะเห็นเป็น "มากกว่า 1 ไฟล์" แล้ว error ทุกครั้งที่ไฟล์เปิดอยู่
 # จริง ทำให้ auto-import/auto-archive ใช้งานไม่ได้เกือบตลอดเวลาที่ใช้งานจริง (พบจากการทดสอบจำลอง lock-file)
+# V29.134 FIX: Helper สำหรับค้นหาหน้าต่าง Excel ทุก Instance ที่รันอยู่บน Desktop ผ่าน UI Automation/AccessibleObjectFromWindow
+if (-not ('ExcelWindowHelper' -as [type])) {
+    Add-Type @"
+using System;
+using System.Text;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+
+public class ExcelWindowHelper {
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    static extern IntPtr OpenInputDesktop(uint dwFlags, bool fInherit, uint dwDesiredAccess);
+
+    [DllImport("user32.dll")]
+    static extern bool CloseDesktop(IntPtr hDesktop);
+
+    [DllImport("user32.dll")]
+    static extern bool EnumDesktopWindows(IntPtr hDesktop, EnumWindowsProc lpfn, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("oleacc.dll")]
+    static extern int AccessibleObjectFromWindow(IntPtr hWnd, uint dwId, ref Guid riid, [MarshalAs(UnmanagedType.IUnknown)] out object ppvObject);
+
+    static readonly Guid IID_IDispatch = new Guid("{00020400-0000-0000-C000-000000000046}");
+    const uint OBJID_NATIVEOM = 0xFFFFFFF0;
+
+    public static List<object> GetExcelWindowObjects() {
+        List<object> list = new List<object>();
+        IntPtr hDesk = OpenInputDesktop(0, false, 0x01FF);
+        if (hDesk == IntPtr.Zero) return list;
+
+        EnumDesktopWindows(hDesk, (hWnd, lParam) => {
+            StringBuilder sbClass = new StringBuilder(256);
+            GetClassName(hWnd, sbClass, 256);
+            if (sbClass.ToString() == "XLMAIN") {
+                EnumChildWindows(hWnd, (hChild, lChildParam) => {
+                    StringBuilder childClass = new StringBuilder(256);
+                    GetClassName(hChild, childClass, 256);
+                    if (childClass.ToString() == "EXCEL7") {
+                        object obj;
+                        Guid iid = IID_IDispatch;
+                        int hr = AccessibleObjectFromWindow(hChild, OBJID_NATIVEOM, ref iid, out obj);
+                        if (hr == 0 && obj != null) {
+                            list.Add(obj);
+                        }
+                    }
+                    return true;
+                }, IntPtr.Zero);
+            }
+            return true;
+        }, IntPtr.Zero);
+        CloseDesktop(hDesk);
+        return list;
+    }
+}
+"@
+}
+
 function Resolve-SourceFile {
     if (-not (Test-Path -LiteralPath $WatchFolder -PathType Container)) {
         return @{ status = 'error'; message = "ไม่พบโฟลเดอร์ $WatchFolder" }
@@ -380,12 +444,16 @@ function Handle-SourceFileInfo {
     # V29.133 FIX: ถ้า Excel session ที่ดึงได้ไม่มี Workbook ใดๆ เปิดอยู่เลย (Count -eq 0 เป็น blank process
     # หรือ instance เปล่าที่รอปิด) ไม่ถือว่า "Add-in ไม่ connect" เพราะ COM add-in ใน instance เปล่ามักยังไม่
     # initialize คืน $null แทนที่จะคืน $false เพื่อกัน false-positive แถบเตือนสีแดงตอนมี process Excel ตกค้าง
+    # V29.134 FIX: ใช้ Find-OpenWorkbook ดึง Excel instance ที่เปิดไฟล์ log sheet นี้อยู่จริง (รองรับ multi-instance)
     $piDataLinkLoaded = try {
-        $excel = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
-        if (-not $excel -or $excel.Workbooks.Count -eq 0) {
+        $targetExcel, $targetWb = Find-OpenWorkbook $f.Name
+        if (-not $targetExcel) {
+            $targetExcel = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
+        }
+        if (-not $targetExcel -or $targetExcel.Workbooks.Count -eq 0) {
             $null
         } else {
-            Test-PIDataLinkLoaded $excel
+            Test-PIDataLinkLoaded $targetExcel
         }
     } catch {
         $null
@@ -516,20 +584,32 @@ function Handle-LoadSharedDb {
 }
 
 function Find-OpenWorkbook($fileName) {
-    # หา workbook จากชื่อไฟล์ (ไม่ใช้ full path เพราะเบราว์เซอร์ให้ full path ไม่ได้ — ดูเหตุผลใน
-    # context.md) โดยดึง Excel instance ที่กำลังรันอยู่จาก Running Object Table แล้ววนหา Workbooks.Name
-    # ที่ตรงกัน — ครอบคลุมกรณีทั่วไปที่ Excel รันเป็น process เดียวคุมทุกไฟล์ที่เปิดอยู่ (ค่า default
-    # ของ Excel ส่วนใหญ่) ถ้า operator เปิด Excel แยกหลาย process จริงๆ อาจหาไม่เจอ — ให้เปิดไฟล์ใน
-    # instance เดียวกับที่ใช้งานอยู่ปกติ
+    # V29.134 FIX: ค้นหาจากทุก Excel instance ที่กำลังรันอยู่บน Desktop ผ่าน AccessibleObjectFromWindow
+    # (oleacc.dll) — ครอบคลุมกรณี operator เปิด Excel แยกหลาย process (เช่น มีไฟล์ Report อื่นเปิดคู่ไปด้วย)
+    # ซึ่ง GetActiveObject จะคืนเฉพาะ instance แรก หรือ throw 0x800401E3 (MK_E_UNAVAILABLE)
+    try {
+        if ('ExcelWindowHelper' -as [type]) {
+            $winObjs = [ExcelWindowHelper]::GetExcelWindowObjects()
+            foreach ($win in $winObjs) {
+                try {
+                    $excel = $win.Application
+                    foreach ($wb in $excel.Workbooks) {
+                        if ($wb.Name -eq $fileName) { return $excel, $wb }
+                    }
+                } catch { }
+            }
+        }
+    } catch { }
+
+    # Fallback เดิม: ค้นหาผ่าน GetActiveObject จาก Running Object Table (ROT)
     try {
         $excel = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
-    } catch {
-        return $null, $null
-    }
-    foreach ($wb in $excel.Workbooks) {
-        if ($wb.Name -eq $fileName) { return $excel, $wb }
-    }
-    return $excel, $null
+        foreach ($wb in $excel.Workbooks) {
+            if ($wb.Name -eq $fileName) { return $excel, $wb }
+        }
+    } catch { }
+
+    return $null, $null
 }
 
 # V29.108 FIX: ใช้เฉพาะตอน Find-OrOpenWorkbook ไม่เจอ Excel รันอยู่เลย (GetActiveObject fail) — เปิด
@@ -643,6 +723,15 @@ function Close-BlankStartupWorkbooks($excel) {
 }
 
 function Find-OrOpenWorkbook($fileName, $fullPath) {
+    # V29.134 FIX: ตรวจสอบก่อนว่ามี workbook นี้เปิดอยู่ใน Excel instance ใดๆ บนเครื่องแล้วหรือไม่
+    # ผ่าน Find-OpenWorkbook (multi-instance) — ถ้าเปิดอยู่แล้วให้ reuse instance นั้นทันที และตั้ง Visible=$true
+    # ป้องกันการ spawn Excel ซ้อนหรือติด lock ตัวเอง
+    $existingExcel, $existingWb = Find-OpenWorkbook $fileName
+    if ($existingExcel -and $existingWb) {
+        try { $existingExcel.Visible = $true } catch { }
+        return @{ excel = $existingExcel; wb = $existingWb }
+    }
+
     # V29.127 FIX: track ว่า $excel ตัวนี้เป็น instance ที่เราเพิ่ง spawn เองในการเรียกครั้งนี้หรือไม่ —
     # ใช้ตัดสินใจว่า Quit() ได้ปลอดภัยไหมถ้าจบลงโดยไม่ได้เปิดไฟล์อะไรเลย (locked-by-other-session/Open()
     # ล้มเหลว) ก่อนหน้านี้ไม่เคย Quit() เลยในทั้ง 2 เคส ทำให้ค้างเป็นหน้าต่าง Excel เปล่าไปเรื่อยๆ ถ้า
