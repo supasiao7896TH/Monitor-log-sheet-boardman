@@ -29,7 +29,7 @@ export const EXCEL_SYNC = {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
-                    });
+                    }, 15000);
                     if (!res.ok) return 'error';
                     const data = await res.json();
                     return data.status || 'error';
@@ -44,7 +44,7 @@ export const EXCEL_SYNC = {
             // ให้ caller (APP.init) ตัดสินใจว่าจะ importAll หรือ fallback local เงียบๆ
             pullSharedDb: async () => {
                 try {
-                    const res = await fetchWithTimeout(`${BRIDGE_URL}/load-shared-db`, { method: 'GET' });
+                    const res = await fetchWithTimeout(`${BRIDGE_URL}/load-shared-db`, { method: 'GET' }, 15000);
                     if (!res.ok) return { status: 'error' };
                     return await res.json();
                 } catch (err) {
